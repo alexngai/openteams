@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openteams.dev/schema/role.schema.json",
+  "title": "OpenTeams Role Definition",
+  "description": "Schema for roles/<name>.yaml — an optional per-role definition file that provides capabilities, display metadata, and extension fields.",
+  "type": "object",
+  "required": ["name"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Role name. Must match the filename (roles/<name>.yaml) and appear in the team manifest's roles list.",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$",
+      "examples": ["planner", "grinder", "judge"]
+    },
+    "extends": {
+      "type": "string",
+      "description": "Parent role to inherit capabilities from. When used with capability composition (add/remove), the base capabilities come from the parent role.",
+      "examples": ["worker"]
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Human-readable display name. Defaults to the role name if omitted.",
+      "examples": ["Code Writer", "Quality Judge"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the role's purpose. Defaults to 'Role: <name>' if omitted.",
+      "examples": ["Writes and tests code", "Evaluates code quality and correctness"]
+    },
+    "capabilities": {
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "A flat list of capability strings. Replaces any inherited capabilities entirely.",
+          "items": {
+            "type": "string",
+            "description": "A dot-namespaced capability identifier.",
+            "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)*$"
+          },
+          "uniqueItems": true,
+          "examples": [["file.write", "exec.test", "exec.lint"]]
+        },
+        {
+          "$ref": "#/$defs/CapabilityComposition"
+        }
+      ],
+      "description": "Capabilities for this role. Either a flat list (full replacement) or a composition object with add/remove operations on the parent role's capabilities."
+    },
+    "prompt": {
+      "type": "string",
+      "description": "Path to a prompt file, relative to the template directory. Lower priority than topology node prompts.",
+      "examples": ["prompts/planner.md"]
+    },
+    "macro_agent": {
+      "type": "object",
+      "description": "Extension fields for the macro-agent system. Stored but not interpreted by openteams.",
+      "additionalProperties": true,
+      "examples": [
+        {
+          "workspace": { "type": "own" }
+        }
+      ]
+    }
+  },
+  "additionalProperties": {
+    "description": "Extension fields for other systems. Stored but not interpreted by openteams."
+  },
+  "$defs": {
+    "CapabilityComposition": {
+      "type": "object",
+      "description": "Compose capabilities relative to a parent role (requires 'extends'). Add capabilities not in the parent, and/or remove capabilities the parent has.",
+      "properties": {
+        "add": {
+          "type": "array",
+          "description": "Capabilities to add on top of the parent role's capabilities.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)*$"
+          },
+          "uniqueItems": true,
+          "examples": [["file.write", "exec.test"]]
+        },
+        "remove": {
+          "type": "array",
+          "description": "Capabilities to remove from the parent role's capabilities.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)*$"
+          },
+          "uniqueItems": true,
+          "examples": [["agent.spawn.worker"]]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

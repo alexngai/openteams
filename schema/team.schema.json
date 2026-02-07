@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openteams.dev/schema/team.schema.json",
+  "title": "OpenTeams Team Manifest",
+  "description": "Schema for team.yaml — the declarative manifest that defines a multi-agent team's topology, communication patterns, and roles.",
+  "type": "object",
+  "required": ["name", "version", "roles", "topology"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique team name. Used as the primary identifier across all CLI commands.",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$",
+      "examples": ["self-driving", "my-project"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the team's purpose.",
+      "examples": ["Autonomous codebase development"]
+    },
+    "version": {
+      "type": "integer",
+      "description": "Schema version. Currently must be 1.",
+      "const": 1
+    },
+    "roles": {
+      "type": "array",
+      "description": "Exhaustive list of role names used in this team. All topology, communication, and spawn_rules references must point to roles declared here.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$"
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "examples": [["planner", "grinder", "judge"]]
+    },
+    "topology": {
+      "$ref": "#/$defs/TopologyConfig"
+    },
+    "communication": {
+      "$ref": "#/$defs/CommunicationConfig"
+    },
+    "macro_agent": {
+      "type": "object",
+      "description": "Extension fields for the macro-agent system. Stored but not interpreted by openteams.",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": {
+    "description": "Extension fields for other systems. Stored but not interpreted by openteams."
+  },
+  "$defs": {
+    "TopologyConfig": {
+      "type": "object",
+      "description": "Defines the team's agent hierarchy — root node, companion nodes, and spawn permissions.",
+      "required": ["root"],
+      "properties": {
+        "root": {
+          "$ref": "#/$defs/TopologyNode",
+          "description": "The root (lead) agent of the team. This is the primary orchestrator."
+        },
+        "companions": {
+          "type": "array",
+          "description": "Companion agents that are peers to the root, not children. Spawned alongside the root at team creation.",
+          "items": {
+            "$ref": "#/$defs/TopologyNode"
+          }
+        },
+        "spawn_rules": {
+          "type": "object",
+          "description": "Maps each role to the list of roles it is allowed to spawn. Omitting a role or the entire spawn_rules section makes spawning permissive (any role can spawn any role).",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "A role name from the top-level roles list."
+            }
+          },
+          "examples": [
+            {
+              "planner": ["grinder", "planner"],
+              "judge": [],
+              "grinder": []
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "TopologyNode": {
+      "type": "object",
+      "description": "A node in the team topology, representing a role assignment with optional prompt and configuration.",
+      "required": ["role"],
+      "properties": {
+        "role": {
+          "type": "string",
+          "description": "Must reference a role from the top-level roles list."
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Path to a prompt file, relative to the template directory. Priority: this field > role definition prompt > prompts/<role>.md convention.",
+          "examples": ["prompts/planner.md"]
+        },
+        "config": {
+          "$ref": "#/$defs/TopologyNodeConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TopologyNodeConfig": {
+      "type": "object",
+      "description": "Configuration for a topology node. The model field is interpreted by openteams; other fields are passed through.",
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "Model to use for this agent.",
+          "enum": ["sonnet", "opus", "haiku"],
+          "examples": ["sonnet"]
+        }
+      },
+      "additionalProperties": {
+        "description": "Additional configuration passed through to the agent spawner."
+      }
+    },
+    "CommunicationConfig": {
+      "type": "object",
+      "description": "Defines the team's communication topology — channels, subscriptions, emission permissions, and routing rules.",
+      "properties": {
+        "enforcement": {
+          "type": "string",
+          "description": "How strictly communication rules are enforced. 'strict' rejects unauthorized emissions, 'permissive' allows all (default), 'audit' logs violations without blocking.",
+          "enum": ["strict", "permissive", "audit"],
+          "default": "permissive"
+        },
+        "channels": {
+          "type": "object",
+          "description": "Named communication channels. Each channel carries a defined set of signals.",
+          "additionalProperties": {
+            "$ref": "#/$defs/ChannelDefinition"
+          },
+          "examples": [
+            {
+              "task_updates": {
+                "description": "Task lifecycle events",
+                "signals": ["TASK_CREATED", "TASK_COMPLETED", "TASK_FAILED"]
+              }
+            }
+          ]
+        },
+        "subscriptions": {
+          "type": "object",
+          "description": "Maps each role to its channel subscriptions. A subscription without a signals filter receives all signals on that channel.",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/SubscriptionEntry"
+            }
+          },
+          "examples": [
+            {
+              "planner": [
+                { "channel": "task_updates" },
+                { "channel": "work_coordination", "signals": ["WORKER_DONE"] }
+              ]
+            }
+          ]
+        },
+        "emissions": {
+          "type": "object",
+          "description": "Maps each role to the signals it is permitted to emit. If omitted entirely, all roles can emit any signal (permissive mode). If present, only declared emissions are allowed.",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "A signal name."
+            }
+          },
+          "examples": [
+            {
+              "planner": ["TASK_CREATED", "WORK_ASSIGNED"],
+              "grinder": ["WORKER_DONE"]
+            }
+          ]
+        },
+        "routing": {
+          "$ref": "#/$defs/RoutingConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChannelDefinition": {
+      "type": "object",
+      "description": "A named communication channel that carries a set of typed signals.",
+      "required": ["signals"],
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the channel's purpose."
+        },
+        "signals": {
+          "type": "array",
+          "description": "The set of signal names that can be emitted on this channel.",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "examples": [["TASK_CREATED", "TASK_COMPLETED", "TASK_FAILED"]]
+        }
+      },
+      "additionalProperties": false
+    },
+    "SubscriptionEntry": {
+      "type": "object",
+      "description": "A role's subscription to a channel. If signals is omitted, the role receives all signals on the channel.",
+      "required": ["channel"],
+      "properties": {
+        "channel": {
+          "type": "string",
+          "description": "The channel name to subscribe to. Must reference a channel defined in communication.channels."
+        },
+        "signals": {
+          "type": "array",
+          "description": "Optional signal filter. If provided, only these signals are delivered. If omitted, all channel signals are delivered.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "RoutingConfig": {
+      "type": "object",
+      "description": "Routing rules for status propagation and direct peer-to-peer messaging.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "How status updates propagate through the hierarchy. 'upstream' sends to parent, 'none' disables.",
+          "enum": ["upstream", "none"],
+          "default": "upstream"
+        },
+        "peers": {
+          "type": "array",
+          "description": "Direct role-to-role messaging routes, outside of the channel/subscription system.",
+          "items": {
+            "$ref": "#/$defs/PeerRoute"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "PeerRoute": {
+      "type": "object",
+      "description": "A direct messaging route between two roles.",
+      "required": ["from", "to", "via"],
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Source role. Must be in the top-level roles list."
+        },
+        "to": {
+          "type": "string",
+          "description": "Target role. Must be in the top-level roles list."
+        },
+        "via": {
+          "type": "string",
+          "description": "Transport mechanism. 'direct' for point-to-point, 'topic' for topic-based, 'scope' for scoped.",
+          "enum": ["direct", "topic", "scope"]
+        },
+        "signals": {
+          "type": "array",
+          "description": "Optional: signals this route carries. If omitted, route carries all messages.",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
