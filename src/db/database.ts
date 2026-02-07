@@ -3,7 +3,7 @@ import path from "path";
 import os from "os";
 import fs from "fs";
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -11,11 +11,13 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 
 CREATE TABLE IF NOT EXISTS teams (
-  name        TEXT PRIMARY KEY,
-  description TEXT,
-  agent_type  TEXT,
-  created_at  TEXT DEFAULT (datetime('now')),
-  status      TEXT DEFAULT 'active' CHECK (status IN ('active', 'deleted'))
+  name          TEXT PRIMARY KEY,
+  description   TEXT,
+  agent_type    TEXT,
+  template_name TEXT,
+  template_path TEXT,
+  created_at    TEXT DEFAULT (datetime('now')),
+  status        TEXT DEFAULT 'active' CHECK (status IN ('active', 'deleted'))
 );
 
 CREATE TABLE IF NOT EXISTS members (
@@ -24,6 +26,7 @@ CREATE TABLE IF NOT EXISTS members (
   agent_name   TEXT NOT NULL,
   agent_id     TEXT,
   agent_type   TEXT DEFAULT 'general-purpose',
+  role         TEXT,
   status       TEXT DEFAULT 'idle' CHECK (status IN ('idle', 'running', 'shutdown')),
   spawn_prompt TEXT,
   model        TEXT,
@@ -62,6 +65,71 @@ CREATE TABLE IF NOT EXISTS messages (
   approve     INTEGER,
   delivered   INTEGER DEFAULT 0,
   created_at  TEXT DEFAULT (datetime('now'))
+);
+
+-- Communication: channel definitions per team
+CREATE TABLE IF NOT EXISTS channels (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  team_name   TEXT NOT NULL REFERENCES teams(name),
+  name        TEXT NOT NULL,
+  description TEXT,
+  UNIQUE(team_name, name)
+);
+
+-- Signals belonging to a channel
+CREATE TABLE IF NOT EXISTS channel_signals (
+  channel_id  INTEGER NOT NULL REFERENCES channels(id),
+  signal      TEXT NOT NULL,
+  PRIMARY KEY (channel_id, signal)
+);
+
+-- Role subscriptions to channels (with optional signal filter)
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  team_name   TEXT NOT NULL REFERENCES teams(name),
+  role        TEXT NOT NULL,
+  channel     TEXT NOT NULL,
+  signal      TEXT,
+  UNIQUE(team_name, role, channel, signal)
+);
+
+-- Emission permissions per role
+CREATE TABLE IF NOT EXISTS emissions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  team_name   TEXT NOT NULL REFERENCES teams(name),
+  role        TEXT NOT NULL,
+  signal      TEXT NOT NULL,
+  UNIQUE(team_name, role, signal)
+);
+
+-- Peer routing rules
+CREATE TABLE IF NOT EXISTS peer_routes (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  team_name   TEXT NOT NULL REFERENCES teams(name),
+  from_role   TEXT NOT NULL,
+  to_role     TEXT NOT NULL,
+  via         TEXT NOT NULL DEFAULT 'direct' CHECK (via IN ('direct', 'topic', 'scope')),
+  signals     TEXT DEFAULT '[]'
+);
+
+-- Signal events log
+CREATE TABLE IF NOT EXISTS signal_events (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  team_name   TEXT NOT NULL REFERENCES teams(name),
+  channel     TEXT NOT NULL,
+  signal      TEXT NOT NULL,
+  sender      TEXT NOT NULL,
+  payload     TEXT DEFAULT '{}',
+  created_at  TEXT DEFAULT (datetime('now'))
+);
+
+-- Spawn rules per team
+CREATE TABLE IF NOT EXISTS spawn_rules (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  team_name   TEXT NOT NULL REFERENCES teams(name),
+  from_role   TEXT NOT NULL,
+  to_role     TEXT NOT NULL,
+  UNIQUE(team_name, from_role, to_role)
 );
 `;
 

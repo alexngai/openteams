@@ -4,6 +4,8 @@ export interface Team {
   name: string;
   description: string | null;
   agent_type: string | null;
+  template_name: string | null;
+  template_path: string | null;
   created_at: string;
   status: "active" | "deleted";
 }
@@ -12,6 +14,8 @@ export interface CreateTeamOptions {
   name: string;
   description?: string;
   agentType?: string;
+  templateName?: string;
+  templatePath?: string;
 }
 
 // --- Member Types ---
@@ -24,6 +28,7 @@ export interface Member {
   agent_name: string;
   agent_id: string | null;
   agent_type: string;
+  role: string | null;
   status: MemberStatus;
   spawn_prompt: string | null;
   model: string | null;

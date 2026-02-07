@@ -18,6 +18,13 @@ describe("database", () => {
     expect(tableNames).toContain("task_deps");
     expect(tableNames).toContain("messages");
     expect(tableNames).toContain("schema_version");
+    expect(tableNames).toContain("channels");
+    expect(tableNames).toContain("channel_signals");
+    expect(tableNames).toContain("subscriptions");
+    expect(tableNames).toContain("emissions");
+    expect(tableNames).toContain("peer_routes");
+    expect(tableNames).toContain("signal_events");
+    expect(tableNames).toContain("spawn_rules");
 
     db.close();
   });
@@ -29,7 +36,7 @@ describe("database", () => {
       .prepare("SELECT version FROM schema_version LIMIT 1")
       .get() as { version: number };
 
-    expect(row.version).toBe(1);
+    expect(row.version).toBe(2);
     db.close();
   });
 

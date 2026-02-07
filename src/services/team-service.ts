@@ -15,9 +15,15 @@ export class TeamService {
 
     this.db
       .prepare(
-        "INSERT INTO teams (name, description, agent_type) VALUES (?, ?, ?)"
+        "INSERT INTO teams (name, description, agent_type, template_name, template_path) VALUES (?, ?, ?, ?, ?)"
       )
-      .run(options.name, options.description ?? null, options.agentType ?? null);
+      .run(
+        options.name,
+        options.description ?? null,
+        options.agentType ?? null,
+        options.templateName ?? null,
+        options.templatePath ?? null
+      );
 
     return this.get(options.name)!;
   }
@@ -64,6 +70,7 @@ export class TeamService {
     options?: {
       agentId?: string;
       agentType?: string;
+      role?: string;
       spawnPrompt?: string;
       model?: string;
     }
@@ -75,14 +82,15 @@ export class TeamService {
 
     this.db
       .prepare(
-        `INSERT INTO members (team_name, agent_name, agent_id, agent_type, spawn_prompt, model)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO members (team_name, agent_name, agent_id, agent_type, role, spawn_prompt, model)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         teamName,
         agentName,
         options?.agentId ?? null,
         options?.agentType ?? "general-purpose",
+        options?.role ?? null,
         options?.spawnPrompt ?? null,
         options?.model ?? null
       );

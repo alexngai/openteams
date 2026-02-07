@@ -200,10 +200,120 @@ openteams agent info <team> <name>
 openteams agent shutdown <team> <name>
 ```
 
+## Team Templates
+
+OpenTeams supports declarative team templates — YAML-based definitions that describe team topology, roles, communication patterns, and spawn rules. Templates are designed to be interoperable with other multi-agent systems (e.g., macro-agent); generic fields are top-level, system-specific extensions live under namespaced keys.
+
+### Template Directory Structure
+
+```
+templates/<team-name>/
+├── team.yaml              # Manifest: topology, communication, roles
+├── roles/                 # Role definitions (optional)
+│   └── <role-name>.yaml
+└── prompts/               # Static role prompt files (optional)
+    └── <role-name>.md
+```
+
+### Manifest Schema (team.yaml)
+
+```yaml
+name: self-driving
+description: "Autonomous codebase development"
+version: 1
+roles: [planner, grinder, judge]
+
+topology:
+  root:
+    role: planner
+    prompt: prompts/planner.md
+    config: { model: sonnet }
+  companions:
+    - role: judge
+      prompt: prompts/judge.md
+  spawn_rules:
+    planner: [grinder, planner]
+    judge: []
+    grinder: []
+
+communication:
+  channels:
+    task_updates:
+      description: "Task lifecycle events"
+      signals: [TASK_CREATED, TASK_COMPLETED, TASK_FAILED]
+    work_coordination:
+      signals: [WORK_ASSIGNED, WORKER_DONE]
+  subscriptions:
+    planner:
+      - channel: task_updates
+      - channel: work_coordination
+        signals: [WORKER_DONE]
+    judge:
+      - channel: task_updates
+        signals: [TASK_FAILED]
+  emissions:
+    planner: [TASK_CREATED, WORK_ASSIGNED]
+    grinder: [WORKER_DONE]
+  routing:
+    peers:
+      - from: judge
+        to: planner
+        via: direct
+        signals: [FIXUP_CREATED]
+
+# Extension fields (stored, not interpreted by openteams)
+macro_agent:
+  task_assignment: { mode: pull }
+```
+
+### Communication Model
+
+Three layers:
+
+1. **Status flow** — Automatic upstream propagation (configured via `routing.status`)
+2. **Signal channels** — Topic-based pub/sub with per-role subscription filtering
+3. **Peer routes** — Direct role-to-role messaging (via `direct`, `topic`, or `scope`)
+
+Signals are emitted through channels and routed to subscribers based on their subscription config. Emission permissions restrict which signals a role can emit.
+
+### Communication Database Tables
+
+```sql
+-- Channel definitions
+CREATE TABLE channels (team_name, name, description);
+CREATE TABLE channel_signals (channel_id, signal);
+
+-- Subscriptions (role → channel, optional signal filter)
+CREATE TABLE subscriptions (team_name, role, channel, signal);
+
+-- Emission permissions
+CREATE TABLE emissions (team_name, role, signal);
+
+-- Peer routing rules
+CREATE TABLE peer_routes (team_name, from_role, to_role, via, signals);
+
+-- Signal event log
+CREATE TABLE signal_events (team_name, channel, signal, sender, payload, created_at);
+
+-- Spawn rules
+CREATE TABLE spawn_rules (team_name, from_role, to_role);
+```
+
+### Bootstrap Flow
+
+```
+template load <dir>
+  → TemplateLoader.load(dir)         # Parse YAML, validate, resolve roles/prompts
+  → TemplateService.bootstrap()
+    → TeamService.create()            # Create team with template_name/template_path
+    → CommunicationService.applyConfig()  # Wire channels, subs, emissions, peers
+    → Store spawn rules
+```
+
 ## Testing Strategy
 
-- **Unit tests** for each service (team, task, message, agent) using in-memory SQLite
-- **Integration tests** for CLI commands using mocked spawner
+- **Unit tests** for each service (team, task, message, agent, template, communication) using in-memory SQLite
+- **Template loader tests** with temporary filesystem fixtures
 - **Agent spawner tests** using a mock/stub spawner implementation
 - Framework: vitest
 
@@ -213,9 +323,9 @@ openteams agent shutdown <team> <name>
 |---------|---------|
 | `commander` | CLI argument parsing |
 | `better-sqlite3` | SQLite database |
-| `acp-factory` | Default agent spawner |
+| `js-yaml` | YAML template parsing |
+| `acp-factory` | Default agent spawner (optional) |
 | `vitest` | Testing |
-| `@types/better-sqlite3` | Type definitions |
 
 ## File Structure
 
@@ -223,22 +333,27 @@ openteams agent shutdown <team> <name>
 src/
 ├── index.ts              # Public API exports
 ├── cli.ts                # CLI entry point (bin)
+├── types.ts              # Shared type definitions
 ├── cli/
 │   ├── team.ts           # team subcommands
 │   ├── task.ts           # task subcommands
 │   ├── message.ts        # message subcommands
-│   └── agent.ts          # agent subcommands
+│   ├── agent.ts          # agent subcommands
+│   └── template.ts       # template subcommands
 ├── db/
-│   ├── database.ts       # Database connection and schema
-│   └── migrations.ts     # Schema migrations
+│   └── database.ts       # Database connection and schema
 ├── services/
-│   ├── team-service.ts   # Team CRUD
+│   ├── team-service.ts   # Team CRUD + members
 │   ├── task-service.ts   # Task CRUD + dependency management
 │   ├── message-service.ts# Message routing and storage
-│   └── agent-service.ts  # Agent lifecycle management
-├── spawner/
-│   ├── interface.ts      # AgentSpawner interface + types
-│   ├── acp-factory.ts    # Default ACP factory spawner
-│   └── mock.ts           # Mock spawner for testing
-└── types.ts              # Shared type definitions
+│   ├── agent-service.ts  # Agent lifecycle management
+│   ├── template-service.ts    # Template bootstrap + spawn rules
+│   └── communication-service.ts # Channels, signals, subscriptions
+├── template/
+│   ├── types.ts          # Template schema types
+│   └── loader.ts         # YAML parsing, validation, resolution
+└── spawner/
+    ├── interface.ts      # AgentSpawner interface
+    ├── acp-factory.ts    # Default ACP factory spawner
+    └── mock.ts           # Mock spawner for testing
 ```

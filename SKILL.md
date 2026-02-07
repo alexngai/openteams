@@ -170,7 +170,143 @@ class MySpawner implements AgentSpawner {
 }
 ```
 
+### Team Templates
+
+| Command | Description |
+|---------|-------------|
+| `openteams template load <dir>` | Load a template and create a team from it |
+| `openteams template validate <dir>` | Validate a template without creating a team |
+| `openteams template info <team>` | Show template topology for a team |
+| `openteams template emit <team>` | Emit a signal on a channel |
+| `openteams template events <team>` | List signal events |
+
+Options for `template load`:
+- `-n, --name <name>` - Override the team name from the manifest
+
+Options for `template emit`:
+- `-c, --channel <channel>` (required) - Channel name
+- `-s, --signal <signal>` (required) - Signal name
+- `--sender <sender>` (required) - Sender agent/role name
+- `-p, --payload <json>` - JSON payload
+
+Options for `template events`:
+- `-c, --channel <channel>` - Filter by channel
+- `-s, --signal <signal>` - Filter by signal
+- `--sender <sender>` - Filter by sender
+- `--role <role>` - Show events visible to a specific role (subscription-filtered)
+
+## Quick Start with Templates
+
+```bash
+# Validate a template
+openteams template validate ./templates/self-driving
+
+# Create a team from a template
+openteams template load ./templates/self-driving
+
+# Or with a custom name
+openteams template load ./templates/self-driving -n my-project
+
+# Inspect the communication topology
+openteams template info self-driving
+
+# Emit signals through channels
+openteams template emit self-driving -c task_updates -s TASK_CREATED --sender planner -p '{"taskId":1}'
+
+# View events visible to a specific role
+openteams template events self-driving --role judge
+
+# Spawn agents with their template roles
+openteams agent spawn self-driving -n planner-1 -p "You are the planner" -t general-purpose
+openteams agent spawn self-driving -n grinder-1 -p "You claim and execute tasks" -t general-purpose
+```
+
+### Template Directory Structure
+
+```
+templates/self-driving/
+├── team.yaml              # Manifest: topology, communication, roles
+├── roles/
+│   ├── planner.yaml       # Role definition with capabilities
+│   ├── grinder.yaml
+│   └── judge.yaml
+└── prompts/
+    ├── planner.md         # Static system prompt for planner
+    ├── grinder.md
+    └── judge.md
+```
+
+### Minimal team.yaml
+
+```yaml
+name: my-team
+version: 1
+roles: [coordinator, worker]
+topology:
+  root:
+    role: coordinator
+  spawn_rules:
+    coordinator: [worker]
+    worker: []
+```
+
+### Full team.yaml with communication
+
+```yaml
+name: self-driving
+description: "Autonomous development"
+version: 1
+roles: [planner, grinder, judge]
+
+topology:
+  root:
+    role: planner
+    prompt: prompts/planner.md
+    config: { model: sonnet }
+  companions:
+    - role: judge
+      prompt: prompts/judge.md
+  spawn_rules:
+    planner: [grinder, planner]
+    judge: []
+    grinder: []
+
+communication:
+  channels:
+    task_updates:
+      description: "Task lifecycle events"
+      signals: [TASK_CREATED, TASK_COMPLETED, TASK_FAILED]
+    work_coordination:
+      signals: [WORK_ASSIGNED, WORKER_DONE]
+  subscriptions:
+    planner:
+      - channel: task_updates
+      - channel: work_coordination
+        signals: [WORKER_DONE]
+    judge:
+      - channel: task_updates
+        signals: [TASK_FAILED]
+    grinder:
+      - channel: work_coordination
+        signals: [WORK_ASSIGNED]
+  emissions:
+    planner: [TASK_CREATED, WORK_ASSIGNED]
+    grinder: [WORKER_DONE]
+  routing:
+    peers:
+      - from: judge
+        to: planner
+        via: direct
+        signals: [FIXUP_CREATED]
+
+# Extension fields for other systems (stored, not interpreted)
+macro_agent:
+  task_assignment: { mode: pull }
+```
+
 ## Recommended Workflow
+
+### Manual (no template)
 
 1. **Create team** - `openteams team create <name>`
 2. **Define tasks** - Multiple `task create` calls with dependencies
@@ -180,6 +316,16 @@ class MySpawner implements AgentSpawner {
 6. **Monitor** - `task list` and `agent list` to track progress
 7. **Shut down agents** - `agent shutdown` for each agent
 8. **Clean up** - `team delete`
+
+### Template-based
+
+1. **Load template** - `openteams template load ./templates/my-template`
+2. **Inspect topology** - `openteams template info <team>`
+3. **Spawn agents** per template roles - `agent spawn` with role-appropriate prompts
+4. **Create tasks** - `task create` with dependencies
+5. **Emit signals** - `template emit` to coordinate through channels
+6. **Monitor** - `template events` to observe signal flow
+7. **Clean up** - Shutdown agents, then `team delete`
 
 ## Data Storage
 

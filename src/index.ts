@@ -26,6 +26,24 @@ export type {
   SpawnAgentOptions,
 } from "./types";
 
+// Template types
+export type {
+  TeamManifest,
+  TopologyConfig,
+  TopologyNode,
+  CommunicationConfig,
+  ChannelDefinition,
+  SubscriptionEntry,
+  RoutingConfig,
+  PeerRoute,
+  RoleDefinition,
+  CapabilityComposition,
+  ResolvedTemplate,
+  ResolvedRole,
+  SignalEvent,
+  EmitSignalOptions,
+} from "./template/types";
+
 // Database
 export { createDatabase, createInMemoryDatabase } from "./db/database";
 
@@ -34,6 +52,11 @@ export { TeamService } from "./services/team-service";
 export { TaskService } from "./services/task-service";
 export { MessageService } from "./services/message-service";
 export { AgentService } from "./services/agent-service";
+export { TemplateService } from "./services/template-service";
+export { CommunicationService } from "./services/communication-service";
+
+// Template
+export { TemplateLoader } from "./template/loader";
 
 // Spawner
 export { setSpawner, getSpawner, hasSpawner } from "./spawner/interface";
