@@ -1,0 +1,24 @@
+{
+  "name": "openteams",
+  "version": "0.0.1",
+  "description": "OpenTeams - Multi-agent team coordination",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "agents",
+    "teams",
+    "multi-agent",
+    "coordination"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.2.1",
+    "typescript": "^5.7.0"
+  }
+}
