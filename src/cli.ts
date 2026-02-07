@@ -7,6 +7,7 @@ import { createTaskCommands } from "./cli/task";
 import { createMessageCommands } from "./cli/message";
 import { createAgentCommands } from "./cli/agent";
 import { createTemplateCommands } from "./cli/template";
+import { createGenerateCommands } from "./cli/generate";
 import { MockSpawner } from "./spawner/mock";
 import type { AgentSpawner } from "./types";
 
@@ -36,6 +37,7 @@ program.addCommand(createTaskCommands(db));
 program.addCommand(createMessageCommands(db));
 program.addCommand(createAgentCommands(db, spawner));
 program.addCommand(createTemplateCommands(db));
+program.addCommand(createGenerateCommands());
 
 program.parseAsync(process.argv).catch((err) => {
   console.error(err.message);

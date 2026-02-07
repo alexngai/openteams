@@ -58,6 +58,18 @@ export { CommunicationService } from "./services/communication-service";
 // Template
 export { TemplateLoader } from "./template/loader";
 
+// Generators
+export { generateSkillMd } from "./generators/skill-generator";
+export type { SkillGeneratorOptions } from "./generators/skill-generator";
+export {
+  generateAgentPrompts,
+  generateAgentPrompt,
+} from "./generators/agent-prompt-generator";
+export type {
+  AgentPrompt,
+  AgentPromptGeneratorOptions,
+} from "./generators/agent-prompt-generator";
+
 // Spawner
 export { setSpawner, getSpawner, hasSpawner } from "./spawner/interface";
 export { ACPFactorySpawner } from "./spawner/acp-factory";
