@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { TemplateLoader } from "../template/loader";
-import { generateSkillMd } from "./skill-generator";
+import { generateSkillMd, generateCatalog } from "./skill-generator";
 import type { TeamManifest, ResolvedTemplate } from "../template/types";
 
 function makeMinimalTemplate(): ResolvedTemplate {
@@ -182,5 +182,65 @@ describe("generateSkillMd", () => {
   it("shows status routing when present", () => {
     const md = generateSkillMd(makeFullTemplate());
     expect(md).toContain("### Status Routing: **upstream**");
+  });
+
+  it("includes YAML frontmatter when enabled", () => {
+    const md = generateSkillMd(makeFullTemplate(), {
+      includeFrontmatter: true,
+    });
+    expect(md).toMatch(/^---\n/);
+    expect(md).toContain("name: self-driving");
+    expect(md).toContain("description: Autonomous codebase development");
+    expect(md).toContain("roles: [planner, grinder, judge]");
+    expect(md).toContain("root: planner");
+    expect(md).toContain("\n---\n");
+  });
+
+  it("omits frontmatter by default", () => {
+    const md = generateSkillMd(makeFullTemplate());
+    expect(md).not.toMatch(/^---\n/);
+  });
+});
+
+describe("generateCatalog", () => {
+  it("includes team name and description", () => {
+    const catalog = generateCatalog(makeFullTemplate());
+    expect(catalog).toContain("# Team: self-driving");
+    expect(catalog).toContain("> Autonomous codebase development");
+  });
+
+  it("generates roles table with positions", () => {
+    const catalog = generateCatalog(makeFullTemplate());
+    expect(catalog).toContain("| Role | Description | Position |");
+    expect(catalog).toContain("| planner |");
+    expect(catalog).toContain("| root |");
+    expect(catalog).toContain("| judge |");
+    expect(catalog).toContain("| companion |");
+    expect(catalog).toContain("| grinder |");
+    expect(catalog).toContain("| spawned |");
+  });
+
+  it("includes role loading instructions", () => {
+    const catalog = generateCatalog(makeFullTemplate());
+    expect(catalog).toContain("## Loading a role");
+    expect(catalog).toContain("`roles/planner/SKILL.md`");
+    expect(catalog).toContain("`roles/grinder/SKILL.md`");
+    expect(catalog).toContain("`roles/judge/SKILL.md`");
+  });
+
+  it("respects team name override", () => {
+    const catalog = generateCatalog(makeFullTemplate(), {
+      teamName: "my-project",
+    });
+    expect(catalog).toContain("# Team: my-project");
+  });
+
+  it("works with minimal template", () => {
+    const catalog = generateCatalog(makeMinimalTemplate());
+    expect(catalog).toContain("# Team: test-team");
+    expect(catalog).toContain("| lead |");
+    expect(catalog).toContain("| root |");
+    expect(catalog).toContain("| worker |");
+    expect(catalog).toContain("| spawned |");
   });
 });

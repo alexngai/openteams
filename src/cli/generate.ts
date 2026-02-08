@@ -2,11 +2,13 @@ import fs from "fs";
 import path from "path";
 import { Command } from "commander";
 import { TemplateLoader } from "../template/loader";
-import { generateSkillMd } from "../generators/skill-generator";
+import { generateSkillMd, generateCatalog } from "../generators/skill-generator";
 import {
   generateAgentPrompts,
   generateAgentPrompt,
+  generateRoleSkillMd,
 } from "../generators/agent-prompt-generator";
+import { generatePackage } from "../generators/package-generator";
 
 export function createGenerateCommands(): Command {
   const generate = new Command("generate").description(
@@ -118,6 +120,96 @@ export function createGenerateCommands(): Command {
         console.log(
           `\nGenerated SKILL.md + ${prompts.length} agent prompt(s) for team "${teamName}"`
         );
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  generate
+    .command("package <dir>")
+    .description(
+      "Generate a skill package directory from a team template"
+    )
+    .option("-n, --name <name>", "Override the team name")
+    .option(
+      "-o, --output <path>",
+      "Output directory (default: <dir>/package/)"
+    )
+    .action((dir: string, opts) => {
+      try {
+        const template = TemplateLoader.load(dir);
+        const teamName = opts.name ?? template.manifest.name;
+        const outputDir = opts.output ?? path.join(dir, "package");
+
+        const result = generatePackage(template, {
+          teamName,
+          outputDir,
+        });
+
+        console.log(`Generated skill package in ${outputDir}`);
+        console.log(`  Catalog: ${result.catalogPath}`);
+        for (const rp of result.rolePaths) {
+          console.log(`  ${rp.role}: ${rp.path}`);
+        }
+        if (result.manifestPath) {
+          console.log(`  Manifest: ${result.manifestPath}`);
+        }
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  generate
+    .command("catalog <dir>")
+    .description(
+      "Generate a lightweight team catalog from a template"
+    )
+    .option("-n, --name <name>", "Override the team name")
+    .option("-o, --output <path>", "Output path (default: stdout)")
+    .action((dir: string, opts) => {
+      try {
+        const template = TemplateLoader.load(dir);
+        const teamName = opts.name ?? template.manifest.name;
+        const content = generateCatalog(template, { teamName });
+
+        if (opts.output) {
+          fs.writeFileSync(opts.output, content, "utf-8");
+          console.log(`Generated catalog at ${opts.output}`);
+        } else {
+          process.stdout.write(content);
+        }
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  generate
+    .command("role-package <dir>")
+    .description(
+      "Generate a standalone SKILL.md for a specific role"
+    )
+    .requiredOption("-r, --role <role>", "Role name")
+    .option("-n, --name <name>", "Override the team name")
+    .option("-o, --output <path>", "Output path (default: stdout)")
+    .action((dir: string, opts) => {
+      try {
+        const template = TemplateLoader.load(dir);
+        const teamName = opts.name ?? template.manifest.name;
+        const result = generateRoleSkillMd(template, opts.role, {
+          teamName,
+        });
+
+        if (opts.output) {
+          const outDir = path.dirname(opts.output);
+          fs.mkdirSync(outDir, { recursive: true });
+          fs.writeFileSync(opts.output, result.content, "utf-8");
+          console.log(`Generated role package at ${opts.output}`);
+        } else {
+          process.stdout.write(result.content);
+        }
       } catch (err: any) {
         console.error(`Error: ${err.message}`);
         process.exitCode = 1;

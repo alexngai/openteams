@@ -3,6 +3,8 @@ import { TemplateLoader } from "../template/loader";
 import {
   generateAgentPrompts,
   generateAgentPrompt,
+  generateRoleSkillMd,
+  generateAllRoleSkillMds,
 } from "./agent-prompt-generator";
 import type { TeamManifest, ResolvedTemplate } from "../template/types";
 
@@ -205,5 +207,126 @@ describe("minimal template", () => {
     );
     // No communication section
     expect(lead.prompt).not.toContain("## Communication");
+  });
+});
+
+describe("generateRoleSkillMd", () => {
+  it("generates YAML frontmatter", () => {
+    const result = generateRoleSkillMd(makeFullTemplate(), "planner");
+    expect(result.role).toBe("planner");
+    expect(result.content).toMatch(/^---\n/);
+    expect(result.content).toContain("name: self-driving/planner");
+    expect(result.content).toContain("role: planner");
+    expect(result.content).toContain("team: self-driving");
+    expect(result.content).toContain("position: root");
+    expect(result.content).toContain("\n---\n");
+  });
+
+  it("includes frontmatter with communication summary", () => {
+    const result = generateRoleSkillMd(makeFullTemplate(), "planner");
+    expect(result.content).toContain(
+      "subscribes: [task_updates, work_coordination]"
+    );
+    expect(result.content).toContain(
+      "emits: [TASK_CREATED, WORK_ASSIGNED]"
+    );
+    expect(result.content).toContain(
+      "can_spawn: [grinder, planner]"
+    );
+  });
+
+  it("identifies position correctly for each role type", () => {
+    const planner = generateRoleSkillMd(makeFullTemplate(), "planner");
+    expect(planner.content).toContain("position: root");
+    expect(planner.content).toContain("Position: **root** (team lead)");
+
+    const judge = generateRoleSkillMd(makeFullTemplate(), "judge");
+    expect(judge.content).toContain("position: companion");
+    expect(judge.content).toContain("Position: **companion**");
+
+    const grinder = generateRoleSkillMd(makeFullTemplate(), "grinder");
+    expect(grinder.content).toContain("position: spawned");
+    expect(grinder.content).toContain("Position: **spawned** agent");
+  });
+
+  it("uses agent-agnostic communication headings", () => {
+    const result = generateRoleSkillMd(makeFullTemplate(), "planner");
+    expect(result.content).toContain("### Subscriptions");
+    expect(result.content).toContain("### Can Emit");
+    // Should NOT use Claude-specific phrasing
+    expect(result.content).not.toContain("You receive events from:");
+    expect(result.content).not.toContain("You can emit:");
+  });
+
+  it("includes communication details", () => {
+    const planner = generateRoleSkillMd(makeFullTemplate(), "planner");
+    expect(planner.content).toContain("**task_updates**: all signals");
+    expect(planner.content).toContain("**work_coordination**: WORKER_DONE");
+    expect(planner.content).toContain("TASK_CREATED, WORK_ASSIGNED");
+  });
+
+  it("includes peer routes", () => {
+    const judge = generateRoleSkillMd(makeFullTemplate(), "judge");
+    expect(judge.content).toContain("### Peer Routes (outgoing)");
+    expect(judge.content).toContain("To **planner** via direct");
+
+    const planner = generateRoleSkillMd(makeFullTemplate(), "planner");
+    expect(planner.content).toContain("### Peer Routes (incoming)");
+    expect(planner.content).toContain("From **judge** via direct");
+  });
+
+  it("includes teammates", () => {
+    const result = generateRoleSkillMd(makeFullTemplate(), "planner");
+    expect(result.content).toContain("## Teammates");
+    expect(result.content).toContain("grinder, judge");
+  });
+
+  it("includes CLI reference", () => {
+    const result = generateRoleSkillMd(makeFullTemplate(), "planner");
+    expect(result.content).toContain("## CLI Quick Reference");
+    expect(result.content).toContain("openteams task list self-driving");
+  });
+
+  it("respects team name override", () => {
+    const result = generateRoleSkillMd(makeFullTemplate(), "planner", {
+      teamName: "my-project",
+    });
+    expect(result.content).toContain("name: my-project/planner");
+    expect(result.content).toContain("team: my-project");
+    expect(result.content).toContain("**my-project** team");
+  });
+
+  it("handles minimal template without communication", () => {
+    const manifest: TeamManifest = {
+      name: "minimal",
+      version: 1,
+      roles: ["lead", "worker"],
+      topology: { root: { role: "lead" } },
+    };
+    const template = TemplateLoader.loadFromManifest(manifest);
+    const result = generateRoleSkillMd(template, "lead");
+    expect(result.content).toContain("name: minimal/lead");
+    expect(result.content).toContain("position: root");
+    expect(result.content).not.toContain("## Communication");
+  });
+});
+
+describe("generateAllRoleSkillMds", () => {
+  it("generates a skill md for each role", () => {
+    const results = generateAllRoleSkillMds(makeFullTemplate());
+    expect(results).toHaveLength(3);
+    expect(results.map((r) => r.role).sort()).toEqual([
+      "grinder",
+      "judge",
+      "planner",
+    ]);
+  });
+
+  it("each result has content with frontmatter", () => {
+    const results = generateAllRoleSkillMds(makeFullTemplate());
+    for (const result of results) {
+      expect(result.content).toMatch(/^---\n/);
+      expect(result.content).toContain(`role: ${result.role}`);
+    }
   });
 });

@@ -17,6 +17,16 @@ export interface AgentPromptGeneratorOptions {
   preamble?: string;
 }
 
+export interface RoleSkillMd {
+  role: string;
+  content: string;
+}
+
+export interface RoleSkillMdOptions {
+  /** Team name override */
+  teamName?: string;
+}
+
 /**
  * Generates per-role agent prompts in Claude sub-agent Task tool format.
  *
@@ -55,6 +65,204 @@ export function generateAgentPrompt(
     teamName,
     options.preamble
   );
+}
+
+/**
+ * Generate a standalone SKILL.md for a single role.
+ *
+ * Unlike generateAgentPrompt, this produces an agent-agnostic document
+ * with YAML frontmatter and self-contained context. Designed to be
+ * readable by any AI agent, not just Claude.
+ */
+export function generateRoleSkillMd(
+  template: ResolvedTemplate,
+  roleName: string,
+  options: RoleSkillMdOptions = {}
+): RoleSkillMd {
+  const teamName = options.teamName ?? template.manifest.name;
+  const m = template.manifest;
+  const role = template.roles.get(roleName);
+  const rolePrompt = template.prompts.get(roleName);
+
+  const sections: string[] = [];
+
+  // YAML frontmatter
+  sections.push(generateRoleFrontmatter(template, roleName, teamName));
+
+  // Identity header
+  sections.push(`# Role: ${roleName}`);
+  sections.push(
+    `Member of the **${teamName}** team.`
+  );
+
+  // Position in topology
+  if (m.topology.root.role === roleName) {
+    sections.push("Position: **root** (team lead)");
+  } else if (m.topology.companions?.some((c) => c.role === roleName)) {
+    sections.push(`Position: **companion** to root (${m.topology.root.role})`);
+  } else {
+    sections.push("Position: **spawned** agent");
+  }
+
+  // Role description
+  if (role?.description && role.description !== `Role: ${roleName}`) {
+    sections.push(`## Description\n\n${role.description}`);
+  }
+
+  // Core prompt content
+  if (rolePrompt) {
+    sections.push(`## Instructions\n\n${rolePrompt.trim()}`);
+  }
+
+  // Teammates
+  const otherRoles = m.roles.filter((r) => r !== roleName);
+  if (otherRoles.length > 0) {
+    sections.push(`## Teammates\n\n${otherRoles.join(", ")}`);
+  }
+
+  // Communication — agent-agnostic
+  if (m.communication) {
+    sections.push(
+      generateAgnosticCommunicationSection(template, roleName, teamName)
+    );
+  }
+
+  // Spawn permissions
+  sections.push(generateRoleSpawnSection(template, roleName));
+
+  // CLI reference
+  sections.push(generateRoleCliSection(roleName, teamName, template));
+
+  return {
+    role: roleName,
+    content: sections.join("\n\n") + "\n",
+  };
+}
+
+/**
+ * Generate standalone SKILL.md files for all roles.
+ */
+export function generateAllRoleSkillMds(
+  template: ResolvedTemplate,
+  options: RoleSkillMdOptions = {}
+): RoleSkillMd[] {
+  return template.manifest.roles.map((roleName) =>
+    generateRoleSkillMd(template, roleName, options)
+  );
+}
+
+function generateRoleFrontmatter(
+  template: ResolvedTemplate,
+  roleName: string,
+  teamName: string
+): string {
+  const m = template.manifest;
+  const role = template.roles.get(roleName);
+
+  let position: string;
+  if (m.topology.root.role === roleName) {
+    position = "root";
+  } else if (m.topology.companions?.some((c) => c.role === roleName)) {
+    position = "companion";
+  } else {
+    position = "spawned";
+  }
+
+  const lines: string[] = ["---"];
+  lines.push(`name: ${teamName}/${roleName}`);
+
+  const desc =
+    role?.description && role.description !== `Role: ${roleName}`
+      ? role.description
+      : `${roleName} role in the ${teamName} team`;
+  lines.push(`description: ${desc}`);
+
+  lines.push(`role: ${roleName}`);
+  lines.push(`team: ${teamName}`);
+  lines.push(`position: ${position}`);
+
+  // Communication summary
+  const subs = m.communication?.subscriptions?.[roleName];
+  if (subs && subs.length > 0) {
+    const channels = subs.map((s) => s.channel);
+    lines.push(`subscribes: [${channels.join(", ")}]`);
+  }
+
+  const emissions = m.communication?.emissions?.[roleName];
+  if (emissions && emissions.length > 0) {
+    lines.push(`emits: [${emissions.join(", ")}]`);
+  }
+
+  const spawnRules = m.topology.spawn_rules?.[roleName];
+  if (spawnRules && spawnRules.length > 0) {
+    lines.push(`can_spawn: [${spawnRules.join(", ")}]`);
+  }
+
+  lines.push("---");
+  return lines.join("\n");
+}
+
+function generateAgnosticCommunicationSection(
+  template: ResolvedTemplate,
+  roleName: string,
+  teamName: string
+): string {
+  const comm = template.manifest.communication!;
+  const lines: string[] = ["## Communication"];
+
+  // Subscriptions
+  const subs = comm.subscriptions?.[roleName];
+  if (subs && subs.length > 0) {
+    lines.push("");
+    lines.push("### Subscriptions");
+    lines.push("");
+    for (const sub of subs) {
+      if (sub.signals && sub.signals.length > 0) {
+        lines.push(`- **${sub.channel}**: ${sub.signals.join(", ")}`);
+      } else {
+        lines.push(`- **${sub.channel}**: all signals`);
+      }
+    }
+  } else {
+    lines.push("");
+    lines.push("No channel subscriptions.");
+  }
+
+  // Emissions
+  const emissions = comm.emissions?.[roleName];
+  if (emissions && emissions.length > 0) {
+    lines.push("");
+    lines.push("### Can Emit");
+    lines.push("");
+    lines.push(emissions.join(", "));
+  }
+
+  // Peer routes
+  const peers = comm.routing?.peers;
+  if (peers && peers.length > 0) {
+    const outgoing = peers.filter((p) => p.from === roleName);
+    const incoming = peers.filter((p) => p.to === roleName);
+
+    if (outgoing.length > 0) {
+      lines.push("");
+      lines.push("### Peer Routes (outgoing)");
+      for (const route of outgoing) {
+        const signals = route.signals ? route.signals.join(", ") : "any";
+        lines.push(`- To **${route.to}** via ${route.via} (signals: ${signals})`);
+      }
+    }
+
+    if (incoming.length > 0) {
+      lines.push("");
+      lines.push("### Peer Routes (incoming)");
+      for (const route of incoming) {
+        const signals = route.signals ? route.signals.join(", ") : "any";
+        lines.push(`- From **${route.from}** via ${route.via} (signals: ${signals})`);
+      }
+    }
+  }
+
+  return lines.join("\n");
 }
 
 function generateSingleAgentPrompt(

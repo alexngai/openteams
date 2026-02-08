@@ -59,16 +59,28 @@ export { CommunicationService } from "./services/communication-service";
 export { TemplateLoader } from "./template/loader";
 
 // Generators
-export { generateSkillMd } from "./generators/skill-generator";
-export type { SkillGeneratorOptions } from "./generators/skill-generator";
+export { generateSkillMd, generateCatalog } from "./generators/skill-generator";
+export type {
+  SkillGeneratorOptions,
+  CatalogOptions,
+} from "./generators/skill-generator";
 export {
   generateAgentPrompts,
   generateAgentPrompt,
+  generateRoleSkillMd,
+  generateAllRoleSkillMds,
 } from "./generators/agent-prompt-generator";
 export type {
   AgentPrompt,
   AgentPromptGeneratorOptions,
+  RoleSkillMd,
+  RoleSkillMdOptions,
 } from "./generators/agent-prompt-generator";
+export { generatePackage } from "./generators/package-generator";
+export type {
+  PackageGeneratorOptions,
+  PackageResult,
+} from "./generators/package-generator";
 
 // Spawner
 export { setSpawner, getSpawner, hasSpawner } from "./spawner/interface";

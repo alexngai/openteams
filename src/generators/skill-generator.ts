@@ -5,6 +5,13 @@ export interface SkillGeneratorOptions {
   teamName?: string;
   /** Whether to include CLI usage examples */
   includeCliExamples?: boolean;
+  /** Whether to include YAML frontmatter */
+  includeFrontmatter?: boolean;
+}
+
+export interface CatalogOptions {
+  /** Team name override (defaults to manifest name) */
+  teamName?: string;
 }
 
 /**
@@ -15,15 +22,83 @@ export interface SkillGeneratorOptions {
  * this leaves all interaction enforcement to agent discretion — agents read
  * the SKILL.md and coordinate by convention, not by runtime enforcement.
  */
+/**
+ * Generates a lightweight catalog document for a team template.
+ *
+ * The catalog provides progressive disclosure — agents see role names
+ * and one-line descriptions without loading full role context. This
+ * keeps context budgets tight while enabling role discovery.
+ */
+export function generateCatalog(
+  template: ResolvedTemplate,
+  options: CatalogOptions = {}
+): string {
+  const teamName = options.teamName ?? template.manifest.name;
+  const m = template.manifest;
+
+  const lines: string[] = [];
+
+  lines.push(`# Team: ${teamName}`);
+  if (m.description) {
+    lines.push("");
+    lines.push(`> ${m.description}`);
+  }
+
+  lines.push("");
+  lines.push("## Roles");
+  lines.push("");
+  lines.push("| Role | Description | Position |");
+  lines.push("|------|-------------|----------|");
+
+  for (const roleName of m.roles) {
+    const role = template.roles.get(roleName);
+    const desc =
+      role?.description && role.description !== `Role: ${roleName}`
+        ? role.description
+        : "";
+
+    let position: string;
+    if (m.topology.root.role === roleName) {
+      position = "root";
+    } else if (m.topology.companions?.some((c) => c.role === roleName)) {
+      position = "companion";
+    } else {
+      position = "spawned";
+    }
+
+    lines.push(`| ${roleName} | ${desc} | ${position} |`);
+  }
+
+  lines.push("");
+  lines.push("## Loading a role");
+  lines.push("");
+  lines.push("To get full context for a role, read the role's SKILL.md:");
+  for (const roleName of m.roles) {
+    lines.push(`- \`roles/${roleName}/SKILL.md\``);
+  }
+  lines.push("");
+  lines.push(
+    `Or via CLI: \`openteams generate role-package <template-dir> --role <role-name>\``
+  );
+
+  return lines.join("\n") + "\n";
+}
+
 export function generateSkillMd(
   template: ResolvedTemplate,
   options: SkillGeneratorOptions = {}
 ): string {
   const teamName = options.teamName ?? template.manifest.name;
   const includeCliExamples = options.includeCliExamples ?? true;
+  const includeFrontmatter = options.includeFrontmatter ?? false;
   const m = template.manifest;
 
   const sections: string[] = [];
+
+  // YAML frontmatter
+  if (includeFrontmatter) {
+    sections.push(generateFrontmatter(template, teamName));
+  }
 
   // Header
   sections.push(`# Team: ${teamName}`);
@@ -275,5 +350,21 @@ function generateGuidelinesSection(
     lines.push("```");
   }
 
+  return lines.join("\n");
+}
+
+function generateFrontmatter(
+  template: ResolvedTemplate,
+  teamName: string
+): string {
+  const m = template.manifest;
+  const lines: string[] = ["---"];
+  lines.push(`name: ${teamName}`);
+  if (m.description) {
+    lines.push(`description: ${m.description}`);
+  }
+  lines.push(`roles: [${m.roles.join(", ")}]`);
+  lines.push(`root: ${m.topology.root.role}`);
+  lines.push("---");
   return lines.join("\n");
 }
