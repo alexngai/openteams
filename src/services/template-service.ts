@@ -8,6 +8,7 @@ import { CommunicationService } from "./communication-service";
 export interface BootstrapResult {
   team: Team;
   roles: string[];
+  members: string[];
   channels: string[];
   spawnRules: Array<{ from: string; canSpawn: string[] }>;
 }
@@ -52,6 +53,25 @@ export class TemplateService {
       this.commService.applyConfig(teamName, template.manifest.communication);
     }
 
+    // Register topology roles as initial members
+    const rootRole = template.manifest.topology.root.role;
+    const rootConfig = template.manifest.topology.root.config;
+    this.teamService.addMember(teamName, rootRole, {
+      role: rootRole,
+      agentType: "general-purpose",
+      model: rootConfig?.model as string | undefined,
+    });
+
+    if (template.manifest.topology.companions) {
+      for (const comp of template.manifest.topology.companions) {
+        this.teamService.addMember(teamName, comp.role, {
+          role: comp.role,
+          agentType: "general-purpose",
+          model: comp.config?.model as string | undefined,
+        });
+      }
+    }
+
     // Store spawn rules
     const spawnRules: Array<{ from: string; canSpawn: string[] }> = [];
     if (template.manifest.topology.spawn_rules) {
@@ -72,9 +92,12 @@ export class TemplateService {
       ? Object.keys(template.manifest.communication.channels)
       : [];
 
+    const members = this.teamService.listMembers(teamName).map((m) => m.agent_name);
+
     return {
       team,
       roles: template.manifest.roles,
+      members,
       channels,
       spawnRules,
     };

@@ -7,6 +7,13 @@ import type {
   EmitSignalOptions,
 } from "../template/types";
 
+function rowToEvent(row: SignalEventRow): SignalEvent {
+  return {
+    ...row,
+    payload: JSON.parse(row.payload || "{}"),
+  };
+}
+
 export interface EmitResult {
   event: SignalEvent;
   permitted: boolean;
@@ -312,7 +319,7 @@ export class CommunicationService {
     sql += " ORDER BY created_at ASC";
 
     const rows = this.db.prepare(sql).all(...params) as SignalEventRow[];
-    return rows.map((r) => ({ ...r }));
+    return rows.map(rowToEvent);
   }
 
   /**
@@ -332,7 +339,7 @@ export class CommunicationService {
             "SELECT * FROM signal_events WHERE team_name = ? AND channel = ? AND signal = ? ORDER BY created_at ASC"
           )
           .all(teamName, sub.channel, sub.signal) as SignalEventRow[];
-        allEvents.push(...rows);
+        allEvents.push(...rows.map(rowToEvent));
       } else {
         // Full channel subscription
         const rows = this.db
@@ -340,7 +347,7 @@ export class CommunicationService {
             "SELECT * FROM signal_events WHERE team_name = ? AND channel = ? ORDER BY created_at ASC"
           )
           .all(teamName, sub.channel) as SignalEventRow[];
-        allEvents.push(...rows);
+        allEvents.push(...rows.map(rowToEvent));
       }
     }
 
@@ -359,6 +366,6 @@ export class CommunicationService {
     const row = this.db
       .prepare("SELECT * FROM signal_events WHERE id = ?")
       .get(id) as SignalEventRow | undefined;
-    return row ? { ...row } : null;
+    return row ? rowToEvent(row) : null;
   }
 }

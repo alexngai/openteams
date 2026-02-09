@@ -66,6 +66,28 @@ export function createTeamCommands(db: Database.Database): Command {
     });
 
   team
+    .command("add-member <team-name> <agent-name>")
+    .description("Register a member in a team without spawning an agent")
+    .option("-r, --role <role>", "Role for the member")
+    .option("-t, --type <type>", "Agent type", "general-purpose")
+    .option("-m, --model <model>", "Model to use")
+    .action((teamNameArg: string, agentName: string, opts) => {
+      try {
+        const member = teamService.addMember(teamNameArg, agentName, {
+          agentType: opts.type,
+          role: opts.role,
+          model: opts.model,
+        });
+        console.log(
+          `Member "${member.agent_name}" added to team "${teamNameArg}"${member.role ? ` (role: ${member.role})` : ""}.`
+        );
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  team
     .command("delete <name>")
     .description("Delete a team (all members must be shut down first)")
     .action((name: string) => {

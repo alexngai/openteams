@@ -118,7 +118,7 @@ export interface SignalEvent {
   channel: string;
   signal: string;
   sender: string;
-  payload: string; // JSON
+  payload: Record<string, unknown>;
   created_at: string;
 }
 

@@ -194,7 +194,9 @@ export function createTemplateCommands(db: Database.Database): Command {
 
       for (const e of events) {
         const payload =
-          e.payload && e.payload !== "{}" ? ` ${e.payload}` : "";
+          e.payload && Object.keys(e.payload).length > 0
+            ? ` ${JSON.stringify(e.payload)}`
+            : "";
         console.log(
           `  #${e.id} [${e.channel}] ${e.signal} from ${e.sender}${payload}`
         );

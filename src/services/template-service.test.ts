@@ -88,6 +88,26 @@ describe("TemplateService", () => {
       expect(result.roles).toEqual(["planner", "grinder", "judge"]);
     });
 
+    it("auto-registers root and companion roles as members", () => {
+      const result = templateService.bootstrapFromManifest(
+        selfDrivingManifest
+      );
+
+      expect(result.members).toContain("planner");
+      expect(result.members).toContain("judge");
+      expect(result.members).toHaveLength(2); // root + 1 companion
+
+      const plannerMember = teamService.getMember("self-driving", "planner");
+      expect(plannerMember).not.toBeNull();
+      expect(plannerMember!.role).toBe("planner");
+      expect(plannerMember!.model).toBe("sonnet");
+
+      const judgeMember = teamService.getMember("self-driving", "judge");
+      expect(judgeMember).not.toBeNull();
+      expect(judgeMember!.role).toBe("judge");
+      expect(judgeMember!.model).toBe("haiku");
+    });
+
     it("allows overriding the team name", () => {
       const result = templateService.bootstrapFromManifest(
         selfDrivingManifest,

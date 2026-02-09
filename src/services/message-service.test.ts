@@ -57,6 +57,40 @@ describe("MessageService", () => {
         })
       ).toThrow('Team "nonexistent" not found');
     });
+
+    it("send throws when recipient is not a member", () => {
+      expect(() =>
+        messageService.send({
+          teamName: "test-team",
+          sender: "alice",
+          recipient: "ghost",
+          content: "Hi",
+          summary: "Greeting",
+        })
+      ).toThrow('Agent "ghost" is not a member of team "test-team"');
+    });
+
+    it("sendShutdownRequest throws when recipient is not a member", () => {
+      expect(() =>
+        messageService.sendShutdownRequest({
+          teamName: "test-team",
+          sender: "lead",
+          recipient: "ghost",
+        })
+      ).toThrow('Agent "ghost" is not a member of team "test-team"');
+    });
+
+    it("sendPlanApprovalResponse throws when recipient is not a member", () => {
+      expect(() =>
+        messageService.sendPlanApprovalResponse({
+          teamName: "test-team",
+          sender: "lead",
+          recipient: "ghost",
+          requestId: "req-1",
+          approve: true,
+        })
+      ).toThrow('Agent "ghost" is not a member of team "test-team"');
+    });
   });
 
   describe("send", () => {

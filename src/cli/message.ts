@@ -159,6 +159,68 @@ export function createMessageCommands(db: Database.Database): Command {
     });
 
   message
+    .command("shutdown-response <team>")
+    .description("Respond to a shutdown request")
+    .requiredOption("--request-id <id>", "Request ID from the shutdown request")
+    .option("--approve", "Approve the shutdown")
+    .option("--reject", "Reject the shutdown")
+    .option("--content <content>", "Response message")
+    .option("--from <sender>", "Sender name")
+    .action((team: string, opts) => {
+      try {
+        if (!opts.approve && !opts.reject) {
+          throw new Error("Must specify either --approve or --reject");
+        }
+        const approve = !!opts.approve;
+        const msg = messageService.sendShutdownResponse({
+          teamName: team,
+          sender: opts.from ?? "unknown",
+          requestId: opts.requestId,
+          approve,
+          content: opts.content,
+        });
+        console.log(
+          `Shutdown ${approve ? "approved" : "rejected"} (message #${msg.id}, request_id: ${msg.request_id}).`
+        );
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  message
+    .command("plan-response <team>")
+    .description("Respond to a plan approval request")
+    .requiredOption("--to <recipient>", "Recipient agent name")
+    .requiredOption("--request-id <id>", "Request ID from the plan approval request")
+    .option("--approve", "Approve the plan")
+    .option("--reject", "Reject the plan")
+    .option("--content <content>", "Response message")
+    .option("--from <sender>", "Sender name", "lead")
+    .action((team: string, opts) => {
+      try {
+        if (!opts.approve && !opts.reject) {
+          throw new Error("Must specify either --approve or --reject");
+        }
+        const approve = !!opts.approve;
+        const msg = messageService.sendPlanApprovalResponse({
+          teamName: team,
+          sender: opts.from,
+          recipient: opts.to,
+          requestId: opts.requestId,
+          approve,
+          content: opts.content,
+        });
+        console.log(
+          `Plan ${approve ? "approved" : "rejected"} for ${opts.to} (message #${msg.id}, request_id: ${msg.request_id}).`
+        );
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  message
     .command("ack <team> <message-id>")
     .description("Mark a message as delivered")
     .action((team: string, messageId: string) => {

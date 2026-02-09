@@ -30,8 +30,22 @@ export class MessageService {
     }
   }
 
+  private assertMemberExists(teamName: string, agentName: string): void {
+    const row = this.db
+      .prepare(
+        "SELECT agent_name FROM members WHERE team_name = ? AND agent_name = ?"
+      )
+      .get(teamName, agentName) as { agent_name: string } | undefined;
+    if (!row) {
+      throw new Error(
+        `Agent "${agentName}" is not a member of team "${teamName}"`
+      );
+    }
+  }
+
   send(options: SendMessageOptions): Message {
     this.assertTeamExists(options.teamName);
+    this.assertMemberExists(options.teamName, options.recipient);
 
     const result = this.db
       .prepare(
@@ -83,6 +97,7 @@ export class MessageService {
 
   sendShutdownRequest(options: ShutdownRequestOptions): Message {
     this.assertTeamExists(options.teamName);
+    this.assertMemberExists(options.teamName, options.recipient);
 
     const requestId = randomUUID();
     const result = this.db
@@ -119,6 +134,9 @@ export class MessageService {
   }
 
   sendPlanApprovalResponse(options: PlanApprovalResponseOptions): Message {
+    this.assertTeamExists(options.teamName);
+    this.assertMemberExists(options.teamName, options.recipient);
+
     const result = this.db
       .prepare(
         `INSERT INTO messages (team_name, type, sender, recipient, content, request_id, approve)

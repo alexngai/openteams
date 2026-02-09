@@ -53,6 +53,9 @@ export class TemplateLoader {
       }
     }
 
+    // Resolve role inheritance chains
+    TemplateLoader.resolveInheritance(roles);
+
     // Load prompts
     for (const roleName of manifest.roles) {
       const promptContent = TemplateLoader.loadPromptForRole(
@@ -197,6 +200,75 @@ export class TemplateLoader {
           }
         }
       }
+    }
+  }
+
+  /**
+   * Resolve role inheritance chains. For each role with `extends` pointing
+   * to another role in the map, merge parent capabilities with the child's
+   * add/remove composition. Detects circular inheritance.
+   */
+  private static resolveInheritance(roles: Map<string, ResolvedRole>): void {
+    // Build dependency map: child -> parent (only for parents that exist in the map)
+    const extendsMap = new Map<string, string>();
+    for (const [name, role] of roles) {
+      if (role.extends && roles.has(role.extends)) {
+        extendsMap.set(name, role.extends);
+      }
+    }
+
+    if (extendsMap.size === 0) return;
+
+    // Detect cycles by following chains
+    for (const startName of extendsMap.keys()) {
+      const chain: string[] = [];
+      let current: string | undefined = startName;
+      while (current) {
+        if (chain.includes(current)) {
+          const cycleStart = chain.indexOf(current);
+          const cyclePath = [...chain.slice(cycleStart), current].join(" -> ");
+          throw new Error(`Circular role inheritance detected: ${cyclePath}`);
+        }
+        chain.push(current);
+        current = extendsMap.get(current);
+      }
+    }
+
+    // Resolve in topological order (parents before children)
+    const resolved = new Set<string>();
+
+    function resolve(name: string): void {
+      if (resolved.has(name)) return;
+
+      const parent = extendsMap.get(name);
+      if (parent) {
+        resolve(parent);
+      }
+
+      const role = roles.get(name)!;
+      if (parent) {
+        const parentRole = roles.get(parent)!;
+        const raw = role.raw;
+
+        if (raw.capabilities && !Array.isArray(raw.capabilities)) {
+          // CapabilityComposition — merge with parent
+          const comp = raw.capabilities as CapabilityComposition;
+          const parentCaps = [...parentRole.capabilities];
+          const toAdd = comp.add ?? [];
+          const toRemove = new Set(comp.remove ?? []);
+
+          // Start with parent caps, add child additions, remove exclusions
+          const merged = [...new Set([...parentCaps, ...toAdd])];
+          role.capabilities = merged.filter((c) => !toRemove.has(c));
+        }
+        // If capabilities is a plain array, it's an explicit override — keep as-is
+      }
+
+      resolved.add(name);
+    }
+
+    for (const name of extendsMap.keys()) {
+      resolve(name);
     }
   }
 

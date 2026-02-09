@@ -9,52 +9,59 @@ Agent spawning uses a swappable interface. The default implementation delegates 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│                CLI Layer                     │
-│  openteams team|task|message|agent <cmd>     │
-└─────────────┬───────────────────────────────┘
-              │
-┌─────────────▼───────────────────────────────┐
-│             Service Layer                    │
-│  TeamService  TaskService  MessageService    │
-│              AgentService                    │
-└──────┬──────────────┬───────────────────────┘
-       │              │
-┌──────▼──────┐  ┌────▼──────────────────────┐
-│  Database   │  │  AgentSpawner Interface    │
-│  (SQLite)   │  │  ├─ ACPFactorySpawner     │
-│             │  │  └─ (custom spawners)     │
-└─────────────┘  └───────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                      CLI Layer                            │
+│  openteams team|task|message|agent|template|generate      │
+└──────────────────────┬───────────────────────────────────┘
+                       │
+┌──────────────────────▼───────────────────────────────────┐
+│                   Service Layer                           │
+│  TeamService   TaskService   MessageService               │
+│  AgentService  TemplateService  CommunicationService      │
+└──────┬──────────────────┬────────────────────────────────┘
+       │                  │
+┌──────▼──────┐  ┌────────▼────────────────────────────────┐
+│  Database   │  │  AgentSpawner Interface (DI)             │
+│  (SQLite)   │  │  ├─ ACPFactorySpawner (optional)        │
+│  + Schema   │  │  └─ MockSpawner (testing)               │
+│  Migrations │  └─────────────────────────────────────────┘
+└─────────────┘
 ```
 
 ### Components
 
 1. **CLI Layer** (`src/cli/`) — Command parsing via `commander`. Thin layer that delegates to services.
-2. **Service Layer** (`src/services/`) — Business logic for teams, tasks, messages, and agents.
-3. **Database Layer** (`src/db/`) — SQLite via `better-sqlite3`. Schema migrations, typed queries.
-4. **Agent Spawner** (`src/spawner/`) — Swappable interface for agent lifecycle. Default: acp-factory.
+2. **Service Layer** (`src/services/`) — Business logic for teams, tasks, messages, agents, templates, and communication.
+3. **Database Layer** (`src/db/`) — SQLite via `better-sqlite3`. Schema versioning with transactional migrations.
+4. **Template System** (`src/template/`) — YAML-based team manifests with role inheritance, capability composition, and communication topology.
+5. **Generators** (`src/generators/`) — Generate SKILL.md files, agent prompts, and package artifacts from templates.
+6. **Agent Spawner** (`src/spawner/`) — Swappable interface for agent lifecycle via dependency injection. Default: acp-factory (optional).
 
 ## Data Model
 
 ### Database Schema (SQLite)
 
 ```sql
--- Teams
+-- Teams (with enforcement mode and template metadata)
 CREATE TABLE teams (
-  name        TEXT PRIMARY KEY,
-  description TEXT,
-  agent_type  TEXT,
-  created_at  TEXT DEFAULT (datetime('now')),
-  status      TEXT DEFAULT 'active' CHECK (status IN ('active', 'deleted'))
+  name          TEXT PRIMARY KEY,
+  description   TEXT,
+  agent_type    TEXT,
+  template_name TEXT,
+  template_path TEXT,
+  enforcement   TEXT DEFAULT 'permissive' CHECK (enforcement IN ('strict', 'permissive', 'audit')),
+  created_at    TEXT DEFAULT (datetime('now')),
+  status        TEXT DEFAULT 'active' CHECK (status IN ('active', 'deleted'))
 );
 
--- Team members
+-- Team members (with role binding)
 CREATE TABLE members (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   team_name  TEXT NOT NULL REFERENCES teams(name),
   agent_name TEXT NOT NULL,
   agent_id   TEXT,
   agent_type TEXT DEFAULT 'general-purpose',
+  role       TEXT,
   status     TEXT DEFAULT 'idle' CHECK (status IN ('idle', 'running', 'shutdown')),
   spawn_prompt TEXT,
   model      TEXT,
@@ -62,7 +69,7 @@ CREATE TABLE members (
   UNIQUE(team_name, agent_name)
 );
 
--- Tasks
+-- Tasks (with cycle-checked dependencies)
 CREATE TABLE tasks (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   team_name   TEXT NOT NULL REFERENCES teams(name),
@@ -76,14 +83,14 @@ CREATE TABLE tasks (
   updated_at  TEXT DEFAULT (datetime('now'))
 );
 
--- Task dependency edges
+-- Task dependency edges (cycle detection enforced at service layer)
 CREATE TABLE task_deps (
   task_id     INTEGER NOT NULL REFERENCES tasks(id),
   blocked_by  INTEGER NOT NULL REFERENCES tasks(id),
   PRIMARY KEY (task_id, blocked_by)
 );
 
--- Messages
+-- Messages (with delivery tracking)
 CREATE TABLE messages (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   team_name   TEXT NOT NULL REFERENCES teams(name),
@@ -97,6 +104,9 @@ CREATE TABLE messages (
   delivered   INTEGER DEFAULT 0,
   created_at  TEXT DEFAULT (datetime('now'))
 );
+
+-- Schema versioning for migrations
+CREATE TABLE schema_version (version INTEGER NOT NULL);
 ```
 
 ## Agent Spawner Interface
@@ -155,12 +165,14 @@ class ACPFactorySpawner implements AgentSpawner {
 
 ### Custom Spawners
 
-Users can implement their own `AgentSpawner` and register it:
+Users implement `AgentSpawner` and pass it via dependency injection:
 
 ```typescript
-import { setSpawner } from "openteams";
-setSpawner(new MyCustomSpawner());
+import { AgentService } from "openteams";
+const agentService = new AgentService(db, myCustomSpawner);
 ```
+
+The global `setSpawner()`/`getSpawner()` API is deprecated in favor of DI.
 
 ## CLI Commands
 
@@ -170,33 +182,38 @@ setSpawner(new MyCustomSpawner());
 openteams team create <name> [--description <desc>] [--agent-type <type>]
 openteams team list
 openteams team info <name>
+openteams team add-member <team> <name> [--role <role>] [--type <type>] [--model <model>]
 openteams team delete <name>
 ```
 
 ### Task Management
 
 ```
-openteams task create <team> --subject <subject> --description <desc> [--active-form <text>] [--blocked-by <id,...>] [--metadata <json>]
-openteams task list <team> [--status <status>] [--owner <name>]
-openteams task get <team> <task-id>
-openteams task update <team> <task-id> [--status <status>] [--owner <name>] [--subject <subject>] [--description <desc>] [--add-blocks <id,...>] [--add-blocked-by <id,...>] [--metadata <json>]
+openteams task create <team> -s <subject> -d <desc> [-a <active-form>] [--blocked-by <ids>] [--metadata <json>]
+openteams task list <team> [--status <status>] [--owner <name>] [--json]
+openteams task get <team> <task-id> [--json]
+openteams task update <team> <task-id> [--status <status>] [--owner <name>] [-s <subject>] [-d <desc>] [--add-blocks <ids>] [--add-blocked-by <ids>] [--metadata <json>]
 ```
 
 ### Messaging
 
 ```
-openteams message send <team> --to <recipient> --content <content> --summary <summary>
-openteams message broadcast <team> --content <content> --summary <summary>
-openteams message shutdown <team> --to <recipient> [--reason <reason>]
-openteams message list <team> [--agent <name>]
+openteams message send <team> --to <recipient> --content <content> --summary <summary> [--from <sender>]
+openteams message broadcast <team> --content <content> --summary <summary> [--from <sender>]
+openteams message shutdown <team> --to <recipient> [--reason <reason>] [--from <sender>]
+openteams message shutdown-response <team> --request-id <id> --approve|--reject [--content <text>] [--from <sender>]
+openteams message plan-response <team> --to <recipient> --request-id <id> --approve|--reject [--content <text>] [--from <sender>]
+openteams message list <team> [--agent <name>] [--json]
+openteams message poll <team> --agent <name> [--mark-delivered] [--json]
+openteams message ack <team> <message-id>
 ```
 
 ### Agent Management
 
 ```
-openteams agent spawn <team> --name <name> --prompt <prompt> [--type <agent-type>] [--model <model>] [--cwd <dir>]
-openteams agent list <team>
-openteams agent info <team> <name>
+openteams agent spawn <team> -n <name> -p <prompt> [-t <agent-type>] [-m <model>] [--cwd <dir>]
+openteams agent list <team> [--json]
+openteams agent info <team> <name> [--json]
 openteams agent shutdown <team> <name>
 ```
 
@@ -276,6 +293,31 @@ Three layers:
 
 Signals are emitted through channels and routed to subscribers based on their subscription config. Emission permissions restrict which signals a role can emit.
 
+**Enforcement modes** (set in `communication.enforcement`):
+- `strict` — Unauthorized emissions throw errors
+- `audit` — Unauthorized emissions are allowed but flagged as `permitted: false`
+- `permissive` (default) — All emissions are allowed
+
+### Role Inheritance
+
+Roles support single-inheritance via `extends`:
+
+```yaml
+# roles/senior.yaml
+name: senior
+capabilities: [code, review, deploy]
+
+# roles/junior.yaml
+name: junior
+extends: senior
+capabilities:
+  add: [debug]
+  remove: [deploy]
+# Result: [code, review, debug]
+```
+
+Multi-level chains (A extends B extends C) are resolved in topological order. Circular inheritance is detected and rejected at template load time.
+
 ### Communication Database Tables
 
 ```sql
@@ -303,10 +345,12 @@ CREATE TABLE spawn_rules (team_name, from_role, to_role);
 
 ```
 template load <dir>
-  → TemplateLoader.load(dir)         # Parse YAML, validate, resolve roles/prompts
+  → TemplateLoader.load(dir)              # Parse YAML, validate, resolve roles/prompts
+    → resolveInheritance()                # Resolve extends chains, merge capabilities
   → TemplateService.bootstrap()
-    → TeamService.create()            # Create team with template_name/template_path
-    → CommunicationService.applyConfig()  # Wire channels, subs, emissions, peers
+    → TeamService.create()                # Create team with template_name/template_path
+    → Register root + companions as members  # Auto-populate initial members
+    → CommunicationService.applyConfig()  # Wire channels, subs, emissions, peers, enforcement
     → Store spawn rules
 ```
 
@@ -335,25 +379,29 @@ src/
 ├── cli.ts                # CLI entry point (bin)
 ├── types.ts              # Shared type definitions
 ├── cli/
-│   ├── team.ts           # team subcommands
-│   ├── task.ts           # task subcommands
-│   ├── message.ts        # message subcommands
-│   ├── agent.ts          # agent subcommands
-│   └── template.ts       # template subcommands
+│   ├── team.ts           # team subcommands (create, list, info, add-member, delete)
+│   ├── task.ts           # task subcommands (create, list, get, update) [--json]
+│   ├── message.ts        # message subcommands (send, broadcast, shutdown, shutdown-response, plan-response, list, poll, ack) [--json]
+│   ├── agent.ts          # agent subcommands (spawn, list, info, shutdown) [--json]
+│   └── template.ts       # template subcommands (load, info, emit, events)
 ├── db/
-│   └── database.ts       # Database connection and schema
+│   └── database.ts       # Database connection, schema, and migration framework
 ├── services/
-│   ├── team-service.ts   # Team CRUD + members
-│   ├── task-service.ts   # Task CRUD + dependency management
-│   ├── message-service.ts# Message routing and storage
-│   ├── agent-service.ts  # Agent lifecycle management
-│   ├── template-service.ts    # Template bootstrap + spawn rules
-│   └── communication-service.ts # Channels, signals, subscriptions
+│   ├── team-service.ts           # Team CRUD + member management
+│   ├── task-service.ts           # Task CRUD + dependency management + cycle detection
+│   ├── message-service.ts        # Message routing, delivery tracking, member validation
+│   ├── agent-service.ts          # Agent lifecycle management
+│   ├── template-service.ts       # Template bootstrap + spawn rules + member auto-registration
+│   └── communication-service.ts  # Channels, signals, subscriptions, enforcement
 ├── template/
-│   ├── types.ts          # Template schema types
-│   └── loader.ts         # YAML parsing, validation, resolution
+│   ├── types.ts          # Template schema types (manifest, roles, communication, signals)
+│   └── loader.ts         # YAML parsing, validation, role inheritance resolution
+├── generators/
+│   ├── skill-generator.ts        # SKILL.md and catalog generation
+│   ├── agent-prompt-generator.ts # Agent prompt and role skill generation
+│   └── package-generator.ts      # Package artifact generation
 └── spawner/
-    ├── interface.ts      # AgentSpawner interface
-    ├── acp-factory.ts    # Default ACP factory spawner
+    ├── interface.ts      # Global spawner registry (deprecated, use DI)
+    ├── acp-factory.ts    # ACP factory spawner (optional dependency)
     └── mock.ts           # Mock spawner for testing
 ```
