@@ -47,11 +47,18 @@ export function createTaskCommands(db: Database.Database): Command {
     .description("List tasks for a team")
     .option("--status <status>", "Filter by status")
     .option("--owner <name>", "Filter by owner")
+    .option("--json", "Output as JSON")
     .action((team: string, opts) => {
       const tasks = taskService.list(team, {
         status: opts.status as TaskStatus | undefined,
         owner: opts.owner,
       });
+
+      if (opts.json) {
+        console.log(JSON.stringify(tasks));
+        return;
+      }
+
       if (tasks.length === 0) {
         console.log("No tasks found.");
         return;
@@ -69,7 +76,8 @@ export function createTaskCommands(db: Database.Database): Command {
   task
     .command("get <team> <task-id>")
     .description("Get full task details")
-    .action((team: string, taskId: string) => {
+    .option("--json", "Output as JSON")
+    .action((team: string, taskId: string, opts) => {
       const id = parseInt(taskId, 10);
       const t = taskService.get(team, id);
       if (!t) {
@@ -77,6 +85,14 @@ export function createTaskCommands(db: Database.Database): Command {
         process.exitCode = 1;
         return;
       }
+
+      if (opts.json) {
+        const blockedBy = taskService.getBlockedBy(t.id);
+        const blocks = taskService.getBlocks(t.id);
+        console.log(JSON.stringify({ ...t, blockedBy, blocks }));
+        return;
+      }
+
       console.log(`Task #${t.id}: ${t.subject}`);
       console.log(`Status: ${t.status}`);
       if (t.owner) console.log(`Owner: ${t.owner}`);

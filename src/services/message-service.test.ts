@@ -24,6 +24,75 @@ describe("MessageService", () => {
     db.close();
   });
 
+  describe("team validation", () => {
+    it("send throws when team does not exist", () => {
+      expect(() =>
+        messageService.send({
+          teamName: "nonexistent",
+          sender: "alice",
+          recipient: "bob",
+          content: "Hi",
+          summary: "Greeting",
+        })
+      ).toThrow('Team "nonexistent" not found');
+    });
+
+    it("broadcast throws when team does not exist", () => {
+      expect(() =>
+        messageService.broadcast({
+          teamName: "nonexistent",
+          sender: "alice",
+          content: "Hi",
+          summary: "Greeting",
+        })
+      ).toThrow('Team "nonexistent" not found');
+    });
+
+    it("sendShutdownRequest throws when team does not exist", () => {
+      expect(() =>
+        messageService.sendShutdownRequest({
+          teamName: "nonexistent",
+          sender: "lead",
+          recipient: "alice",
+        })
+      ).toThrow('Team "nonexistent" not found');
+    });
+
+    it("send throws when recipient is not a member", () => {
+      expect(() =>
+        messageService.send({
+          teamName: "test-team",
+          sender: "alice",
+          recipient: "ghost",
+          content: "Hi",
+          summary: "Greeting",
+        })
+      ).toThrow('Agent "ghost" is not a member of team "test-team"');
+    });
+
+    it("sendShutdownRequest throws when recipient is not a member", () => {
+      expect(() =>
+        messageService.sendShutdownRequest({
+          teamName: "test-team",
+          sender: "lead",
+          recipient: "ghost",
+        })
+      ).toThrow('Agent "ghost" is not a member of team "test-team"');
+    });
+
+    it("sendPlanApprovalResponse throws when recipient is not a member", () => {
+      expect(() =>
+        messageService.sendPlanApprovalResponse({
+          teamName: "test-team",
+          sender: "lead",
+          recipient: "ghost",
+          requestId: "req-1",
+          approve: true,
+        })
+      ).toThrow('Agent "ghost" is not a member of team "test-team"');
+    });
+  });
+
   describe("send", () => {
     it("sends a direct message", () => {
       const msg = messageService.send({
@@ -205,6 +274,33 @@ describe("MessageService", () => {
 
       const msgs = messageService.listForAgent("test-team", "bob");
       expect(msgs).toHaveLength(2); // received one, sent one
+    });
+
+    it("listForAgent only returns broadcasts addressed to that agent", () => {
+      // alice broadcasts to bob and charlie (per-recipient rows)
+      messageService.broadcast({
+        teamName: "test-team",
+        sender: "alice",
+        content: "Team update",
+        summary: "Broadcast",
+      });
+
+      const bobMsgs = messageService.listForAgent("test-team", "bob");
+      const bobBroadcasts = bobMsgs.filter((m) => m.type === "broadcast");
+      expect(bobBroadcasts).toHaveLength(1);
+      expect(bobBroadcasts[0].recipient).toBe("bob");
+
+      // charlie should only see their own copy
+      const charlieMsgs = messageService.listForAgent("test-team", "charlie");
+      const charlieBroadcasts = charlieMsgs.filter((m) => m.type === "broadcast");
+      expect(charlieBroadcasts).toHaveLength(1);
+      expect(charlieBroadcasts[0].recipient).toBe("charlie");
+
+      // alice (sender) should see both as sender, not as broadcast recipient
+      const aliceMsgs = messageService.listForAgent("test-team", "alice");
+      const aliceBroadcasts = aliceMsgs.filter((m) => m.type === "broadcast");
+      expect(aliceBroadcasts).toHaveLength(2); // sent to bob + charlie
+      expect(aliceBroadcasts.every((m) => m.sender === "alice")).toBe(true);
     });
   });
 

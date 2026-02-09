@@ -1,10 +1,24 @@
 import type Database from "better-sqlite3";
+import type { EnforcementMode } from "../types";
 import type {
   CommunicationConfig,
   SignalEvent,
   SignalEventRow,
   EmitSignalOptions,
 } from "../template/types";
+
+function rowToEvent(row: SignalEventRow): SignalEvent {
+  return {
+    ...row,
+    payload: JSON.parse(row.payload || "{}"),
+  };
+}
+
+export interface EmitResult {
+  event: SignalEvent;
+  permitted: boolean;
+  enforcement: EnforcementMode;
+}
 
 export interface ChannelInfo {
   name: string;
@@ -33,6 +47,13 @@ export class CommunicationService {
    * Populates channels, signals, subscriptions, emissions, peer routes.
    */
   applyConfig(teamName: string, config: CommunicationConfig): void {
+    // Store enforcement mode on the team
+    if (config.enforcement) {
+      this.db
+        .prepare("UPDATE teams SET enforcement = ? WHERE name = ?")
+        .run(config.enforcement, teamName);
+    }
+
     // Channels + signals
     if (config.channels) {
       for (const [name, def] of Object.entries(config.channels)) {
@@ -234,9 +255,31 @@ export class CommunicationService {
     }));
   }
 
+  // --- Enforcement ---
+
+  getEnforcement(teamName: string): EnforcementMode {
+    const row = this.db
+      .prepare("SELECT enforcement FROM teams WHERE name = ?")
+      .get(teamName) as { enforcement: EnforcementMode } | undefined;
+    return row?.enforcement ?? "permissive";
+  }
+
   // --- Signal Events ---
 
-  emit(options: EmitSignalOptions): SignalEvent {
+  emit(options: EmitSignalOptions): EmitResult {
+    const enforcement = this.getEnforcement(options.teamName);
+    const permitted = this.canEmit(
+      options.teamName,
+      options.sender,
+      options.signal
+    );
+
+    if (!permitted && enforcement === "strict") {
+      throw new Error(
+        `Role "${options.sender}" is not permitted to emit signal "${options.signal}" (enforcement: strict)`
+      );
+    }
+
     const result = this.db
       .prepare(
         "INSERT INTO signal_events (team_name, channel, signal, sender, payload) VALUES (?, ?, ?, ?, ?)"
@@ -249,7 +292,8 @@ export class CommunicationService {
         JSON.stringify(options.payload ?? {})
       );
 
-    return this.getEvent(Number(result.lastInsertRowid))!;
+    const event = this.getEvent(Number(result.lastInsertRowid))!;
+    return { event, permitted, enforcement };
   }
 
   listEvents(
@@ -275,7 +319,7 @@ export class CommunicationService {
     sql += " ORDER BY created_at ASC";
 
     const rows = this.db.prepare(sql).all(...params) as SignalEventRow[];
-    return rows.map((r) => ({ ...r }));
+    return rows.map(rowToEvent);
   }
 
   /**
@@ -295,7 +339,7 @@ export class CommunicationService {
             "SELECT * FROM signal_events WHERE team_name = ? AND channel = ? AND signal = ? ORDER BY created_at ASC"
           )
           .all(teamName, sub.channel, sub.signal) as SignalEventRow[];
-        allEvents.push(...rows);
+        allEvents.push(...rows.map(rowToEvent));
       } else {
         // Full channel subscription
         const rows = this.db
@@ -303,7 +347,7 @@ export class CommunicationService {
             "SELECT * FROM signal_events WHERE team_name = ? AND channel = ? ORDER BY created_at ASC"
           )
           .all(teamName, sub.channel) as SignalEventRow[];
-        allEvents.push(...rows);
+        allEvents.push(...rows.map(rowToEvent));
       }
     }
 
@@ -322,6 +366,6 @@ export class CommunicationService {
     const row = this.db
       .prepare("SELECT * FROM signal_events WHERE id = ?")
       .get(id) as SignalEventRow | undefined;
-    return row ? { ...row } : null;
+    return row ? rowToEvent(row) : null;
   }
 }

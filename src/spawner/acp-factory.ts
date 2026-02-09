@@ -29,6 +29,7 @@ export class ACPFactorySpawner implements AgentSpawner {
     const agentProvider = options.model ?? "claude-code";
     const handle = await Factory.spawn(agentProvider, {
       permissionMode: options.permissionMode ?? "auto-approve",
+      agentType: options.agentType,
       env: options.env,
     });
 

@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { createInMemoryDatabase } from "./database";
+import Database from "better-sqlite3";
+import {
+  createInMemoryDatabase,
+  getSchemaVersion,
+  applyMigrations,
+  CURRENT_VERSION,
+} from "./database";
+import type { Migration } from "./database";
 
 describe("database", () => {
   it("creates an in-memory database with all tables", () => {
@@ -36,7 +43,7 @@ describe("database", () => {
       .prepare("SELECT version FROM schema_version LIMIT 1")
       .get() as { version: number };
 
-    expect(row.version).toBe(2);
+    expect(row.version).toBe(CURRENT_VERSION);
     db.close();
   });
 
@@ -60,6 +67,118 @@ describe("database", () => {
     db.exec(
       "CREATE TABLE IF NOT EXISTS teams (name TEXT PRIMARY KEY, description TEXT, agent_type TEXT, created_at TEXT, status TEXT)"
     );
+
+    db.close();
+  });
+});
+
+describe("migrations", () => {
+  it("getSchemaVersion returns 0 for empty schema_version table", () => {
+    const db = new Database(":memory:");
+    db.exec("CREATE TABLE schema_version (version INTEGER PRIMARY KEY)");
+
+    expect(getSchemaVersion(db)).toBe(0);
+    db.close();
+  });
+
+  it("getSchemaVersion returns stored version", () => {
+    const db = createInMemoryDatabase();
+    expect(getSchemaVersion(db)).toBe(CURRENT_VERSION);
+    db.close();
+  });
+
+  it("applyMigrations runs pending migrations in order", () => {
+    const db = createInMemoryDatabase();
+
+    // Simulate a v2 database that needs v3 and v4
+    const migrations: Migration[] = [
+      { version: 3, up: "ALTER TABLE teams ADD COLUMN extra1 TEXT;" },
+      { version: 4, up: "ALTER TABLE teams ADD COLUMN extra2 TEXT;" },
+    ];
+
+    const result = applyMigrations(db, 2, migrations);
+    expect(result).toBe(4);
+
+    // Verify version was updated
+    expect(getSchemaVersion(db)).toBe(4);
+
+    // Verify columns were added
+    const info = db.prepare("PRAGMA table_info(teams)").all() as Array<{
+      name: string;
+    }>;
+    const colNames = info.map((c) => c.name);
+    expect(colNames).toContain("extra1");
+    expect(colNames).toContain("extra2");
+
+    db.close();
+  });
+
+  it("applyMigrations skips already-applied versions", () => {
+    const db = createInMemoryDatabase();
+
+    const migrations: Migration[] = [
+      { version: 1, up: "SELECT 1;" }, // already past this
+      { version: 2, up: "SELECT 1;" }, // already at this
+      { version: 3, up: "ALTER TABLE teams ADD COLUMN new_col TEXT;" },
+    ];
+
+    const result = applyMigrations(db, 2, migrations);
+    expect(result).toBe(3);
+
+    // Only the v3 migration should have run
+    const info = db.prepare("PRAGMA table_info(teams)").all() as Array<{
+      name: string;
+    }>;
+    const colNames = info.map((c) => c.name);
+    expect(colNames).toContain("new_col");
+
+    db.close();
+  });
+
+  it("applyMigrations returns current version when nothing to apply", () => {
+    const db = createInMemoryDatabase();
+
+    const result = applyMigrations(db, CURRENT_VERSION, []);
+    expect(result).toBe(CURRENT_VERSION);
+
+    db.close();
+  });
+
+  it("applyMigrations rolls back on failure", () => {
+    const db = createInMemoryDatabase();
+
+    const migrations: Migration[] = [
+      { version: 3, up: "ALTER TABLE teams ADD COLUMN good_col TEXT;" },
+      { version: 4, up: "ALTER TABLE nonexistent_table ADD COLUMN bad TEXT;" },
+    ];
+
+    expect(() => applyMigrations(db, 2, migrations)).toThrow();
+
+    // Version should still be 2 — transaction rolled back
+    expect(getSchemaVersion(db)).toBe(CURRENT_VERSION);
+
+    // The v3 column should NOT exist — entire transaction rolled back
+    const info = db.prepare("PRAGMA table_info(teams)").all() as Array<{
+      name: string;
+    }>;
+    const colNames = info.map((c) => c.name);
+    expect(colNames).not.toContain("good_col");
+
+    db.close();
+  });
+
+  it("applies migrations in version order regardless of array order", () => {
+    const db = createInMemoryDatabase();
+
+    // Provide migrations out of order
+    const migrations: Migration[] = [
+      { version: 4, up: "ALTER TABLE teams ADD COLUMN col_b TEXT;" },
+      { version: 3, up: "ALTER TABLE teams ADD COLUMN col_a TEXT;" },
+    ];
+
+    const result = applyMigrations(db, 2, migrations);
+    expect(result).toBe(4);
+    expect(getSchemaVersion(db)).toBe(4);
 
     db.close();
   });

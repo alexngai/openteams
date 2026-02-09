@@ -150,16 +150,18 @@ export function createTemplateCommands(db: Database.Database): Command {
     .option("-p, --payload <json>", "JSON payload")
     .action((teamName: string, opts) => {
       try {
-        const event = commService.emit({
+        const { event, permitted, enforcement } = commService.emit({
           teamName,
           channel: opts.channel,
           signal: opts.signal,
           sender: opts.sender,
           payload: opts.payload ? JSON.parse(opts.payload) : undefined,
         });
-        console.log(
-          `Signal ${event.signal} emitted on ${event.channel} by ${event.sender} (event #${event.id}).`
-        );
+        let msg = `Signal ${event.signal} emitted on ${event.channel} by ${event.sender} (event #${event.id}).`;
+        if (!permitted && enforcement === "audit") {
+          msg += ` [AUDIT: "${opts.sender}" is not permitted to emit "${opts.signal}"]`;
+        }
+        console.log(msg);
       } catch (err: any) {
         console.error(`Error: ${err.message}`);
         process.exitCode = 1;
@@ -192,7 +194,9 @@ export function createTemplateCommands(db: Database.Database): Command {
 
       for (const e of events) {
         const payload =
-          e.payload && e.payload !== "{}" ? ` ${e.payload}` : "";
+          e.payload && Object.keys(e.payload).length > 0
+            ? ` ${JSON.stringify(e.payload)}`
+            : "";
         console.log(
           `  #${e.id} [${e.channel}] ${e.signal} from ${e.sender}${payload}`
         );

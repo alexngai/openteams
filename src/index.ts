@@ -84,5 +84,15 @@ export type {
 
 // Spawner
 export { setSpawner, getSpawner, hasSpawner } from "./spawner/interface";
-export { ACPFactorySpawner } from "./spawner/acp-factory";
 export { MockSpawner } from "./spawner/mock";
+
+/**
+ * Create an ACPFactorySpawner instance. Requires the optional `acp-factory` package.
+ * @throws If `acp-factory` is not installed.
+ */
+export async function createACPFactorySpawner(): Promise<
+  import("./types").AgentSpawner
+> {
+  const { ACPFactorySpawner } = await import("./spawner/acp-factory");
+  return new ACPFactorySpawner();
+}

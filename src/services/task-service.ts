@@ -18,7 +18,18 @@ function rowToTask(row: TaskRow): Task {
 export class TaskService {
   constructor(private db: Database.Database) {}
 
+  private assertTeamExists(teamName: string): void {
+    const row = this.db
+      .prepare("SELECT name FROM teams WHERE name = ? AND status = 'active'")
+      .get(teamName) as { name: string } | undefined;
+    if (!row) {
+      throw new Error(`Team "${teamName}" not found`);
+    }
+  }
+
   create(options: CreateTaskOptions): Task {
+    this.assertTeamExists(options.teamName);
+
     const result = this.db
       .prepare(
         `INSERT INTO tasks (team_name, subject, description, active_form, metadata)
@@ -35,6 +46,11 @@ export class TaskService {
     const taskId = Number(result.lastInsertRowid);
 
     if (options.blockedBy && options.blockedBy.length > 0) {
+      if (options.blockedBy.includes(taskId)) {
+        throw new Error(
+          `Adding dependency would create a cycle: task #${taskId} cannot block itself`
+        );
+      }
       const insertDep = this.db.prepare(
         "INSERT INTO task_deps (task_id, blocked_by) VALUES (?, ?)"
       );
@@ -134,6 +150,9 @@ export class TaskService {
     }
 
     if (options.addBlockedBy && options.addBlockedBy.length > 0) {
+      for (const depId of options.addBlockedBy) {
+        this.assertNoCycle(taskId, depId);
+      }
       const insertDep = this.db.prepare(
         "INSERT OR IGNORE INTO task_deps (task_id, blocked_by) VALUES (?, ?)"
       );
@@ -143,6 +162,9 @@ export class TaskService {
     }
 
     if (options.addBlocks && options.addBlocks.length > 0) {
+      for (const blockedTaskId of options.addBlocks) {
+        this.assertNoCycle(blockedTaskId, taskId);
+      }
       const insertDep = this.db.prepare(
         "INSERT OR IGNORE INTO task_deps (task_id, blocked_by) VALUES (?, ?)"
       );
@@ -166,6 +188,39 @@ export class TaskService {
       .prepare("SELECT task_id FROM task_deps WHERE blocked_by = ?")
       .all(taskId) as Array<{ task_id: number }>;
     return rows.map((r) => r.task_id);
+  }
+
+  /**
+   * Check if adding edge (taskId blocked_by depId) would create a cycle.
+   * Follows blocked_by edges from depId to see if it reaches taskId.
+   */
+  private assertNoCycle(taskId: number, depId: number): void {
+    if (taskId === depId) {
+      throw new Error(
+        `Adding dependency would create a cycle: task #${taskId} cannot block itself`
+      );
+    }
+
+    const visited = new Set<number>();
+    const queue = [depId];
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (current === taskId) {
+        throw new Error(
+          `Adding dependency would create a cycle: task #${taskId} -> #${depId} creates a circular dependency`
+        );
+      }
+      if (visited.has(current)) continue;
+      visited.add(current);
+
+      const deps = this.getBlockedBy(current);
+      for (const dep of deps) {
+        if (!visited.has(dep)) {
+          queue.push(dep);
+        }
+      }
+    }
   }
 
   isBlocked(taskId: number): boolean {

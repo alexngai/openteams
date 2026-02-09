@@ -34,6 +34,16 @@ describe("TaskService", () => {
       expect(task.owner).toBeNull();
     });
 
+    it("throws when team does not exist", () => {
+      expect(() =>
+        taskService.create({
+          teamName: "nonexistent",
+          subject: "Test",
+          description: "D",
+        })
+      ).toThrow('Team "nonexistent" not found');
+    });
+
     it("creates a task with all optional fields", () => {
       const task = taskService.create({
         teamName: "test-team",
@@ -323,6 +333,102 @@ describe("TaskService", () => {
         description: "D",
       });
       expect(taskService.isBlocked(t1.id)).toBe(false);
+    });
+  });
+
+  describe("cycle detection", () => {
+    it("detects direct self-dependency via addBlockedBy", () => {
+      const t1 = taskService.create({
+        teamName: "test-team",
+        subject: "T1",
+        description: "D",
+      });
+      expect(() =>
+        taskService.update("test-team", t1.id, { addBlockedBy: [t1.id] })
+      ).toThrow("cycle");
+    });
+
+    it("detects circular dependency via addBlockedBy", () => {
+      const t1 = taskService.create({
+        teamName: "test-team",
+        subject: "T1",
+        description: "D",
+      });
+      const t2 = taskService.create({
+        teamName: "test-team",
+        subject: "T2",
+        description: "D",
+        blockedBy: [t1.id],
+      });
+      // t2 is blocked by t1. Now trying to make t1 blocked by t2 → cycle
+      expect(() =>
+        taskService.update("test-team", t1.id, { addBlockedBy: [t2.id] })
+      ).toThrow("cycle");
+    });
+
+    it("detects transitive cycle via addBlockedBy", () => {
+      const t1 = taskService.create({
+        teamName: "test-team",
+        subject: "T1",
+        description: "D",
+      });
+      const t2 = taskService.create({
+        teamName: "test-team",
+        subject: "T2",
+        description: "D",
+        blockedBy: [t1.id],
+      });
+      const t3 = taskService.create({
+        teamName: "test-team",
+        subject: "T3",
+        description: "D",
+        blockedBy: [t2.id],
+      });
+      // t3 -> t2 -> t1. Now trying to make t1 blocked by t3 → cycle
+      expect(() =>
+        taskService.update("test-team", t1.id, { addBlockedBy: [t3.id] })
+      ).toThrow("cycle");
+    });
+
+    it("detects cycle via addBlocks", () => {
+      const t1 = taskService.create({
+        teamName: "test-team",
+        subject: "T1",
+        description: "D",
+      });
+      const t2 = taskService.create({
+        teamName: "test-team",
+        subject: "T2",
+        description: "D",
+        blockedBy: [t1.id],
+      });
+      // t2 blocked by t1. addBlocks t2 → [t1] means t1 is blocked by t2 → cycle
+      expect(() =>
+        taskService.update("test-team", t2.id, { addBlocks: [t1.id] })
+      ).toThrow("cycle");
+    });
+
+    it("allows valid non-cyclic dependencies", () => {
+      const t1 = taskService.create({
+        teamName: "test-team",
+        subject: "T1",
+        description: "D",
+      });
+      const t2 = taskService.create({
+        teamName: "test-team",
+        subject: "T2",
+        description: "D",
+      });
+      const t3 = taskService.create({
+        teamName: "test-team",
+        subject: "T3",
+        description: "D",
+        blockedBy: [t1.id],
+      });
+      // t3 -> t1. Adding t3 -> t2 is fine (no cycle)
+      expect(() =>
+        taskService.update("test-team", t3.id, { addBlockedBy: [t2.id] })
+      ).not.toThrow();
     });
   });
 });

@@ -21,7 +21,32 @@ function rowToMessage(row: MessageRow): Message {
 export class MessageService {
   constructor(private db: Database.Database) {}
 
+  private assertTeamExists(teamName: string): void {
+    const row = this.db
+      .prepare("SELECT name FROM teams WHERE name = ? AND status = 'active'")
+      .get(teamName) as { name: string } | undefined;
+    if (!row) {
+      throw new Error(`Team "${teamName}" not found`);
+    }
+  }
+
+  private assertMemberExists(teamName: string, agentName: string): void {
+    const row = this.db
+      .prepare(
+        "SELECT agent_name FROM members WHERE team_name = ? AND agent_name = ?"
+      )
+      .get(teamName, agentName) as { agent_name: string } | undefined;
+    if (!row) {
+      throw new Error(
+        `Agent "${agentName}" is not a member of team "${teamName}"`
+      );
+    }
+  }
+
   send(options: SendMessageOptions): Message {
+    this.assertTeamExists(options.teamName);
+    this.assertMemberExists(options.teamName, options.recipient);
+
     const result = this.db
       .prepare(
         `INSERT INTO messages (team_name, type, sender, recipient, content, summary)
@@ -39,6 +64,8 @@ export class MessageService {
   }
 
   broadcast(options: BroadcastMessageOptions): Message[] {
+    this.assertTeamExists(options.teamName);
+
     const members = this.db
       .prepare(
         "SELECT agent_name FROM members WHERE team_name = ? AND status != 'shutdown'"
@@ -69,6 +96,9 @@ export class MessageService {
   }
 
   sendShutdownRequest(options: ShutdownRequestOptions): Message {
+    this.assertTeamExists(options.teamName);
+    this.assertMemberExists(options.teamName, options.recipient);
+
     const requestId = randomUUID();
     const result = this.db
       .prepare(
@@ -104,6 +134,9 @@ export class MessageService {
   }
 
   sendPlanApprovalResponse(options: PlanApprovalResponseOptions): Message {
+    this.assertTeamExists(options.teamName);
+    this.assertMemberExists(options.teamName, options.recipient);
+
     const result = this.db
       .prepare(
         `INSERT INTO messages (team_name, type, sender, recipient, content, request_id, approve)
@@ -125,7 +158,7 @@ export class MessageService {
     const rows = this.db
       .prepare(
         `SELECT * FROM messages
-         WHERE team_name = ? AND (recipient = ? OR sender = ? OR type = 'broadcast')
+         WHERE team_name = ? AND (recipient = ? OR sender = ?)
          ORDER BY created_at ASC`
       )
       .all(teamName, agentName, agentName) as MessageRow[];

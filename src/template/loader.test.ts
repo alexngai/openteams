@@ -401,6 +401,234 @@ communication:
     });
   });
 
+  describe("role inheritance", () => {
+    it("resolves single-level inheritance with add/remove", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: inherit-test
+version: 1
+roles:
+  - senior
+  - junior
+topology:
+  root:
+    role: senior
+`
+      );
+
+      writeYaml(
+        "roles/senior.yaml",
+        `
+name: senior
+capabilities:
+  - code
+  - review
+  - deploy
+`
+      );
+
+      writeYaml(
+        "roles/junior.yaml",
+        `
+name: junior
+extends: senior
+capabilities:
+  add:
+    - code
+    - debug
+  remove:
+    - deploy
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      const junior = template.roles.get("junior")!;
+      expect(junior.capabilities.sort()).toEqual(["code", "debug", "review"]);
+    });
+
+    it("resolves multi-level inheritance (A extends B extends C)", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: multi-inherit
+version: 1
+roles:
+  - base
+  - mid
+  - leaf
+topology:
+  root:
+    role: base
+`
+      );
+
+      writeYaml(
+        "roles/base.yaml",
+        `
+name: base
+capabilities:
+  - read
+  - write
+  - admin
+`
+      );
+
+      writeYaml(
+        "roles/mid.yaml",
+        `
+name: mid
+extends: base
+capabilities:
+  add:
+    - build
+  remove:
+    - admin
+`
+      );
+
+      writeYaml(
+        "roles/leaf.yaml",
+        `
+name: leaf
+extends: mid
+capabilities:
+  add:
+    - deploy
+  remove:
+    - write
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      // base: [read, write, admin]
+      // mid:  base + build - admin = [read, write, build]
+      // leaf: mid + deploy - write = [read, build, deploy]
+      expect(template.roles.get("mid")!.capabilities.sort()).toEqual(
+        ["build", "read", "write"]
+      );
+      expect(template.roles.get("leaf")!.capabilities.sort()).toEqual(
+        ["build", "deploy", "read"]
+      );
+    });
+
+    it("keeps explicit capability array as override (no merge)", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: override-test
+version: 1
+roles:
+  - parent
+  - child
+topology:
+  root:
+    role: parent
+`
+      );
+
+      writeYaml(
+        "roles/parent.yaml",
+        `
+name: parent
+capabilities:
+  - a
+  - b
+  - c
+`
+      );
+
+      writeYaml(
+        "roles/child.yaml",
+        `
+name: child
+extends: parent
+capabilities:
+  - x
+  - y
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      // Plain array = explicit override, not merged with parent
+      expect(template.roles.get("child")!.capabilities).toEqual(["x", "y"]);
+    });
+
+    it("detects circular inheritance", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: cycle-test
+version: 1
+roles:
+  - alpha
+  - beta
+topology:
+  root:
+    role: alpha
+`
+      );
+
+      writeYaml(
+        "roles/alpha.yaml",
+        `
+name: alpha
+extends: beta
+capabilities:
+  add:
+    - a
+`
+      );
+
+      writeYaml(
+        "roles/beta.yaml",
+        `
+name: beta
+extends: alpha
+capabilities:
+  add:
+    - b
+`
+      );
+
+      expect(() => TemplateLoader.load(tmpDir)).toThrow(
+        "Circular role inheritance detected"
+      );
+    });
+
+    it("ignores extends when parent is not in roles map", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: external-parent
+version: 1
+roles:
+  - child
+topology:
+  root:
+    role: child
+`
+      );
+
+      writeYaml(
+        "roles/child.yaml",
+        `
+name: child
+extends: nonexistent-parent
+capabilities:
+  add:
+    - foo
+    - bar
+`
+      );
+
+      // Parent not in roles map → just use add list as-is
+      const template = TemplateLoader.load(tmpDir);
+      expect(template.roles.get("child")!.capabilities).toEqual(["foo", "bar"]);
+      expect(template.roles.get("child")!.extends).toBe("nonexistent-parent");
+    });
+  });
+
   describe("loadFromManifest", () => {
     it("loads from an inline manifest", () => {
       const template = TemplateLoader.loadFromManifest({
