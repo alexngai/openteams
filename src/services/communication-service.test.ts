@@ -233,8 +233,40 @@ describe("CommunicationService", () => {
       expect(event.channel).toBe("task_updates");
       expect(event.signal).toBe("TASK_CREATED");
       expect(event.sender).toBe("planner");
+      expect(event.payload).toEqual({ taskId: 1, subject: "Fix bug" });
+      expect(typeof event.payload).toBe("object");
       expect(permitted).toBe(true);
       expect(enforcement).toBe("permissive");
+    });
+
+    it("returns empty object payload when none provided", () => {
+      commService.applyConfig("test-team", testConfig);
+
+      const { event } = commService.emit({
+        teamName: "test-team",
+        channel: "task_updates",
+        signal: "TASK_CREATED",
+        sender: "planner",
+      });
+
+      expect(event.payload).toEqual({});
+      expect(typeof event.payload).toBe("object");
+    });
+
+    it("preserves payload through listEvents", () => {
+      commService.applyConfig("test-team", testConfig);
+
+      commService.emit({
+        teamName: "test-team",
+        channel: "task_updates",
+        signal: "TASK_CREATED",
+        sender: "planner",
+        payload: { key: "value", nested: { a: 1 } },
+      });
+
+      const events = commService.listEvents("test-team");
+      expect(events).toHaveLength(1);
+      expect(events[0].payload).toEqual({ key: "value", nested: { a: 1 } });
     });
 
     it("lists events with filters", () => {
