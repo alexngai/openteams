@@ -24,6 +24,41 @@ describe("MessageService", () => {
     db.close();
   });
 
+  describe("team validation", () => {
+    it("send throws when team does not exist", () => {
+      expect(() =>
+        messageService.send({
+          teamName: "nonexistent",
+          sender: "alice",
+          recipient: "bob",
+          content: "Hi",
+          summary: "Greeting",
+        })
+      ).toThrow('Team "nonexistent" not found');
+    });
+
+    it("broadcast throws when team does not exist", () => {
+      expect(() =>
+        messageService.broadcast({
+          teamName: "nonexistent",
+          sender: "alice",
+          content: "Hi",
+          summary: "Greeting",
+        })
+      ).toThrow('Team "nonexistent" not found');
+    });
+
+    it("sendShutdownRequest throws when team does not exist", () => {
+      expect(() =>
+        messageService.sendShutdownRequest({
+          teamName: "nonexistent",
+          sender: "lead",
+          recipient: "alice",
+        })
+      ).toThrow('Team "nonexistent" not found');
+    });
+  });
+
   describe("send", () => {
     it("sends a direct message", () => {
       const msg = messageService.send({

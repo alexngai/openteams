@@ -34,6 +34,16 @@ describe("TaskService", () => {
       expect(task.owner).toBeNull();
     });
 
+    it("throws when team does not exist", () => {
+      expect(() =>
+        taskService.create({
+          teamName: "nonexistent",
+          subject: "Test",
+          description: "D",
+        })
+      ).toThrow('Team "nonexistent" not found');
+    });
+
     it("creates a task with all optional fields", () => {
       const task = taskService.create({
         teamName: "test-team",

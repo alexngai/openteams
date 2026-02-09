@@ -18,7 +18,18 @@ function rowToTask(row: TaskRow): Task {
 export class TaskService {
   constructor(private db: Database.Database) {}
 
+  private assertTeamExists(teamName: string): void {
+    const row = this.db
+      .prepare("SELECT name FROM teams WHERE name = ? AND status = 'active'")
+      .get(teamName) as { name: string } | undefined;
+    if (!row) {
+      throw new Error(`Team "${teamName}" not found`);
+    }
+  }
+
   create(options: CreateTaskOptions): Task {
+    this.assertTeamExists(options.teamName);
+
     const result = this.db
       .prepare(
         `INSERT INTO tasks (team_name, subject, description, active_form, metadata)
