@@ -40,8 +40,15 @@ export function createAgentCommands(
   agent
     .command("list <team>")
     .description("List agents in a team")
-    .action((team: string) => {
+    .option("--json", "Output as JSON")
+    .action((team: string, opts) => {
       const members = agentService.listMembers(team);
+
+      if (opts.json) {
+        console.log(JSON.stringify(members));
+        return;
+      }
+
       if (members.length === 0) {
         console.log("No agents in this team.");
         return;
@@ -56,13 +63,20 @@ export function createAgentCommands(
   agent
     .command("info <team> <name>")
     .description("Show agent details")
-    .action((team: string, name: string) => {
+    .option("--json", "Output as JSON")
+    .action((team: string, name: string, opts) => {
       const member = agentService.getMember(team, name);
       if (!member) {
         console.error(`Error: Agent "${name}" not found in team "${team}".`);
         process.exitCode = 1;
         return;
       }
+
+      if (opts.json) {
+        console.log(JSON.stringify(member));
+        return;
+      }
+
       console.log(`Agent: ${member.agent_name}`);
       console.log(`Team: ${member.team_name}`);
       console.log(`Status: ${member.status}`);
