@@ -206,6 +206,33 @@ describe("MessageService", () => {
       const msgs = messageService.listForAgent("test-team", "bob");
       expect(msgs).toHaveLength(2); // received one, sent one
     });
+
+    it("listForAgent only returns broadcasts addressed to that agent", () => {
+      // alice broadcasts to bob and charlie (per-recipient rows)
+      messageService.broadcast({
+        teamName: "test-team",
+        sender: "alice",
+        content: "Team update",
+        summary: "Broadcast",
+      });
+
+      const bobMsgs = messageService.listForAgent("test-team", "bob");
+      const bobBroadcasts = bobMsgs.filter((m) => m.type === "broadcast");
+      expect(bobBroadcasts).toHaveLength(1);
+      expect(bobBroadcasts[0].recipient).toBe("bob");
+
+      // charlie should only see their own copy
+      const charlieMsgs = messageService.listForAgent("test-team", "charlie");
+      const charlieBroadcasts = charlieMsgs.filter((m) => m.type === "broadcast");
+      expect(charlieBroadcasts).toHaveLength(1);
+      expect(charlieBroadcasts[0].recipient).toBe("charlie");
+
+      // alice (sender) should see both as sender, not as broadcast recipient
+      const aliceMsgs = messageService.listForAgent("test-team", "alice");
+      const aliceBroadcasts = aliceMsgs.filter((m) => m.type === "broadcast");
+      expect(aliceBroadcasts).toHaveLength(2); // sent to bob + charlie
+      expect(aliceBroadcasts.every((m) => m.sender === "alice")).toBe(true);
+    });
   });
 
   describe("delivery tracking", () => {

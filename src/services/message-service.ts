@@ -125,7 +125,7 @@ export class MessageService {
     const rows = this.db
       .prepare(
         `SELECT * FROM messages
-         WHERE team_name = ? AND (recipient = ? OR sender = ? OR type = 'broadcast')
+         WHERE team_name = ? AND (recipient = ? OR sender = ?)
          ORDER BY created_at ASC`
       )
       .all(teamName, agentName, agentName) as MessageRow[];

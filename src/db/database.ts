@@ -3,7 +3,38 @@ import path from "path";
 import os from "os";
 import fs from "fs";
 
-const SCHEMA_VERSION = 2;
+// ---------------------------------------------------------------------------
+// Migration framework
+// ---------------------------------------------------------------------------
+// SCHEMA_SQL is the full current schema for fresh installs.
+// MIGRATIONS handles upgrades for existing databases.
+//
+// When adding a new schema change:
+//   1. Update SCHEMA_SQL to include the change (for fresh installs)
+//   2. Add a Migration entry with the next version number (for existing installs)
+//   3. Bump CURRENT_VERSION to match
+// ---------------------------------------------------------------------------
+
+export interface Migration {
+  version: number;
+  up: string;
+}
+
+export const CURRENT_VERSION = 2;
+
+/**
+ * Migrations applied incrementally to existing databases.
+ * Each migration brings the schema from (version - 1) to version.
+ * For now this is empty because v2 is the baseline — no users have
+ * older databases. Future changes add entries here.
+ */
+export const MIGRATIONS: Migration[] = [
+  // Example for a future change:
+  // {
+  //   version: 3,
+  //   up: `ALTER TABLE teams ADD COLUMN some_new_col TEXT;`
+  // },
+];
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -139,6 +170,45 @@ function getDefaultDbPath(): string {
   return path.join(dir, "openteams.db");
 }
 
+/**
+ * Read the current schema version from the database.
+ * Returns 0 if no version row exists (fresh install).
+ */
+export function getSchemaVersion(db: Database.Database): number {
+  const row = db
+    .prepare("SELECT version FROM schema_version LIMIT 1")
+    .get() as { version: number } | undefined;
+  return row?.version ?? 0;
+}
+
+/**
+ * Apply pending migrations to bring the database up to CURRENT_VERSION.
+ * Runs inside a transaction so partial migrations are rolled back.
+ */
+export function applyMigrations(
+  db: Database.Database,
+  fromVersion: number,
+  migrations: Migration[] = MIGRATIONS
+): number {
+  const pending = migrations
+    .filter((m) => m.version > fromVersion)
+    .sort((a, b) => a.version - b.version);
+
+  if (pending.length === 0) return fromVersion;
+
+  const targetVersion = pending[pending.length - 1].version;
+
+  const migrate = db.transaction(() => {
+    for (const migration of pending) {
+      db.exec(migration.up);
+    }
+    db.prepare("UPDATE schema_version SET version = ?").run(targetVersion);
+  });
+
+  migrate();
+  return targetVersion;
+}
+
 export function createDatabase(dbPath?: string): Database.Database {
   const resolvedPath = dbPath ?? getDefaultDbPath();
   const db = new Database(resolvedPath);
@@ -146,16 +216,19 @@ export function createDatabase(dbPath?: string): Database.Database {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
 
+  // Create all tables (IF NOT EXISTS is safe for both fresh and existing DBs)
   db.exec(SCHEMA_SQL);
 
-  const row = db.prepare("SELECT version FROM schema_version LIMIT 1").get() as
-    | { version: number }
-    | undefined;
+  const currentVersion = getSchemaVersion(db);
 
-  if (!row) {
+  if (currentVersion === 0) {
+    // Fresh install — stamp with current version
     db.prepare("INSERT INTO schema_version (version) VALUES (?)").run(
-      SCHEMA_VERSION
+      CURRENT_VERSION
     );
+  } else if (currentVersion < CURRENT_VERSION) {
+    // Existing database needs migration
+    applyMigrations(db, currentVersion);
   }
 
   return db;
