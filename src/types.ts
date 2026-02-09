@@ -1,11 +1,14 @@
 // --- Team Types ---
 
+export type EnforcementMode = "strict" | "permissive" | "audit";
+
 export interface Team {
   name: string;
   description: string | null;
   agent_type: string | null;
   template_name: string | null;
   template_path: string | null;
+  enforcement: EnforcementMode;
   created_at: string;
   status: "active" | "deleted";
 }

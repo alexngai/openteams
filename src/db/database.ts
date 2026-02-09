@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS teams (
   agent_type    TEXT,
   template_name TEXT,
   template_path TEXT,
+  enforcement   TEXT DEFAULT 'permissive' CHECK (enforcement IN ('strict', 'permissive', 'audit')),
   created_at    TEXT DEFAULT (datetime('now')),
   status        TEXT DEFAULT 'active' CHECK (status IN ('active', 'deleted'))
 );

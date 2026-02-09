@@ -221,7 +221,7 @@ describe("CommunicationService", () => {
     it("emits and retrieves signal events", () => {
       commService.applyConfig("test-team", testConfig);
 
-      const event = commService.emit({
+      const { event, permitted, enforcement } = commService.emit({
         teamName: "test-team",
         channel: "task_updates",
         signal: "TASK_CREATED",
@@ -233,6 +233,8 @@ describe("CommunicationService", () => {
       expect(event.channel).toBe("task_updates");
       expect(event.signal).toBe("TASK_CREATED");
       expect(event.sender).toBe("planner");
+      expect(permitted).toBe(true);
+      expect(enforcement).toBe("permissive");
     });
 
     it("lists events with filters", () => {
@@ -332,6 +334,90 @@ describe("CommunicationService", () => {
       const events = commService.getEventsForRole("test-team", "planner");
       const ids = events.map((e) => e.id);
       expect(new Set(ids).size).toBe(ids.length); // no duplicates
+    });
+  });
+
+  describe("enforcement", () => {
+    it("defaults to permissive enforcement", () => {
+      expect(commService.getEnforcement("test-team")).toBe("permissive");
+    });
+
+    it("stores enforcement mode from config", () => {
+      const strictConfig: CommunicationConfig = {
+        ...testConfig,
+        enforcement: "strict",
+      };
+      commService.applyConfig("test-team", strictConfig);
+      expect(commService.getEnforcement("test-team")).toBe("strict");
+    });
+
+    it("strict mode throws on unauthorized emission", () => {
+      const strictConfig: CommunicationConfig = {
+        ...testConfig,
+        enforcement: "strict",
+      };
+      commService.applyConfig("test-team", strictConfig);
+
+      // grinder is not permitted to emit TASK_CREATED
+      expect(() =>
+        commService.emit({
+          teamName: "test-team",
+          channel: "task_updates",
+          signal: "TASK_CREATED",
+          sender: "grinder",
+        })
+      ).toThrow('not permitted to emit signal "TASK_CREATED"');
+    });
+
+    it("strict mode allows authorized emission", () => {
+      const strictConfig: CommunicationConfig = {
+        ...testConfig,
+        enforcement: "strict",
+      };
+      commService.applyConfig("test-team", strictConfig);
+
+      // planner IS permitted to emit TASK_CREATED
+      const { event, permitted } = commService.emit({
+        teamName: "test-team",
+        channel: "task_updates",
+        signal: "TASK_CREATED",
+        sender: "planner",
+      });
+      expect(event.id).toBeGreaterThan(0);
+      expect(permitted).toBe(true);
+    });
+
+    it("audit mode allows but flags unauthorized emission", () => {
+      const auditConfig: CommunicationConfig = {
+        ...testConfig,
+        enforcement: "audit",
+      };
+      commService.applyConfig("test-team", auditConfig);
+
+      // grinder is not permitted, but audit mode allows it
+      const { event, permitted, enforcement } = commService.emit({
+        teamName: "test-team",
+        channel: "task_updates",
+        signal: "TASK_CREATED",
+        sender: "grinder",
+      });
+      expect(event.id).toBeGreaterThan(0);
+      expect(permitted).toBe(false);
+      expect(enforcement).toBe("audit");
+    });
+
+    it("permissive mode allows all emissions", () => {
+      commService.applyConfig("test-team", testConfig); // default permissive
+
+      const { event, permitted } = commService.emit({
+        teamName: "test-team",
+        channel: "task_updates",
+        signal: "TASK_CREATED",
+        sender: "grinder",
+      });
+      expect(event.id).toBeGreaterThan(0);
+      // canEmit returns false (grinder not listed), but permissive allows it
+      expect(permitted).toBe(false);
     });
   });
 });
