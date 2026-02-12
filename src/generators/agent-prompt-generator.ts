@@ -110,13 +110,13 @@ export function generateRoleSkillMd(
     sections.push(`## Description\n\n${role.description}`);
   }
 
-  // Core prompt content
+  // Additional prompt sections (e.g. SOUL.md) come before instructions
   if (rolePrompts) {
-    sections.push(`## Instructions\n\n${rolePrompts.primary.trim()}`);
     for (const section of rolePrompts.additional) {
       const heading = section.name.charAt(0).toUpperCase() + section.name.slice(1);
       sections.push(`## ${heading}\n\n${section.content.trim()}`);
     }
+    sections.push(`## Instructions\n\n${rolePrompts.primary.trim()}`);
   }
 
   // Teammates
@@ -297,13 +297,13 @@ function generateSingleAgentPrompt(
     sections.push(`## Description\n\n${role.description}`);
   }
 
-  // Core prompt content + additional sections
+  // Additional prompt sections (e.g. SOUL.md) come before instructions
   if (rolePrompts) {
-    sections.push(`## Instructions\n\n${rolePrompts.primary.trim()}`);
     for (const section of rolePrompts.additional) {
       const heading = section.name.charAt(0).toUpperCase() + section.name.slice(1);
       sections.push(`## ${heading}\n\n${section.content.trim()}`);
     }
+    sections.push(`## Instructions\n\n${rolePrompts.primary.trim()}`);
   }
 
   // Team context

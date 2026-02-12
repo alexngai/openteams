@@ -227,7 +227,7 @@ topology:
       expect(template.prompts.get("worker")!.additional).toEqual([]);
     });
 
-    it("loads prompt directory with prompt.md as primary", () => {
+    it("loads prompt directory with ROLE.md as primary", () => {
       writeYaml(
         "team.yaml",
         `
@@ -241,23 +241,75 @@ topology:
 `
       );
 
-      writeYaml("prompts/developer/prompt.md", "# Developer\nImplement features.");
-      writeYaml("prompts/developer/soul.md", "You are a pragmatic craftsman.");
+      writeYaml("prompts/developer/ROLE.md", "# Developer\nImplement features.");
+      writeYaml("prompts/developer/SOUL.md", "You are a pragmatic craftsman.");
       writeYaml("prompts/developer/guidelines.md", "Follow TDD. Write tests first.");
 
       const template = TemplateLoader.load(tmpDir);
       const prompts = template.prompts.get("developer")!;
       expect(prompts.primary).toContain("Implement features");
       expect(prompts.additional).toHaveLength(2);
-      expect(prompts.additional.map((s) => s.name).sort()).toEqual(["guidelines", "soul"]);
-      expect(prompts.additional.find((s) => s.name === "soul")!.content).toContain("pragmatic craftsman");
+      // SOUL.md is always first among additional files
+      expect(prompts.additional[0].name).toBe("soul");
+      expect(prompts.additional[0].content).toContain("pragmatic craftsman");
+      expect(prompts.additional[1].name).toBe("guidelines");
     });
 
-    it("uses first file alphabetically as primary when prompt.md is absent", () => {
+    it("orders SOUL.md before other additional files", () => {
       writeYaml(
         "team.yaml",
         `
-name: no-prompt-md
+name: soul-order-test
+version: 1
+roles:
+  - dev
+topology:
+  root:
+    role: dev
+`
+      );
+
+      writeYaml("prompts/dev/ROLE.md", "Build things.");
+      writeYaml("prompts/dev/SOUL.md", "You are creative.");
+      writeYaml("prompts/dev/aaa-first-alphabetically.md", "Coding standards.");
+
+      const template = TemplateLoader.load(tmpDir);
+      const prompts = template.prompts.get("dev")!;
+      expect(prompts.primary).toContain("Build things");
+      // SOUL.md should come first despite aaa sorting earlier alphabetically
+      expect(prompts.additional[0].name).toBe("soul");
+      expect(prompts.additional[1].name).toBe("aaa-first-alphabetically");
+    });
+
+    it("falls back to prompt.md when ROLE.md is absent", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: fallback-test
+version: 1
+roles:
+  - tester
+topology:
+  root:
+    role: tester
+`
+      );
+
+      writeYaml("prompts/tester/prompt.md", "Run all tests.");
+      writeYaml("prompts/tester/SOUL.md", "Break things on purpose.");
+
+      const template = TemplateLoader.load(tmpDir);
+      const prompts = template.prompts.get("tester")!;
+      expect(prompts.primary).toContain("Run all tests");
+      expect(prompts.additional).toHaveLength(1);
+      expect(prompts.additional[0].name).toBe("soul");
+    });
+
+    it("uses first file alphabetically when neither ROLE.md nor prompt.md exist", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: alpha-test
 version: 1
 roles:
   - tester
@@ -268,14 +320,15 @@ topology:
       );
 
       writeYaml("prompts/tester/instructions.md", "Run all tests.");
-      writeYaml("prompts/tester/soul.md", "Break things on purpose.");
+      writeYaml("prompts/tester/SOUL.md", "Break things on purpose.");
 
       const template = TemplateLoader.load(tmpDir);
       const prompts = template.prompts.get("tester")!;
-      // instructions.md comes first alphabetically
-      expect(prompts.primary).toContain("Run all tests");
+      // SOUL.md sorts before instructions.md (uppercase < lowercase in ASCII)
+      // so SOUL.md is picked as primary in the alphabetical fallback
+      expect(prompts.primary).toContain("Break things on purpose");
       expect(prompts.additional).toHaveLength(1);
-      expect(prompts.additional[0].name).toBe("soul");
+      expect(prompts.additional[0].name).toBe("instructions");
     });
 
     it("respects explicit prompts ordering from role YAML", () => {
@@ -298,22 +351,22 @@ topology:
 name: coder
 description: "A coder"
 prompts:
-  - soul.md
-  - prompt.md
+  - SOUL.md
+  - ROLE.md
   - guidelines.md
 `
       );
 
-      writeYaml("prompts/coder/prompt.md", "Write code.");
-      writeYaml("prompts/coder/soul.md", "You are meticulous.");
+      writeYaml("prompts/coder/ROLE.md", "Write code.");
+      writeYaml("prompts/coder/SOUL.md", "You are meticulous.");
       writeYaml("prompts/coder/guidelines.md", "Use TypeScript.");
 
       const template = TemplateLoader.load(tmpDir);
       const prompts = template.prompts.get("coder")!;
-      // soul.md is first in the list, so it becomes primary
+      // SOUL.md is first in the list, so it becomes primary
       expect(prompts.primary).toContain("meticulous");
       expect(prompts.additional).toHaveLength(2);
-      expect(prompts.additional[0].name).toBe("prompt");
+      expect(prompts.additional[0].name).toBe("ROLE");
       expect(prompts.additional[1].name).toBe("guidelines");
     });
 
@@ -333,13 +386,14 @@ topology:
 
       // Both exist — directory should win
       writeYaml("prompts/worker.md", "Single file prompt.");
-      writeYaml("prompts/worker/prompt.md", "Directory prompt.");
-      writeYaml("prompts/worker/soul.md", "Directory soul.");
+      writeYaml("prompts/worker/ROLE.md", "Directory prompt.");
+      writeYaml("prompts/worker/SOUL.md", "Directory soul.");
 
       const template = TemplateLoader.load(tmpDir);
       const prompts = template.prompts.get("worker")!;
       expect(prompts.primary).toContain("Directory prompt");
       expect(prompts.additional).toHaveLength(1);
+      expect(prompts.additional[0].name).toBe("soul");
     });
   });
 

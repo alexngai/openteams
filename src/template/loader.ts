@@ -366,8 +366,9 @@ export class TemplateLoader {
    * those files are loaded in that order. The first file is primary,
    * the rest are additional sections.
    *
-   * Otherwise, prompt.md is the primary and remaining .md files are
-   * loaded alphabetically as additional sections.
+   * Otherwise, ROLE.md is the primary and remaining .md files are
+   * loaded as additional sections. SOUL.md is always ordered first
+   * among additional files so personality/values precede other materials.
    */
   private static loadPromptDirectory(
     dirPath: string,
@@ -395,19 +396,38 @@ export class TemplateLoader {
       return { primary, additional };
     }
 
-    // Convention: prompt.md is primary, rest are additional (sorted)
+    // Convention: ROLE.md is primary, SOUL.md is first additional,
+    // remaining .md files sorted alphabetically.
+    // Falls back to prompt.md / first-alphabetical for backward compat.
     const allFiles = fs.readdirSync(dirPath)
       .filter((f: string) => f.endsWith(".md"))
       .sort();
 
     if (allFiles.length === 0) return null;
 
-    const primaryFile = allFiles.includes("prompt.md") ? "prompt.md" : allFiles[0];
+    // Determine primary file: ROLE.md > prompt.md > first alphabetically
+    let primaryFile: string;
+    if (allFiles.includes("ROLE.md")) {
+      primaryFile = "ROLE.md";
+    } else if (allFiles.includes("prompt.md")) {
+      primaryFile = "prompt.md";
+    } else {
+      primaryFile = allFiles[0];
+    }
+
     const primary = fs.readFileSync(path.join(dirPath, primaryFile), "utf-8");
 
+    // Build additional list: SOUL.md first, then the rest alphabetically
     const additional: PromptSection[] = [];
+    const soulFile = allFiles.find((f: string) => f === "SOUL.md" || f === "soul.md");
+    if (soulFile && soulFile !== primaryFile) {
+      const content = fs.readFileSync(path.join(dirPath, soulFile), "utf-8");
+      additional.push({ name: "soul", content });
+    }
+
     for (const file of allFiles) {
       if (file === primaryFile) continue;
+      if (file === soulFile) continue; // already added above
       const stem = path.basename(file, ".md");
       const content = fs.readFileSync(path.join(dirPath, file), "utf-8");
       additional.push({ name: stem, content });
