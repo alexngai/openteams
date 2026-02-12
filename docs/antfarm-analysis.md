@@ -22,7 +22,7 @@ Its architecture is deliberately minimal: YAML + SQLite + cron. No Docker, Redis
 | Config format | YAML templates | YAML workflows |
 | CLI-first | Yes (Commander.js) | Yes (custom) |
 | Agent definitions | Roles in `roles/*.yaml` | Agents in `agents/*/` dirs |
-| Prompt management | `prompts/*.md` | `AGENTS.md` + `SOUL.md` + `IDENTITY.md` per agent |
+| Prompt management | `prompts/<role>/` dirs with `SOUL.md` + `ROLE.md` + `RULES.md` | `AGENTS.md` + `SOUL.md` + `IDENTITY.md` per agent |
 | License | MIT | MIT |
 
 Both projects solve the same fundamental problem: **coordinating multiple AI agents on collaborative software tasks**.
@@ -85,7 +85,7 @@ Using cron for agent scheduling is simple and robust — no long-running process
 
 ### 7. Agent Persona Separation
 
-Antfarm splits agent identity into `SOUL.md` (personality/values), `IDENTITY.md` (role description), and `AGENTS.md` (operational instructions). This is a cleaner separation than a single prompt file. **Recommendation:** Consider adopting a multi-file persona model for role definitions.
+Antfarm splits agent identity into `SOUL.md` (personality/values), `IDENTITY.md` (role description), and `AGENTS.md` (operational instructions). **Adopted:** OpenTeams now supports multi-file prompt directories with `SOUL.md` (personality/values), `ROLE.md` (operational instructions), and optional `RULES.md` (coding standards/constraints). SOUL.md is always assembled before ROLE.md so agents internalize identity before reading operational rules.
 
 ## What OpenTeams Already Does Better
 
