@@ -243,7 +243,7 @@ topology:
 
       writeYaml("prompts/developer/ROLE.md", "# Developer\nImplement features.");
       writeYaml("prompts/developer/SOUL.md", "You are a pragmatic craftsman.");
-      writeYaml("prompts/developer/guidelines.md", "Follow TDD. Write tests first.");
+      writeYaml("prompts/developer/RULES.md", "Follow TDD. Write tests first.");
 
       const template = TemplateLoader.load(tmpDir);
       const prompts = template.prompts.get("developer")!;
@@ -252,7 +252,7 @@ topology:
       // SOUL.md is always first among additional files
       expect(prompts.additional[0].name).toBe("soul");
       expect(prompts.additional[0].content).toContain("pragmatic craftsman");
-      expect(prompts.additional[1].name).toBe("guidelines");
+      expect(prompts.additional[1].name).toBe("RULES");
     });
 
     it("orders SOUL.md before other additional files", () => {
@@ -353,13 +353,13 @@ description: "A coder"
 prompts:
   - SOUL.md
   - ROLE.md
-  - guidelines.md
+  - RULES.md
 `
       );
 
       writeYaml("prompts/coder/ROLE.md", "Write code.");
       writeYaml("prompts/coder/SOUL.md", "You are meticulous.");
-      writeYaml("prompts/coder/guidelines.md", "Use TypeScript.");
+      writeYaml("prompts/coder/RULES.md", "Use TypeScript.");
 
       const template = TemplateLoader.load(tmpDir);
       const prompts = template.prompts.get("coder")!;
@@ -367,7 +367,7 @@ prompts:
       expect(prompts.primary).toContain("meticulous");
       expect(prompts.additional).toHaveLength(2);
       expect(prompts.additional[0].name).toBe("ROLE");
-      expect(prompts.additional[1].name).toBe("guidelines");
+      expect(prompts.additional[1].name).toBe("RULES");
     });
 
     it("prefers prompt directory over single file", () => {
