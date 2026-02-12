@@ -171,16 +171,20 @@ function generateRolesSection(template: ResolvedTemplate): string {
     }
 
     // Prompt summary
-    const prompt = template.prompts.get(roleName);
-    if (prompt) {
+    const rolePrompts = template.prompts.get(roleName);
+    if (rolePrompts) {
       // Include a truncated first line as a hint
-      const firstLine = prompt.split("\n").find((l) => l.trim().length > 0);
+      const firstLine = rolePrompts.primary.split("\n").find((l) => l.trim().length > 0);
       if (firstLine) {
         const preview =
           firstLine.length > 100
             ? firstLine.slice(0, 100) + "..."
             : firstLine;
         lines.push(`- **Prompt**: ${preview}`);
+      }
+      if (rolePrompts.additional.length > 0) {
+        const names = rolePrompts.additional.map((s) => s.name);
+        lines.push(`- **Additional**: ${names.join(", ")}`);
       }
     }
   }

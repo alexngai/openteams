@@ -72,18 +72,28 @@ export function generatePackage(
     }
   }
 
-  // 4. Copy prompts if source exists
+  // 4. Copy prompts if source exists (supports both files and directories)
   if (template.sourcePath) {
     const sourcePrompts = path.join(template.sourcePath, "prompts");
     if (fs.existsSync(sourcePrompts)) {
       const promptsDir = path.join(outDir, "prompts");
       fs.mkdirSync(promptsDir, { recursive: true });
-      const files = fs.readdirSync(sourcePrompts);
-      for (const file of files) {
-        fs.copyFileSync(
-          path.join(sourcePrompts, file),
-          path.join(promptsDir, file)
-        );
+      const entries = fs.readdirSync(sourcePrompts, { withFileTypes: true });
+      for (const entry of entries) {
+        const srcPath = path.join(sourcePrompts, entry.name);
+        const destPath = path.join(promptsDir, entry.name);
+        if (entry.isDirectory()) {
+          fs.mkdirSync(destPath, { recursive: true });
+          const subFiles = fs.readdirSync(srcPath);
+          for (const subFile of subFiles) {
+            fs.copyFileSync(
+              path.join(srcPath, subFile),
+              path.join(destPath, subFile)
+            );
+          }
+        } else {
+          fs.copyFileSync(srcPath, destPath);
+        }
       }
     }
   }
