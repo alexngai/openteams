@@ -6,6 +6,8 @@ import type {
   RoleDefinition,
   ResolvedTemplate,
   ResolvedRole,
+  ResolvedPrompts,
+  PromptSection,
   CapabilityComposition,
 } from "./types";
 
@@ -32,7 +34,7 @@ export class TemplateLoader {
     TemplateLoader.validateManifest(manifest);
 
     const roles = new Map<string, ResolvedRole>();
-    const prompts = new Map<string, string>();
+    const prompts = new Map<string, ResolvedPrompts>();
 
     // Load role definitions
     for (const roleName of manifest.roles) {
@@ -58,14 +60,14 @@ export class TemplateLoader {
 
     // Load prompts
     for (const roleName of manifest.roles) {
-      const promptContent = TemplateLoader.loadPromptForRole(
+      const resolved = TemplateLoader.loadPromptsForRole(
         absDir,
         roleName,
         manifest,
         roles.get(roleName)
       );
-      if (promptContent) {
-        prompts.set(roleName, promptContent);
+      if (resolved) {
+        prompts.set(roleName, resolved);
       }
     }
 
@@ -294,43 +296,143 @@ export class TemplateLoader {
       description: def.description ?? `Role: ${def.name}`,
       capabilities,
       promptFile: def.prompt,
+      promptFiles: def.prompts,
       raw: def,
     };
   }
 
-  private static loadPromptForRole(
+  /**
+   * Load prompts for a role. Supports two layouts:
+   *
+   * 1. Single file: prompts/<role>.md (backward compatible)
+   * 2. Directory:   prompts/<role>/prompt.md + additional .md files
+   *
+   * When a directory exists, prompt.md is the primary prompt and all
+   * other .md files become additional sections. The role YAML can
+   * specify an explicit file list via `prompts:` to control ordering.
+   */
+  private static loadPromptsForRole(
     absDir: string,
     roleName: string,
     manifest: TeamManifest,
     role?: ResolvedRole
-  ): string | null {
-    // Priority 1: topology node prompt path
+  ): ResolvedPrompts | null {
+    // Priority 1: topology node prompt path (single file, backward compat)
     if (manifest.topology.root.role === roleName && manifest.topology.root.prompt) {
       const p = path.join(absDir, manifest.topology.root.prompt);
-      if (fs.existsSync(p)) return fs.readFileSync(p, "utf-8");
+      if (fs.existsSync(p)) {
+        return { primary: fs.readFileSync(p, "utf-8"), additional: [] };
+      }
     }
 
     if (manifest.topology.companions) {
       for (const comp of manifest.topology.companions) {
         if (comp.role === roleName && comp.prompt) {
           const p = path.join(absDir, comp.prompt);
-          if (fs.existsSync(p)) return fs.readFileSync(p, "utf-8");
+          if (fs.existsSync(p)) {
+            return { primary: fs.readFileSync(p, "utf-8"), additional: [] };
+          }
         }
       }
     }
 
-    // Priority 2: role definition prompt field
-    if (role?.promptFile) {
+    // Priority 2: role definition prompt field (single file)
+    if (role?.promptFile && !role.promptFiles) {
       const p = path.join(absDir, role.promptFile);
-      if (fs.existsSync(p)) return fs.readFileSync(p, "utf-8");
+      if (fs.existsSync(p)) {
+        return { primary: fs.readFileSync(p, "utf-8"), additional: [] };
+      }
     }
 
-    // Priority 3: convention — prompts/<roleName>.md
+    // Priority 3: prompt directory — prompts/<roleName>/
+    const promptDirPath = path.join(absDir, "prompts", roleName);
+    if (fs.existsSync(promptDirPath) && fs.statSync(promptDirPath).isDirectory()) {
+      return TemplateLoader.loadPromptDirectory(promptDirPath, role);
+    }
+
+    // Priority 4: single file convention — prompts/<roleName>.md
     const conventionPath = path.join(absDir, "prompts", `${roleName}.md`);
     if (fs.existsSync(conventionPath)) {
-      return fs.readFileSync(conventionPath, "utf-8");
+      return { primary: fs.readFileSync(conventionPath, "utf-8"), additional: [] };
     }
 
     return null;
+  }
+
+  /**
+   * Load a prompt directory into a ResolvedPrompts.
+   *
+   * If the role YAML declares `prompts:` (an ordered list of filenames),
+   * those files are loaded in that order. The first file is primary,
+   * the rest are additional sections.
+   *
+   * Otherwise, ROLE.md is the primary and remaining .md files are
+   * loaded as additional sections. SOUL.md is always ordered first
+   * among additional files so personality/values precede other materials.
+   */
+  private static loadPromptDirectory(
+    dirPath: string,
+    role?: ResolvedRole
+  ): ResolvedPrompts | null {
+    // Explicit ordering from role YAML
+    if (role?.promptFiles && role.promptFiles.length > 0) {
+      const files = role.promptFiles;
+      let primary: string | null = null;
+      const additional: PromptSection[] = [];
+
+      for (const file of files) {
+        const filePath = path.join(dirPath, file);
+        if (!fs.existsSync(filePath)) continue;
+        const content = fs.readFileSync(filePath, "utf-8");
+        if (primary === null) {
+          primary = content;
+        } else {
+          const stem = path.basename(file, path.extname(file));
+          additional.push({ name: stem, content });
+        }
+      }
+
+      if (primary === null) return null;
+      return { primary, additional };
+    }
+
+    // Convention: ROLE.md is primary, SOUL.md is first additional,
+    // remaining .md files sorted alphabetically.
+    // Falls back to prompt.md / first-alphabetical for backward compat.
+    const allFiles = fs.readdirSync(dirPath)
+      .filter((f: string) => f.endsWith(".md"))
+      .sort();
+
+    if (allFiles.length === 0) return null;
+
+    // Determine primary file: ROLE.md > prompt.md > first alphabetically
+    let primaryFile: string;
+    if (allFiles.includes("ROLE.md")) {
+      primaryFile = "ROLE.md";
+    } else if (allFiles.includes("prompt.md")) {
+      primaryFile = "prompt.md";
+    } else {
+      primaryFile = allFiles[0];
+    }
+
+    const primary = fs.readFileSync(path.join(dirPath, primaryFile), "utf-8");
+
+    // Build additional list: SOUL.md first, then the rest alphabetically
+    const additional: PromptSection[] = [];
+    const soulFile = allFiles.find((f: string) => f === "SOUL.md" || f === "soul.md");
+    if (soulFile && soulFile !== primaryFile) {
+      const content = fs.readFileSync(path.join(dirPath, soulFile), "utf-8");
+      additional.push({ name: "soul", content });
+    }
+
+    for (const file of allFiles) {
+      if (file === primaryFile) continue;
+      if (file === soulFile) continue; // already added above
+      const stem = path.basename(file, ".md");
+      const content = fs.readFileSync(path.join(dirPath, file), "utf-8");
+      additional.push({ name: stem, content });
+    }
+
+    return { primary, additional };
   }
 }

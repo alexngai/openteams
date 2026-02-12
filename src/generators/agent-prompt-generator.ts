@@ -1,6 +1,7 @@
 import type {
   ResolvedTemplate,
   ResolvedRole,
+  ResolvedPrompts,
   SubscriptionEntry,
   PeerRoute,
 } from "../template/types";
@@ -82,7 +83,7 @@ export function generateRoleSkillMd(
   const teamName = options.teamName ?? template.manifest.name;
   const m = template.manifest;
   const role = template.roles.get(roleName);
-  const rolePrompt = template.prompts.get(roleName);
+  const rolePrompts = template.prompts.get(roleName);
 
   const sections: string[] = [];
 
@@ -109,9 +110,13 @@ export function generateRoleSkillMd(
     sections.push(`## Description\n\n${role.description}`);
   }
 
-  // Core prompt content
-  if (rolePrompt) {
-    sections.push(`## Instructions\n\n${rolePrompt.trim()}`);
+  // Additional prompt sections (e.g. SOUL.md) come before instructions
+  if (rolePrompts) {
+    for (const section of rolePrompts.additional) {
+      const heading = section.name.charAt(0).toUpperCase() + section.name.slice(1);
+      sections.push(`## ${heading}\n\n${section.content.trim()}`);
+    }
+    sections.push(`## Instructions\n\n${rolePrompts.primary.trim()}`);
   }
 
   // Teammates
@@ -273,7 +278,7 @@ function generateSingleAgentPrompt(
 ): AgentPrompt {
   const m = template.manifest;
   const role = template.roles.get(roleName);
-  const rolePrompt = template.prompts.get(roleName);
+  const rolePrompts = template.prompts.get(roleName);
 
   const sections: string[] = [];
 
@@ -292,9 +297,13 @@ function generateSingleAgentPrompt(
     sections.push(`## Description\n\n${role.description}`);
   }
 
-  // Core prompt content
-  if (rolePrompt) {
-    sections.push(`## Instructions\n\n${rolePrompt.trim()}`);
+  // Additional prompt sections (e.g. SOUL.md) come before instructions
+  if (rolePrompts) {
+    for (const section of rolePrompts.additional) {
+      const heading = section.name.charAt(0).toUpperCase() + section.name.slice(1);
+      sections.push(`## ${heading}\n\n${section.content.trim()}`);
+    }
+    sections.push(`## Instructions\n\n${rolePrompts.primary.trim()}`);
   }
 
   // Team context

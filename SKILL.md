@@ -231,9 +231,11 @@ templates/self-driving/
 │   ├── grinder.yaml
 │   └── judge.yaml
 └── prompts/
-    ├── planner.md         # Static system prompt for planner
-    ├── grinder.md
-    └── judge.md
+    ├── grinder.md         # Single-file prompt (simple roles)
+    └── planner/           # Multi-file prompt directory
+        ├── SOUL.md        # Personality, values, communication style
+        ├── ROLE.md        # Operational instructions (primary)
+        └── RULES.md       # Coding standards, constraints (optional)
 ```
 
 ### Minimal team.yaml

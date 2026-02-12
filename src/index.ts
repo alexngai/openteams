@@ -38,6 +38,8 @@ export type {
   PeerRoute,
   RoleDefinition,
   CapabilityComposition,
+  PromptSection,
+  ResolvedPrompts,
   ResolvedTemplate,
   ResolvedRole,
   SignalEvent,

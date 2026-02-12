@@ -229,7 +229,11 @@ templates/<team-name>/
 ├── roles/                 # Role definitions (optional)
 │   └── <role-name>.yaml
 └── prompts/               # Static role prompt files (optional)
-    └── <role-name>.md
+    ├── <role-name>.md     # Single-file prompt (simple roles)
+    └── <role-name>/       # Multi-file prompt directory
+        ├── SOUL.md        # Personality, values, communication style
+        ├── ROLE.md        # Operational instructions (primary)
+        └── RULES.md       # Coding standards, constraints (optional)
 ```
 
 ### Manifest Schema (team.yaml)

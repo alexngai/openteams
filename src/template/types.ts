@@ -79,7 +79,8 @@ export interface RoleDefinition {
   display_name?: string;
   description?: string;
   capabilities?: string[] | CapabilityComposition;
-  prompt?: string; // path to prompt file
+  prompt?: string; // path to a single prompt file
+  prompts?: string[]; // ordered list of prompt files (relative to prompts/<role>/)
 
   // Extension fields
   macro_agent?: Record<string, unknown>;
@@ -91,12 +92,28 @@ export interface CapabilityComposition {
   remove?: string[];
 }
 
+// --- Prompt Sections ---
+
+export interface PromptSection {
+  /** Filename stem, e.g. "soul", "guidelines", "prompt" */
+  name: string;
+  /** Markdown content of this section */
+  content: string;
+}
+
+export interface ResolvedPrompts {
+  /** The primary prompt content (from prompt.md or the single-file prompt) */
+  primary: string;
+  /** Additional prompt materials, in load order */
+  additional: PromptSection[];
+}
+
 // --- Resolved Template (fully loaded) ---
 
 export interface ResolvedTemplate {
   manifest: TeamManifest;
   roles: Map<string, ResolvedRole>;
-  prompts: Map<string, string>; // role name → prompt content
+  prompts: Map<string, ResolvedPrompts>; // role name → structured prompts
   sourcePath: string;
 }
 
@@ -107,6 +124,7 @@ export interface ResolvedRole {
   description: string;
   capabilities: string[];
   promptFile?: string;
+  promptFiles?: string[]; // explicit ordering from role YAML
   raw: RoleDefinition; // original YAML for extension fields
 }
 
