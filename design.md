@@ -343,6 +343,76 @@ CREATE TABLE signal_events (team_name, channel, signal, sender, payload, created
 
 -- Spawn rules
 CREATE TABLE spawn_rules (team_name, from_role, to_role);
+
+-- Team groups (multi-team containers)
+CREATE TABLE team_groups (name PRIMARY KEY, description, created_at, status);
+
+-- Teams can belong to a group
+-- (teams.group_name references team_groups)
+
+-- Cross-team signal bridges
+CREATE TABLE team_bridges (group_name, source_team, target_team, source_channel, target_channel, signals, mode);
+```
+
+### Multi-Team Groups
+
+Teams can be organized into **groups** that enable multiple concurrent team structures operating across shared agents. This supports:
+
+- **Multiple concurrent hierarchies** (e.g., a waterfall backend team + independent frontend team)
+- **Cross-team communication** via signal bridges
+- **Shared agents** that participate in multiple teams with different roles
+
+#### Group Manifest (group.yaml)
+
+```yaml
+name: full-stack-org
+description: "Backend and frontend teams with shared tech lead"
+version: 1
+
+teams:
+  - name: backend-team
+    template: ./backend       # References a team.yaml directory
+  - name: frontend-team
+    template: ./frontend
+
+shared_agents:
+  - agent: tech-lead
+    memberships:
+      - team: backend-team
+        role: architect
+      - team: frontend-team
+        role: reviewer
+
+bridges:
+  - from:
+      team: backend-team
+      channel: api_events
+      signals: [API_READY, API_BREAKING_CHANGE]
+    to:
+      team: frontend-team
+      channel: dependency_updates
+    mode: forward                   # forward | bidirectional
+```
+
+#### Bridge Semantics
+
+- **forward**: Signals flow source → target only
+- **bidirectional**: Signals flow both directions
+- Bridged signals appear in the target team's event log with sender prefixed as `bridge:<source_team>:<original_sender>`
+- Bridge signal filtering: if `signals` is specified, only those signals are forwarded; empty means all signals
+
+#### Group Bootstrap Flow
+
+```
+group load <dir>
+  → GroupLoader.load(dir)               # Parse group.yaml, load team templates
+  → GroupBootstrapService.bootstrap()
+    → TeamGroupService.create()         # Create group
+    → For each team:
+      → TemplateService.bootstrap()     # Bootstrap individual team
+      → TeamGroupService.addTeam()      # Add to group
+    → Register shared agents            # Add to multiple teams
+    → TeamGroupService.addBridge()      # Wire cross-team bridges
 ```
 
 ### Bootstrap Flow
@@ -387,7 +457,8 @@ src/
 │   ├── task.ts           # task subcommands (create, list, get, update) [--json]
 │   ├── message.ts        # message subcommands (send, broadcast, shutdown, shutdown-response, plan-response, list, poll, ack) [--json]
 │   ├── agent.ts          # agent subcommands (spawn, list, info, shutdown) [--json]
-│   └── template.ts       # template subcommands (load, info, emit, events)
+│   ├── template.ts       # template subcommands (load, info, emit, events)
+│   └── group.ts          # group subcommands (create, list, info, add-team, remove-team, add-bridge, remove-bridge, load, delete)
 ├── db/
 │   └── database.ts       # Database connection, schema, and migration framework
 ├── services/
@@ -396,10 +467,13 @@ src/
 │   ├── message-service.ts        # Message routing, delivery tracking, member validation
 │   ├── agent-service.ts          # Agent lifecycle management
 │   ├── template-service.ts       # Template bootstrap + spawn rules + member auto-registration
-│   └── communication-service.ts  # Channels, signals, subscriptions, enforcement
+│   ├── communication-service.ts  # Channels, signals, subscriptions, enforcement
+│   ├── team-group-service.ts     # Group CRUD, team membership, bridge management
+│   └── group-bootstrap-service.ts # Multi-team group bootstrap from group manifests
 ├── template/
-│   ├── types.ts          # Template schema types (manifest, roles, communication, signals)
-│   └── loader.ts         # YAML parsing, validation, role inheritance resolution
+│   ├── types.ts          # Template schema types (manifest, roles, communication, signals, groups)
+│   ├── loader.ts         # YAML parsing, validation, role inheritance resolution
+│   └── group-loader.ts   # Group manifest parsing and team template resolution
 ├── generators/
 │   ├── skill-generator.ts        # SKILL.md and catalog generation
 │   ├── agent-prompt-generator.ts # Agent prompt and role skill generation

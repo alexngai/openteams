@@ -20,7 +20,7 @@ export interface Migration {
   up: string;
 }
 
-export const CURRENT_VERSION = 2;
+export const CURRENT_VERSION = 3;
 
 /**
  * Migrations applied incrementally to existing databases.
@@ -29,16 +29,44 @@ export const CURRENT_VERSION = 2;
  * older databases. Future changes add entries here.
  */
 export const MIGRATIONS: Migration[] = [
-  // Example for a future change:
-  // {
-  //   version: 3,
-  //   up: `ALTER TABLE teams ADD COLUMN some_new_col TEXT;`
-  // },
+  {
+    version: 3,
+    up: `
+CREATE TABLE IF NOT EXISTS team_groups (
+  name        TEXT PRIMARY KEY,
+  description TEXT,
+  created_at  TEXT DEFAULT (datetime('now')),
+  status      TEXT DEFAULT 'active' CHECK (status IN ('active', 'deleted'))
+);
+
+ALTER TABLE teams ADD COLUMN group_name TEXT REFERENCES team_groups(name);
+
+CREATE TABLE IF NOT EXISTS team_bridges (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_name      TEXT NOT NULL REFERENCES team_groups(name),
+  source_team     TEXT NOT NULL REFERENCES teams(name),
+  target_team     TEXT NOT NULL REFERENCES teams(name),
+  source_channel  TEXT NOT NULL,
+  target_channel  TEXT NOT NULL,
+  signals         TEXT DEFAULT '[]',
+  mode            TEXT DEFAULT 'forward' CHECK (mode IN ('forward', 'bidirectional')),
+  UNIQUE(group_name, source_team, target_team, source_channel, target_channel)
+);
+`,
+  },
 ];
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_version (
   version INTEGER PRIMARY KEY
+);
+
+-- Team groups (containers for multiple concurrent teams)
+CREATE TABLE IF NOT EXISTS team_groups (
+  name        TEXT PRIMARY KEY,
+  description TEXT,
+  created_at  TEXT DEFAULT (datetime('now')),
+  status      TEXT DEFAULT 'active' CHECK (status IN ('active', 'deleted'))
 );
 
 CREATE TABLE IF NOT EXISTS teams (
@@ -48,6 +76,7 @@ CREATE TABLE IF NOT EXISTS teams (
   template_name TEXT,
   template_path TEXT,
   enforcement   TEXT DEFAULT 'permissive' CHECK (enforcement IN ('strict', 'permissive', 'audit')),
+  group_name    TEXT REFERENCES team_groups(name),
   created_at    TEXT DEFAULT (datetime('now')),
   status        TEXT DEFAULT 'active' CHECK (status IN ('active', 'deleted'))
 );
@@ -162,6 +191,19 @@ CREATE TABLE IF NOT EXISTS spawn_rules (
   from_role   TEXT NOT NULL,
   to_role     TEXT NOT NULL,
   UNIQUE(team_name, from_role, to_role)
+);
+
+-- Cross-team signal bridges
+CREATE TABLE IF NOT EXISTS team_bridges (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_name      TEXT NOT NULL REFERENCES team_groups(name),
+  source_team     TEXT NOT NULL REFERENCES teams(name),
+  target_team     TEXT NOT NULL REFERENCES teams(name),
+  source_channel  TEXT NOT NULL,
+  target_channel  TEXT NOT NULL,
+  signals         TEXT DEFAULT '[]',
+  mode            TEXT DEFAULT 'forward' CHECK (mode IN ('forward', 'bidirectional')),
+  UNIQUE(group_name, source_team, target_team, source_channel, target_channel)
 );
 `;
 

@@ -1,0 +1,45 @@
+name: full-stack-org
+description: "Multi-team organization with backend and frontend teams that interface through API contracts"
+version: 1
+
+teams:
+  - name: backend-team
+    template: ./backend
+  - name: frontend-team
+    template: ./frontend
+
+# Agents that participate in multiple teams with different roles
+shared_agents:
+  - agent: tech-lead
+    memberships:
+      - team: backend-team
+        role: architect
+      - team: frontend-team
+        role: reviewer
+  - agent: devops-engineer
+    memberships:
+      - team: backend-team
+        role: deployer
+      - team: frontend-team
+        role: deployer
+
+# Cross-team communication bridges
+bridges:
+  # Backend API changes flow to frontend as dependency updates
+  - from:
+      team: backend-team
+      channel: api_events
+      signals: [API_READY, API_BREAKING_CHANGE]
+    to:
+      team: frontend-team
+      channel: dependency_updates
+    mode: forward
+
+  # Deployment coordination is bidirectional
+  - from:
+      team: backend-team
+      channel: deployment
+    to:
+      team: frontend-team
+      channel: deployment
+    mode: bidirectional

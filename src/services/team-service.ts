@@ -15,14 +15,15 @@ export class TeamService {
 
     this.db
       .prepare(
-        "INSERT INTO teams (name, description, agent_type, template_name, template_path) VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO teams (name, description, agent_type, template_name, template_path, group_name) VALUES (?, ?, ?, ?, ?, ?)"
       )
       .run(
         options.name,
         options.description ?? null,
         options.agentType ?? null,
         options.templateName ?? null,
-        options.templatePath ?? null
+        options.templatePath ?? null,
+        options.groupName ?? null
       );
 
     return this.get(options.name)!;

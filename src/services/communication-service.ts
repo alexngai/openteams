@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import type { EnforcementMode } from "../types";
+import type { EnforcementMode, TeamBridgeRow, TeamBridge } from "../types";
 import type {
   CommunicationConfig,
   SignalEvent,
@@ -360,6 +360,95 @@ export class CommunicationService {
         return true;
       })
       .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  }
+
+  // --- Cross-team bridging ---
+
+  /**
+   * Emit a signal and forward it across team bridges if applicable.
+   * Returns the primary emit result plus any bridged events.
+   */
+  emitWithBridging(options: EmitSignalOptions): EmitResult & { bridged: SignalEvent[] } {
+    const result = this.emit(options);
+    const bridged: SignalEvent[] = [];
+
+    // Find bridges from this team+channel
+    const bridges = this.getBridgesForSource(options.teamName, options.channel);
+
+    for (const bridge of bridges) {
+      // Check if this signal should be forwarded
+      if (bridge.signals.length > 0 && !bridge.signals.includes(options.signal)) {
+        continue;
+      }
+
+      // Determine the target team and channel
+      let targetTeam: string;
+      let targetChannel: string;
+
+      if (bridge.source_team === options.teamName && bridge.source_channel === options.channel) {
+        targetTeam = bridge.target_team;
+        targetChannel = bridge.target_channel;
+      } else {
+        // Bidirectional bridge where we're the target
+        targetTeam = bridge.source_team;
+        targetChannel = bridge.source_channel;
+      }
+
+      // Forward the signal to the target team
+      const forwardResult = this.db
+        .prepare(
+          "INSERT INTO signal_events (team_name, channel, signal, sender, payload) VALUES (?, ?, ?, ?, ?)"
+        )
+        .run(
+          targetTeam,
+          targetChannel,
+          options.signal,
+          `bridge:${options.teamName}:${options.sender}`,
+          JSON.stringify({
+            ...(options.payload ?? {}),
+            _bridged_from: {
+              team: options.teamName,
+              channel: options.channel,
+              sender: options.sender,
+            },
+          })
+        );
+
+      const event = this.getEvent(Number(forwardResult.lastInsertRowid));
+      if (event) {
+        bridged.push(event);
+      }
+    }
+
+    return { ...result, bridged };
+  }
+
+  /**
+   * Get bridges that should forward signals FROM a given team+channel.
+   */
+  private getBridgesForSource(teamName: string, channel: string): TeamBridge[] {
+    const team = this.db
+      .prepare("SELECT group_name FROM teams WHERE name = ? AND status = 'active'")
+      .get(teamName) as { group_name: string | null } | undefined;
+
+    if (!team?.group_name) return [];
+
+    const forwardRows = this.db
+      .prepare(
+        "SELECT * FROM team_bridges WHERE group_name = ? AND source_team = ? AND source_channel = ?"
+      )
+      .all(team.group_name, teamName, channel) as TeamBridgeRow[];
+
+    const bidiRows = this.db
+      .prepare(
+        "SELECT * FROM team_bridges WHERE group_name = ? AND target_team = ? AND target_channel = ? AND mode = 'bidirectional'"
+      )
+      .all(team.group_name, teamName, channel) as TeamBridgeRow[];
+
+    return [
+      ...forwardRows.map((r) => ({ ...r, signals: JSON.parse(r.signals || "[]") })),
+      ...bidiRows.map((r) => ({ ...r, signals: JSON.parse(r.signals || "[]") })),
+    ];
   }
 
   private getEvent(id: number): SignalEvent | null {

@@ -1,0 +1,71 @@
+name: backend-team
+description: "Backend API development team — waterfall-style phase progression"
+version: 1
+roles:
+  - architect
+  - api-dev
+  - db-specialist
+  - deployer
+
+topology:
+  root:
+    role: architect
+  companions:
+    - role: api-dev
+    - role: db-specialist
+  spawn_rules:
+    architect: [api-dev, db-specialist, deployer]
+    api-dev: []
+    db-specialist: []
+    deployer: []
+
+communication:
+  enforcement: audit
+
+  channels:
+    api_events:
+      description: "API lifecycle events — schema changes, endpoint readiness, breaking changes"
+      signals: [API_READY, API_BREAKING_CHANGE, SCHEMA_UPDATED]
+    work_events:
+      description: "Internal task coordination"
+      signals: [TASK_ASSIGNED, TASK_COMPLETE, REVIEW_NEEDED]
+    deployment:
+      description: "Deployment lifecycle"
+      signals: [DEPLOY_REQUESTED, DEPLOY_STARTED, DEPLOY_COMPLETE, DEPLOY_FAILED]
+
+  subscriptions:
+    architect:
+      - channel: api_events
+      - channel: work_events
+      - channel: deployment
+    api-dev:
+      - channel: work_events
+        signals: [TASK_ASSIGNED, REVIEW_NEEDED]
+    db-specialist:
+      - channel: work_events
+        signals: [TASK_ASSIGNED]
+      - channel: api_events
+        signals: [SCHEMA_UPDATED]
+    deployer:
+      - channel: deployment
+
+  emissions:
+    architect: [API_READY, API_BREAKING_CHANGE, TASK_ASSIGNED, REVIEW_NEEDED]
+    api-dev: [TASK_COMPLETE, API_READY, SCHEMA_UPDATED]
+    db-specialist: [TASK_COMPLETE, SCHEMA_UPDATED]
+    deployer: [DEPLOY_STARTED, DEPLOY_COMPLETE, DEPLOY_FAILED]
+
+  routing:
+    peers:
+      - from: architect
+        to: api-dev
+        via: direct
+        signals: [TASK_ASSIGNED]
+      - from: api-dev
+        to: architect
+        via: direct
+        signals: [TASK_COMPLETE]
+      - from: architect
+        to: deployer
+        via: direct
+        signals: [DEPLOY_REQUESTED]

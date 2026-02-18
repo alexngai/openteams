@@ -1,0 +1,71 @@
+name: frontend-team
+description: "Frontend development team — independent/collaborative structure"
+version: 1
+roles:
+  - lead
+  - ui-dev
+  - reviewer
+  - deployer
+
+topology:
+  root:
+    role: lead
+  companions:
+    - role: ui-dev
+    - role: reviewer
+  spawn_rules:
+    lead: [ui-dev, reviewer, deployer]
+    ui-dev: []
+    reviewer: []
+    deployer: []
+
+communication:
+  enforcement: audit
+
+  channels:
+    dependency_updates:
+      description: "External dependency changes (e.g. API updates from backend)"
+      signals: [API_READY, API_BREAKING_CHANGE, DEPENDENCY_UPDATED]
+    work_events:
+      description: "Internal task coordination"
+      signals: [FEATURE_ASSIGNED, FEATURE_COMPLETE, REVIEW_PASSED, REVIEW_FAILED]
+    deployment:
+      description: "Deployment lifecycle"
+      signals: [DEPLOY_REQUESTED, DEPLOY_STARTED, DEPLOY_COMPLETE, DEPLOY_FAILED]
+
+  subscriptions:
+    lead:
+      - channel: dependency_updates
+      - channel: work_events
+      - channel: deployment
+    ui-dev:
+      - channel: work_events
+        signals: [FEATURE_ASSIGNED, REVIEW_FAILED]
+      - channel: dependency_updates
+        signals: [API_READY, API_BREAKING_CHANGE]
+    reviewer:
+      - channel: work_events
+        signals: [FEATURE_COMPLETE]
+    deployer:
+      - channel: deployment
+
+  emissions:
+    lead: [FEATURE_ASSIGNED, DEPLOY_REQUESTED]
+    ui-dev: [FEATURE_COMPLETE]
+    reviewer: [REVIEW_PASSED, REVIEW_FAILED]
+    deployer: [DEPLOY_STARTED, DEPLOY_COMPLETE, DEPLOY_FAILED]
+
+  routing:
+    peers:
+      - from: lead
+        to: ui-dev
+        via: direct
+        signals: [FEATURE_ASSIGNED]
+      - from: ui-dev
+        to: reviewer
+        via: direct
+        signals: [FEATURE_COMPLETE]
+      - from: reviewer
+        to: ui-dev
+        via: direct
+        signals: [REVIEW_PASSED, REVIEW_FAILED]

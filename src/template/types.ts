@@ -128,6 +128,58 @@ export interface ResolvedRole {
   raw: RoleDefinition; // original YAML for extension fields
 }
 
+// --- Group Manifest (group.yaml) ---
+
+export interface GroupManifest {
+  name: string;
+  description?: string;
+  version: number;
+
+  /** Teams in this group, either inline manifests or template references */
+  teams: GroupTeamEntry[];
+
+  /** Agents that participate in multiple teams within the group */
+  shared_agents?: SharedAgentEntry[];
+
+  /** Communication bridges between teams */
+  bridges?: BridgeEntry[];
+
+  /** Extension fields */
+  [key: string]: unknown;
+}
+
+export interface GroupTeamEntry {
+  name: string;
+  /** Path to a team template directory (relative to group manifest) */
+  template?: string;
+  /** Inline team manifest (alternative to template path) */
+  inline?: TeamManifest;
+}
+
+export interface SharedAgentEntry {
+  /** Agent name (must be unique within the group) */
+  agent: string;
+  /** Which teams this agent belongs to, with role assignments */
+  memberships: SharedAgentMembership[];
+}
+
+export interface SharedAgentMembership {
+  team: string;
+  role: string;
+}
+
+export interface BridgeEntry {
+  from: BridgeEndpoint;
+  to: BridgeEndpoint;
+  mode?: "forward" | "bidirectional";
+}
+
+export interface BridgeEndpoint {
+  team: string;
+  channel: string;
+  signals?: string[];
+}
+
 // --- Signal Event (emitted through channels) ---
 
 export interface SignalEvent {

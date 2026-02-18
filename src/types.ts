@@ -9,6 +9,7 @@ export interface Team {
   template_name: string | null;
   template_path: string | null;
   enforcement: EnforcementMode;
+  group_name: string | null;
   created_at: string;
   status: "active" | "deleted";
 }
@@ -19,6 +20,55 @@ export interface CreateTeamOptions {
   agentType?: string;
   templateName?: string;
   templatePath?: string;
+  groupName?: string;
+}
+
+// --- Team Group Types ---
+
+export interface TeamGroup {
+  name: string;
+  description: string | null;
+  created_at: string;
+  status: "active" | "deleted";
+}
+
+export interface CreateTeamGroupOptions {
+  name: string;
+  description?: string;
+}
+
+export type BridgeMode = "forward" | "bidirectional";
+
+export interface TeamBridge {
+  id: number;
+  group_name: string;
+  source_team: string;
+  target_team: string;
+  source_channel: string;
+  target_channel: string;
+  signals: string[];
+  mode: BridgeMode;
+}
+
+export interface TeamBridgeRow {
+  id: number;
+  group_name: string;
+  source_team: string;
+  target_team: string;
+  source_channel: string;
+  target_channel: string;
+  signals: string;
+  mode: BridgeMode;
+}
+
+export interface CreateTeamBridgeOptions {
+  groupName: string;
+  sourceTeam: string;
+  targetTeam: string;
+  sourceChannel: string;
+  targetChannel: string;
+  signals?: string[];
+  mode?: BridgeMode;
 }
 
 // --- Member Types ---

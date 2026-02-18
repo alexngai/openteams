@@ -24,6 +24,12 @@ export type {
   AgentInstance,
   AgentUpdate,
   SpawnAgentOptions,
+  TeamGroup,
+  CreateTeamGroupOptions,
+  TeamBridge,
+  TeamBridgeRow,
+  CreateTeamBridgeOptions,
+  BridgeMode,
 } from "./types";
 
 // Template types
@@ -44,6 +50,12 @@ export type {
   ResolvedRole,
   SignalEvent,
   EmitSignalOptions,
+  GroupManifest,
+  GroupTeamEntry,
+  SharedAgentEntry,
+  SharedAgentMembership,
+  BridgeEntry,
+  BridgeEndpoint,
 } from "./template/types";
 
 // Database
@@ -56,9 +68,14 @@ export { MessageService } from "./services/message-service";
 export { AgentService } from "./services/agent-service";
 export { TemplateService } from "./services/template-service";
 export { CommunicationService } from "./services/communication-service";
+export { TeamGroupService } from "./services/team-group-service";
+export { GroupBootstrapService } from "./services/group-bootstrap-service";
+export type { GroupBootstrapResult } from "./services/group-bootstrap-service";
 
 // Template
 export { TemplateLoader } from "./template/loader";
+export { GroupLoader } from "./template/group-loader";
+export type { ResolvedGroup } from "./template/group-loader";
 
 // Generators
 export { generateSkillMd, generateCatalog } from "./generators/skill-generator";
