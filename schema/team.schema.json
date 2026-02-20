@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://openteams.dev/schema/team.schema.json",
   "title": "OpenTeams Team Manifest",
-  "description": "Schema for team.yaml — the declarative manifest that defines a multi-agent team's topology, communication patterns, and roles.",
+  "description": "Schema for team.yaml — the declarative manifest that defines a multi-agent team's topology, communication patterns, and roles. Optional directories: roles/ (per-role YAML definitions), prompts/ (prompt files or directories), tools/ (mcp-servers.json for per-role MCP server configs).",
   "type": "object",
   "required": ["name", "version", "roles", "topology"],
   "properties": {
@@ -41,7 +41,7 @@
     },
     "macro_agent": {
       "type": "object",
-      "description": "Extension fields for the macro-agent system. Stored but not interpreted by openteams.",
+      "description": "Extension namespace for the macro-agent orchestration system. Known fields: task_assignment (push/pull mode), integration (strategy config), lifecycle (continuations, scaling), observability (metrics). Stored but not interpreted by openteams.",
       "additionalProperties": true
     }
   },

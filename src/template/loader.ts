@@ -9,14 +9,126 @@ import type {
   ResolvedPrompts,
   PromptSection,
   CapabilityComposition,
+  McpServerEntry,
+  LoadOptions,
+  AsyncLoadOptions,
 } from "./types";
 
 export class TemplateLoader {
   /**
    * Load a team template from a directory.
    * Expects: team.yaml, optional roles/*.yaml, optional prompts/*.md
+   *
+   * @param templateDir - Absolute or relative path to the template directory
+   * @param options - Optional hooks for external role resolution and post-processing
    */
-  static load(templateDir: string): ResolvedTemplate {
+  static load(templateDir: string, options?: LoadOptions): ResolvedTemplate {
+    const { manifest, roles, prompts, mcpServers, absDir } =
+      TemplateLoader.loadCore(templateDir);
+
+    // Resolve role inheritance chains (with optional external resolution)
+    TemplateLoader.resolveInheritance(roles, options?.resolveExternalRole);
+
+    // Post-process each role if hook provided
+    if (options?.postProcessRole) {
+      for (const [name, role] of roles) {
+        roles.set(name, options.postProcessRole(role, manifest));
+      }
+    }
+
+    // Load prompts
+    for (const roleName of manifest.roles) {
+      const resolved = TemplateLoader.loadPromptsForRole(
+        absDir,
+        roleName,
+        manifest,
+        roles.get(roleName)
+      );
+      if (resolved) {
+        prompts.set(roleName, resolved);
+      }
+    }
+
+    let result: ResolvedTemplate = {
+      manifest,
+      roles,
+      prompts,
+      mcpServers,
+      sourcePath: absDir,
+    };
+
+    if (options?.postProcess) {
+      result = options.postProcess(result);
+    }
+
+    return result;
+  }
+
+  /**
+   * Async variant of load(). Identical file I/O but hooks may return Promises.
+   *
+   * @param templateDir - Absolute or relative path to the template directory
+   * @param options - Optional async hooks for external role resolution and post-processing
+   */
+  static async loadAsync(
+    templateDir: string,
+    options?: AsyncLoadOptions
+  ): Promise<ResolvedTemplate> {
+    const { manifest, roles, prompts, mcpServers, absDir } =
+      TemplateLoader.loadCore(templateDir);
+
+    // Resolve role inheritance chains (with optional async external resolution)
+    await TemplateLoader.resolveInheritanceAsync(
+      roles,
+      options?.resolveExternalRole
+    );
+
+    // Post-process each role if hook provided
+    if (options?.postProcessRole) {
+      for (const [name, role] of roles) {
+        roles.set(name, await options.postProcessRole(role, manifest));
+      }
+    }
+
+    // Load prompts
+    for (const roleName of manifest.roles) {
+      const resolved = TemplateLoader.loadPromptsForRole(
+        absDir,
+        roleName,
+        manifest,
+        roles.get(roleName)
+      );
+      if (resolved) {
+        prompts.set(roleName, resolved);
+      }
+    }
+
+    let result: ResolvedTemplate = {
+      manifest,
+      roles,
+      prompts,
+      mcpServers,
+      sourcePath: absDir,
+    };
+
+    if (options?.postProcess) {
+      result = await options.postProcess(result);
+    }
+
+    return result;
+  }
+
+  /**
+   * Core loading logic shared by load() and loadAsync().
+   * Reads filesystem and parses YAML — no hooks called.
+   */
+  private static loadCore(templateDir: string): {
+    manifest: TeamManifest;
+    roles: Map<string, ResolvedRole>;
+    prompts: Map<string, ResolvedPrompts>;
+    mcpServers: Map<string, McpServerEntry[]>;
+    absDir: string;
+  } {
     const absDir = path.resolve(templateDir);
 
     if (!fs.existsSync(absDir)) {
@@ -55,28 +167,10 @@ export class TemplateLoader {
       }
     }
 
-    // Resolve role inheritance chains
-    TemplateLoader.resolveInheritance(roles);
+    // Load MCP server configs
+    const mcpServers = TemplateLoader.loadMcpServers(absDir);
 
-    // Load prompts
-    for (const roleName of manifest.roles) {
-      const resolved = TemplateLoader.loadPromptsForRole(
-        absDir,
-        roleName,
-        manifest,
-        roles.get(roleName)
-      );
-      if (resolved) {
-        prompts.set(roleName, resolved);
-      }
-    }
-
-    return {
-      manifest,
-      roles,
-      prompts,
-      sourcePath: absDir,
-    };
+    return { manifest, roles, prompts, mcpServers, absDir };
   }
 
   /**
@@ -101,6 +195,7 @@ export class TemplateLoader {
       manifest,
       roles,
       prompts: new Map(),
+      mcpServers: new Map(),
       sourcePath: "",
     };
   }
@@ -206,22 +301,90 @@ export class TemplateLoader {
   }
 
   /**
-   * Resolve role inheritance chains. For each role with `extends` pointing
-   * to another role in the map, merge parent capabilities with the child's
-   * add/remove composition. Detects circular inheritance.
+   * Merge a child role's capabilities with its parent using CapabilityComposition.
    */
-  private static resolveInheritance(roles: Map<string, ResolvedRole>): void {
-    // Build dependency map: child -> parent (only for parents that exist in the map)
+  private static mergeCapabilities(
+    role: ResolvedRole,
+    parentRole: ResolvedRole
+  ): void {
+    const raw = role.raw;
+    if (raw.capabilities && !Array.isArray(raw.capabilities)) {
+      // CapabilityComposition — merge with parent
+      const comp = raw.capabilities as CapabilityComposition;
+      const parentCaps = [...parentRole.capabilities];
+      const toAdd = comp.add ?? [];
+      const toRemove = new Set(comp.remove ?? []);
+
+      // Start with parent caps, add child additions, remove exclusions
+      const merged = [...new Set([...parentCaps, ...toAdd])];
+      role.capabilities = merged.filter((c) => !toRemove.has(c));
+    }
+    // If capabilities is a plain array, it's an explicit override — keep as-is
+  }
+
+  /**
+   * Resolve external parents: for roles that `extends` a name not in the local map,
+   * call the resolver hook to get the parent ResolvedRole.
+   * Returns a map of external parent name → ResolvedRole.
+   */
+  private static resolveExternalParents(
+    roles: Map<string, ResolvedRole>,
+    resolver?: (name: string) => ResolvedRole | null
+  ): Map<string, ResolvedRole> {
+    const externals = new Map<string, ResolvedRole>();
+    if (!resolver) return externals;
+
+    for (const [, role] of roles) {
+      if (role.extends && !roles.has(role.extends) && !externals.has(role.extends)) {
+        const external = resolver(role.extends);
+        if (external) {
+          externals.set(role.extends, external);
+        }
+      }
+    }
+    return externals;
+  }
+
+  /**
+   * Resolve external parents (async variant).
+   */
+  private static async resolveExternalParentsAsync(
+    roles: Map<string, ResolvedRole>,
+    resolver?: (name: string) => Promise<ResolvedRole | null> | ResolvedRole | null
+  ): Promise<Map<string, ResolvedRole>> {
+    const externals = new Map<string, ResolvedRole>();
+    if (!resolver) return externals;
+
+    for (const [, role] of roles) {
+      if (role.extends && !roles.has(role.extends) && !externals.has(role.extends)) {
+        const external = await resolver(role.extends);
+        if (external) {
+          externals.set(role.extends, external);
+        }
+      }
+    }
+    return externals;
+  }
+
+  /**
+   * Core inheritance resolution logic. Operates on a combined map of
+   * local + external parent roles.
+   */
+  private static resolveInheritanceCore(
+    roles: Map<string, ResolvedRole>,
+    allRoles: Map<string, ResolvedRole>
+  ): void {
+    // Build dependency map: child -> parent (only for parents resolvable in allRoles)
     const extendsMap = new Map<string, string>();
     for (const [name, role] of roles) {
-      if (role.extends && roles.has(role.extends)) {
+      if (role.extends && allRoles.has(role.extends)) {
         extendsMap.set(name, role.extends);
       }
     }
 
     if (extendsMap.size === 0) return;
 
-    // Detect cycles by following chains
+    // Detect cycles by following chains (only through local roles)
     for (const startName of extendsMap.keys()) {
       const chain: string[] = [];
       let current: string | undefined = startName;
@@ -239,66 +402,163 @@ export class TemplateLoader {
     // Resolve in topological order (parents before children)
     const resolved = new Set<string>();
 
-    function resolve(name: string): void {
+    const resolve = (name: string): void => {
       if (resolved.has(name)) return;
 
       const parent = extendsMap.get(name);
-      if (parent) {
+      if (parent && roles.has(parent)) {
         resolve(parent);
       }
 
       const role = roles.get(name)!;
       if (parent) {
-        const parentRole = roles.get(parent)!;
-        const raw = role.raw;
-
-        if (raw.capabilities && !Array.isArray(raw.capabilities)) {
-          // CapabilityComposition — merge with parent
-          const comp = raw.capabilities as CapabilityComposition;
-          const parentCaps = [...parentRole.capabilities];
-          const toAdd = comp.add ?? [];
-          const toRemove = new Set(comp.remove ?? []);
-
-          // Start with parent caps, add child additions, remove exclusions
-          const merged = [...new Set([...parentCaps, ...toAdd])];
-          role.capabilities = merged.filter((c) => !toRemove.has(c));
-        }
-        // If capabilities is a plain array, it's an explicit override — keep as-is
+        const parentRole = allRoles.get(parent)!;
+        TemplateLoader.mergeCapabilities(role, parentRole);
       }
 
       resolved.add(name);
-    }
+    };
 
     for (const name of extendsMap.keys()) {
       resolve(name);
     }
   }
 
+  /**
+   * Resolve role inheritance chains. For each role with `extends` pointing
+   * to another role in the map (or resolvable via external resolver),
+   * merge parent capabilities with the child's add/remove composition.
+   * Detects circular inheritance.
+   *
+   * @param resolveExternalRole - Optional hook to resolve roles not in the local map
+   */
+  private static resolveInheritance(
+    roles: Map<string, ResolvedRole>,
+    resolveExternalRole?: (name: string) => ResolvedRole | null
+  ): void {
+    const externals = TemplateLoader.resolveExternalParents(roles, resolveExternalRole);
+    const allRoles = new Map([...roles, ...externals]);
+    TemplateLoader.resolveInheritanceCore(roles, allRoles);
+  }
+
+  /**
+   * Async variant of resolveInheritance.
+   */
+  private static async resolveInheritanceAsync(
+    roles: Map<string, ResolvedRole>,
+    resolveExternalRole?: (name: string) => Promise<ResolvedRole | null> | ResolvedRole | null
+  ): Promise<void> {
+    const externals = await TemplateLoader.resolveExternalParentsAsync(roles, resolveExternalRole);
+    const allRoles = new Map([...roles, ...externals]);
+    TemplateLoader.resolveInheritanceCore(roles, allRoles);
+  }
+
+  /**
+   * Normalize a role definition's capability fields into a canonical form.
+   *
+   * Supports two syntaxes for capability composition:
+   *   1. `capabilities: { add: [...], remove: [...] }` (CapabilityComposition)
+   *   2. `capabilities_add: [...]` / `capabilities_remove: [...]` (flat fields)
+   *
+   * Both are normalized into CapabilityComposition on `raw.capabilities` so that
+   * `resolveInheritance()` has a single code path.
+   *
+   * Validation: errors if both syntaxes are used simultaneously.
+   */
+  private static normalizeRoleDefinition(def: RoleDefinition): RoleDefinition {
+    const hasComposition = def.capabilities && !Array.isArray(def.capabilities);
+    const hasFlatFields = def.capabilities_add !== undefined || def.capabilities_remove !== undefined;
+
+    if (hasComposition && hasFlatFields) {
+      throw new Error(
+        `Role "${def.name}" uses both CapabilityComposition in "capabilities" and flat ` +
+        `"capabilities_add"/"capabilities_remove" fields. Use one syntax or the other.`
+      );
+    }
+
+    // Normalize flat fields into CapabilityComposition on the capabilities field
+    if (hasFlatFields) {
+      const normalized = { ...def };
+      normalized.capabilities = {
+        add: def.capabilities_add,
+        remove: def.capabilities_remove,
+      } as CapabilityComposition;
+      delete normalized.capabilities_add;
+      delete normalized.capabilities_remove;
+      return normalized;
+    }
+
+    return def;
+  }
+
   private static resolveRole(def: RoleDefinition): ResolvedRole {
+    // Normalize flat capabilities_add/remove into CapabilityComposition
+    const normalized = TemplateLoader.normalizeRoleDefinition(def);
     let capabilities: string[] = [];
 
-    if (def.capabilities) {
-      if (Array.isArray(def.capabilities)) {
-        capabilities = def.capabilities;
+    if (normalized.capabilities) {
+      if (Array.isArray(normalized.capabilities)) {
+        capabilities = normalized.capabilities;
       } else {
         // CapabilityComposition — resolve against parent later if extends is used.
         // For now, just collect the add list.
-        const comp = def.capabilities as CapabilityComposition;
+        const comp = normalized.capabilities as CapabilityComposition;
         capabilities = comp.add ?? [];
         // remove is applied when composing with parent; tracked in raw for later
       }
     }
 
     return {
-      name: def.name,
-      extends: def.extends,
-      displayName: def.display_name ?? def.name,
-      description: def.description ?? `Role: ${def.name}`,
+      name: normalized.name,
+      extends: normalized.extends,
+      displayName: normalized.display_name ?? normalized.name,
+      description: normalized.description ?? `Role: ${normalized.name}`,
       capabilities,
-      promptFile: def.prompt,
-      promptFiles: def.prompts,
-      raw: def,
+      promptFile: normalized.prompt,
+      promptFiles: normalized.prompts,
+      raw: normalized,
     };
+  }
+
+  /**
+   * Load tools/mcp-servers.json if present.
+   * Returns a map of role name → MCP server entries.
+   */
+  private static loadMcpServers(
+    absDir: string
+  ): Map<string, McpServerEntry[]> {
+    const result = new Map<string, McpServerEntry[]>();
+    const mcpPath = path.join(absDir, "tools", "mcp-servers.json");
+
+    if (!fs.existsSync(mcpPath)) {
+      return result;
+    }
+
+    let raw: string;
+    try {
+      raw = fs.readFileSync(mcpPath, "utf-8");
+    } catch (err) {
+      throw new Error(
+        `Failed to read ${mcpPath}: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+
+    let parsed: Record<string, { servers: McpServerEntry[] }>;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      throw new Error(
+        `Failed to parse ${mcpPath}: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+
+    for (const [roleName, config] of Object.entries(parsed)) {
+      if (config.servers && Array.isArray(config.servers)) {
+        result.set(roleName, config.servers);
+      }
+    }
+
+    return result;
   }
 
   /**

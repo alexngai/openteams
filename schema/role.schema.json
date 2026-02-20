@@ -46,10 +46,38 @@
       ],
       "description": "Capabilities for this role. Either a flat list (full replacement) or a composition object with add/remove operations on the parent role's capabilities."
     },
+    "capabilities_add": {
+      "type": "array",
+      "description": "Capabilities to add to the parent role's set. Alternative flat syntax for CapabilityComposition. Only valid when 'extends' is set. Mutually exclusive with CapabilityComposition inside 'capabilities'.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)*$"
+      },
+      "uniqueItems": true,
+      "examples": [["task.claim", "exec.test"]]
+    },
+    "capabilities_remove": {
+      "type": "array",
+      "description": "Capabilities to remove from the parent role's set. Alternative flat syntax for CapabilityComposition. Only valid when 'extends' is set. Mutually exclusive with CapabilityComposition inside 'capabilities'.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)*$"
+      },
+      "uniqueItems": true,
+      "examples": [["agent.spawn.integrator"]]
+    },
     "prompt": {
       "type": "string",
       "description": "Path to a prompt file, relative to the template directory. Lower priority than topology node prompts.",
       "examples": ["prompts/planner.md"]
+    },
+    "prompts": {
+      "type": "array",
+      "description": "Ordered list of prompt files relative to prompts/<role>/. The first file becomes the primary prompt; the rest are additional sections.",
+      "items": {
+        "type": "string"
+      },
+      "examples": [["SOUL.md", "ROLE.md", "RULES.md"]]
     },
     "macro_agent": {
       "type": "object",

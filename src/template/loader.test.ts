@@ -766,6 +766,162 @@ capabilities:
       );
     });
 
+    it("resolves flat capabilities_add/capabilities_remove syntax", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: flat-syntax
+version: 1
+roles:
+  - base
+  - child
+topology:
+  root:
+    role: base
+`
+      );
+
+      writeYaml(
+        "roles/base.yaml",
+        `
+name: base
+capabilities:
+  - read
+  - write
+  - admin
+`
+      );
+
+      writeYaml(
+        "roles/child.yaml",
+        `
+name: child
+extends: base
+capabilities_add:
+  - debug
+  - test
+capabilities_remove:
+  - admin
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      const child = template.roles.get("child")!;
+      expect(child.capabilities.sort()).toEqual(["debug", "read", "test", "write"]);
+    });
+
+    it("resolves flat capabilities_add only (no remove)", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: add-only
+version: 1
+roles:
+  - parent
+  - child
+topology:
+  root:
+    role: parent
+`
+      );
+
+      writeYaml(
+        "roles/parent.yaml",
+        `
+name: parent
+capabilities:
+  - a
+  - b
+`
+      );
+
+      writeYaml(
+        "roles/child.yaml",
+        `
+name: child
+extends: parent
+capabilities_add:
+  - c
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      expect(template.roles.get("child")!.capabilities.sort()).toEqual(["a", "b", "c"]);
+    });
+
+    it("resolves flat capabilities_remove only (no add)", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: remove-only
+version: 1
+roles:
+  - parent
+  - child
+topology:
+  root:
+    role: parent
+`
+      );
+
+      writeYaml(
+        "roles/parent.yaml",
+        `
+name: parent
+capabilities:
+  - a
+  - b
+  - c
+`
+      );
+
+      writeYaml(
+        "roles/child.yaml",
+        `
+name: child
+extends: parent
+capabilities_remove:
+  - c
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      expect(template.roles.get("child")!.capabilities.sort()).toEqual(["a", "b"]);
+    });
+
+    it("errors when both CapabilityComposition and flat fields are used", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: conflict
+version: 1
+roles:
+  - bad
+topology:
+  root:
+    role: bad
+`
+      );
+
+      writeYaml(
+        "roles/bad.yaml",
+        `
+name: bad
+capabilities:
+  add:
+    - x
+  remove:
+    - y
+capabilities_add:
+  - z
+`
+      );
+
+      expect(() => TemplateLoader.load(tmpDir)).toThrow(
+        'uses both CapabilityComposition'
+      );
+    });
+
     it("ignores extends when parent is not in roles map", () => {
       writeYaml(
         "team.yaml",
@@ -799,6 +955,352 @@ capabilities:
     });
   });
 
+  describe("load with options (hooks)", () => {
+    it("resolves external parent via resolveExternalRole hook", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: hook-test
+version: 1
+roles:
+  - child
+topology:
+  root:
+    role: child
+`
+      );
+
+      writeYaml(
+        "roles/child.yaml",
+        `
+name: child
+extends: external-worker
+capabilities:
+  add:
+    - debug
+  remove:
+    - git.push
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir, {
+        resolveExternalRole: (name) => {
+          if (name === "external-worker") {
+            return {
+              name: "external-worker",
+              displayName: "Worker",
+              description: "External worker role",
+              capabilities: ["file.read", "file.write", "git.push"],
+              raw: { name: "external-worker" },
+            };
+          }
+          return null;
+        },
+      });
+
+      const child = template.roles.get("child")!;
+      // parent: [file.read, file.write, git.push] + debug - git.push
+      expect(child.capabilities.sort()).toEqual(["debug", "file.read", "file.write"]);
+    });
+
+    it("external resolver returning null falls back to add-only", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: null-resolver
+version: 1
+roles:
+  - orphan
+topology:
+  root:
+    role: orphan
+`
+      );
+
+      writeYaml(
+        "roles/orphan.yaml",
+        `
+name: orphan
+extends: nonexistent
+capabilities:
+  add:
+    - foo
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir, {
+        resolveExternalRole: () => null,
+      });
+
+      // No parent found → just the add list
+      expect(template.roles.get("orphan")!.capabilities).toEqual(["foo"]);
+    });
+
+    it("postProcessRole transforms each role", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: post-process
+version: 1
+roles:
+  - worker
+topology:
+  root:
+    role: worker
+`
+      );
+
+      writeYaml(
+        "roles/worker.yaml",
+        `
+name: worker
+capabilities:
+  - build
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir, {
+        postProcessRole: (role) => ({
+          ...role,
+          capabilities: [...role.capabilities, "injected.cap"],
+        }),
+      });
+
+      expect(template.roles.get("worker")!.capabilities).toEqual([
+        "build",
+        "injected.cap",
+      ]);
+    });
+
+    it("postProcess transforms the entire template", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: full-post
+version: 1
+roles:
+  - worker
+topology:
+  root:
+    role: worker
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir, {
+        postProcess: (t) => ({
+          ...t,
+          sourcePath: "/overridden",
+        }),
+      });
+
+      expect(template.sourcePath).toBe("/overridden");
+    });
+  });
+
+  describe("loadAsync", () => {
+    it("loads template with async external resolver", async () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: async-test
+version: 1
+roles:
+  - child
+topology:
+  root:
+    role: child
+`
+      );
+
+      writeYaml(
+        "roles/child.yaml",
+        `
+name: child
+extends: async-parent
+capabilities:
+  add:
+    - test
+`
+      );
+
+      const template = await TemplateLoader.loadAsync(tmpDir, {
+        resolveExternalRole: async (name) => {
+          // Simulate async lookup
+          await new Promise((r) => setTimeout(r, 1));
+          if (name === "async-parent") {
+            return {
+              name: "async-parent",
+              displayName: "Async Parent",
+              description: "Resolved asynchronously",
+              capabilities: ["read", "write"],
+              raw: { name: "async-parent" },
+            };
+          }
+          return null;
+        },
+      });
+
+      const child = template.roles.get("child")!;
+      expect(child.capabilities.sort()).toEqual(["read", "test", "write"]);
+    });
+
+    it("loads without options (same as sync)", async () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: async-basic
+version: 1
+roles:
+  - worker
+topology:
+  root:
+    role: worker
+`
+      );
+
+      const template = await TemplateLoader.loadAsync(tmpDir);
+      expect(template.manifest.name).toBe("async-basic");
+      expect(template.roles.get("worker")!.name).toBe("worker");
+    });
+
+    it("supports async postProcessRole", async () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: async-post
+version: 1
+roles:
+  - dev
+topology:
+  root:
+    role: dev
+`
+      );
+
+      const template = await TemplateLoader.loadAsync(tmpDir, {
+        postProcessRole: async (role) => {
+          await new Promise((r) => setTimeout(r, 1));
+          return { ...role, capabilities: [...role.capabilities, "async.cap"] };
+        },
+      });
+
+      expect(template.roles.get("dev")!.capabilities).toContain("async.cap");
+    });
+
+    it("supports async postProcess", async () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: async-post-full
+version: 1
+roles:
+  - dev
+topology:
+  root:
+    role: dev
+`
+      );
+
+      const template = await TemplateLoader.loadAsync(tmpDir, {
+        postProcess: async (t) => {
+          await new Promise((r) => setTimeout(r, 1));
+          return { ...t, sourcePath: "/async-overridden" };
+        },
+      });
+
+      expect(template.sourcePath).toBe("/async-overridden");
+    });
+  });
+
+  describe("MCP server loading", () => {
+    it("loads tools/mcp-servers.json per role", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: mcp-test
+version: 1
+roles:
+  - planner
+  - worker
+topology:
+  root:
+    role: planner
+`
+      );
+
+      const mcpConfig = {
+        planner: {
+          servers: [
+            { name: "sudocode", command: "npx", args: ["sudocode-mcp"] },
+          ],
+        },
+        worker: {
+          servers: [
+            { name: "linter", command: "eslint-mcp", env: { CI: "true" } },
+            { name: "tester", command: "vitest-mcp" },
+          ],
+        },
+      };
+      const toolsDir = path.join(tmpDir, "tools");
+      fs.mkdirSync(toolsDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(toolsDir, "mcp-servers.json"),
+        JSON.stringify(mcpConfig),
+        "utf-8"
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      expect(template.mcpServers.size).toBe(2);
+      expect(template.mcpServers.get("planner")).toHaveLength(1);
+      expect(template.mcpServers.get("planner")![0].name).toBe("sudocode");
+      expect(template.mcpServers.get("worker")).toHaveLength(2);
+      expect(template.mcpServers.get("worker")![0].env).toEqual({ CI: "true" });
+    });
+
+    it("returns empty map when tools/ does not exist", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: no-tools
+version: 1
+roles:
+  - worker
+topology:
+  root:
+    role: worker
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      expect(template.mcpServers.size).toBe(0);
+    });
+
+    it("throws on malformed JSON", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: bad-json
+version: 1
+roles:
+  - worker
+topology:
+  root:
+    role: worker
+`
+      );
+
+      const toolsDir = path.join(tmpDir, "tools");
+      fs.mkdirSync(toolsDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(toolsDir, "mcp-servers.json"),
+        "{ invalid json",
+        "utf-8"
+      );
+
+      expect(() => TemplateLoader.load(tmpDir)).toThrow("Failed to parse");
+    });
+  });
+
   describe("loadFromManifest", () => {
     it("loads from an inline manifest", () => {
       const template = TemplateLoader.loadFromManifest({
@@ -810,6 +1312,7 @@ capabilities:
 
       expect(template.manifest.name).toBe("inline");
       expect(template.roles.get("worker")!.name).toBe("worker");
+      expect(template.mcpServers.size).toBe(0);
       expect(template.sourcePath).toBe("");
     });
   });

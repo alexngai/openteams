@@ -82,6 +82,11 @@ export interface RoleDefinition {
   prompt?: string; // path to a single prompt file
   prompts?: string[]; // ordered list of prompt files (relative to prompts/<role>/)
 
+  // Flat capability composition (alternative to CapabilityComposition inside capabilities).
+  // Only valid when `extends` is set. Mutually exclusive with CapabilityComposition in `capabilities`.
+  capabilities_add?: string[];
+  capabilities_remove?: string[];
+
   // Extension fields
   macro_agent?: Record<string, unknown>;
   [key: string]: unknown;
@@ -114,6 +119,7 @@ export interface ResolvedTemplate {
   manifest: TeamManifest;
   roles: Map<string, ResolvedRole>;
   prompts: Map<string, ResolvedPrompts>; // role name → structured prompts
+  mcpServers: Map<string, McpServerEntry[]>; // role name → MCP server entries
   sourcePath: string;
 }
 
@@ -126,6 +132,41 @@ export interface ResolvedRole {
   promptFile?: string;
   promptFiles?: string[]; // explicit ordering from role YAML
   raw: RoleDefinition; // original YAML for extension fields
+}
+
+// --- MCP Server Config ---
+
+export interface McpServerEntry {
+  name: string;
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
+// --- Load Options ---
+
+/**
+ * Options for TemplateLoader.load() — all hooks are synchronous.
+ */
+export interface LoadOptions {
+  /** Resolve a role that `extends` a name not found in the local roles map. */
+  resolveExternalRole?: (name: string) => ResolvedRole | null;
+  /** Post-process each role after inheritance resolution. */
+  postProcessRole?: (role: ResolvedRole, manifest: TeamManifest) => ResolvedRole;
+  /** Post-process the entire template after loading. */
+  postProcess?: (template: ResolvedTemplate) => ResolvedTemplate;
+}
+
+/**
+ * Options for TemplateLoader.loadAsync() — hooks may return Promises.
+ */
+export interface AsyncLoadOptions {
+  /** Resolve a role that `extends` a name not found in the local roles map. */
+  resolveExternalRole?: (name: string) => Promise<ResolvedRole | null> | ResolvedRole | null;
+  /** Post-process each role after inheritance resolution. */
+  postProcessRole?: (role: ResolvedRole, manifest: TeamManifest) => Promise<ResolvedRole> | ResolvedRole;
+  /** Post-process the entire template after loading. */
+  postProcess?: (template: ResolvedTemplate) => Promise<ResolvedTemplate> | ResolvedTemplate;
 }
 
 // --- Signal Event (emitted through channels) ---
