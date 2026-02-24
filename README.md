@@ -1,3 +1,9 @@
+<div align="center">
+    <picture>
+        <img alt="openteams banner" src="https://raw.githubusercontent.com/alexngai/openteams/main/media/banner.png">
+    </picture>
+</div>
+
 # openteams
 
 [![npm version](https://img.shields.io/npm/v/openteams.svg?style=flat-square)](https://www.npmjs.com/package/openteams)
