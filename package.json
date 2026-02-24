@@ -1,54 +1,51 @@
 {
   "name": "openteams",
-  "version": "0.1.2",
-  "description": "OpenTeams - Multi-agent team coordination",
-  "main": "dist/cjs/index.js",
-  "module": "dist/esm/index.js",
-  "types": "dist/cjs/index.d.ts",
-  "exports": {
-    ".": {
-      "import": {
-        "types": "./dist/esm/index.d.ts",
-        "default": "./dist/esm/index.js"
-      },
-      "require": {
-        "types": "./dist/cjs/index.d.ts",
-        "default": "./dist/cjs/index.js"
-      }
-    }
+  "version": "0.1.1",
+  "description": "OpenTeams - Multi-agent team coordination CLI",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "openteams": "dist/cli.js"
   },
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "clean": "rm -rf dist",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && echo '{\"type\":\"module\"}' > dist/esm/package.json",
     "build": "npm run clean && npm run build:cjs && npm run build:esm",
     "dev": "tsc --watch",
-    "test": "echo \"No tests yet\" && exit 0",
-    "preversion": "npm run build && npm test",
-    "postversion": "git push && git push --tags",
-    "prepublishOnly": "npm run build && npm test",
-    "release:patch": "npm version patch",
-    "release:minor": "npm version minor",
-    "release:major": "npm version major",
-    "publish:npm": "npm publish --access public"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "version:patch": "npm version patch && git push && git push --tags",
+    "version:minor": "npm version minor && git push && git push --tags",
+    "version:major": "npm version major && git push && git push --tags",
+    "publish:npm": "npm run build && npm publish"
   },
   "keywords": [
     "agents",
     "teams",
     "multi-agent",
-    "coordination"
+    "coordination",
+    "acp",
+    "cli"
   ],
   "author": "",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/alexngai/openteams.git"
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "commander": "^13.0.0",
+    "js-yaml": "^4.1.1"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.2.1",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "optionalDependencies": {
+    "acp-factory": "^0.1.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
