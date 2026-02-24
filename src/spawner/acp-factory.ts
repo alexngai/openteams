@@ -12,7 +12,7 @@ export class ACPFactorySpawner implements AgentSpawner {
   private async loadFactory(): Promise<any> {
     if (!this.AgentFactoryModule) {
       try {
-        const mod = await import("acp-factory");
+        const mod: any = await import("acp-factory");
         this.AgentFactoryModule = mod.AgentFactory ?? mod.default?.AgentFactory ?? mod;
       } catch {
         throw new Error(
