@@ -59,6 +59,13 @@ export { TaskService } from "./services/task-service";
 export { MessageService } from "./services/message-service";
 export { AgentService } from "./services/agent-service";
 export { TemplateService } from "./services/template-service";
+export { TemplateInstallService } from "./services/template-install-service";
+export type {
+  InstallOptions,
+  InstallResult,
+  DiscoveredTemplate,
+  InstallCallbacks,
+} from "./services/template-install-service";
 export { CommunicationService } from "./services/communication-service";
 
 // Template

@@ -1,7 +1,9 @@
 import { Command } from "commander";
 import { TemplateService } from "../services/template-service";
 import { CommunicationService } from "../services/communication-service";
+import { TemplateInstallService } from "../services/template-install-service";
 import { TemplateLoader } from "../template/loader";
+import { askYesNo, selectFromList } from "./prompt-utils";
 import type Database from "better-sqlite3";
 
 export function createTemplateCommands(db: Database.Database): Command {
@@ -200,6 +202,54 @@ export function createTemplateCommands(db: Database.Database): Command {
         console.log(
           `  #${e.id} [${e.channel}] ${e.signal} from ${e.sender}${payload}`
         );
+      }
+    });
+
+  template
+    .command("install <repo-url> [template-name]")
+    .description("Install a team template from a git repository")
+    .option("-o, --output <path>", "Install to a specific directory")
+    .option("-y, --yes", "Skip confirmation prompts")
+    .action(async (repoUrl: string, templateName: string | undefined, opts) => {
+      try {
+        const installService = new TemplateInstallService();
+
+        const result = await installService.install(
+          {
+            repoUrl,
+            templateName,
+            outputDir: opts.output,
+            skipConfirmation: opts.yes,
+          },
+          {
+            selectTemplate: async (templates) => {
+              const options = templates.map(
+                (t) => `${t.name} (${t.manifestName})`
+              );
+              const chosen = await selectFromList(
+                "Multiple templates found. Select one:",
+                options
+              );
+              // Extract the name from "name (manifestName)"
+              return chosen.split(" (")[0];
+            },
+            confirmGlobalInstall: async (installPath) => {
+              return askYesNo(
+                `No .openteams/ directory found. Install globally to ${installPath}?`
+              );
+            },
+            onProgress: (message) => {
+              console.log(message);
+            },
+          }
+        );
+
+        console.log(`Template "${result.templateName}" installed.`);
+        console.log(`  Location: ${result.installedPath}`);
+        console.log(`  Source: ${result.sourceRepo}`);
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exitCode = 1;
       }
     });
 
