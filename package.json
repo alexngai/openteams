@@ -1,13 +1,39 @@
 {
   "name": "openteams",
-  "version": "0.0.1",
+  "version": "0.1.2",
   "description": "OpenTeams - Multi-agent team coordination",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc",
+    "clean": "rm -rf dist",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json && echo '{\"type\":\"module\"}' > dist/esm/package.json",
+    "build": "npm run clean && npm run build:cjs && npm run build:esm",
     "dev": "tsc --watch",
-    "test": "echo \"No tests yet\" && exit 0"
+    "test": "echo \"No tests yet\" && exit 0",
+    "preversion": "npm run build && npm test",
+    "postversion": "git push && git push --tags",
+    "prepublishOnly": "npm run build && npm test",
+    "release:patch": "npm version patch",
+    "release:minor": "npm version minor",
+    "release:major": "npm version major",
+    "publish:npm": "npm publish --access public"
   },
   "keywords": [
     "agents",
@@ -17,6 +43,10 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alexngai/openteams.git"
+  },
   "devDependencies": {
     "@types/node": "^25.2.1",
     "typescript": "^5.7.0"
