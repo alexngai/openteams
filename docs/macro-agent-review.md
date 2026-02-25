@@ -59,21 +59,7 @@ Review of the [macro-agent](https://github.com/snarktank/macro-agent) orchestrat
 
 ---
 
-## Priority 5 — Pipeline Stages
-
-**Gap.** Macro-agent's worker lifecycle follows a clear pipeline: `spawn → initialize → work → commit → merge-request → [merge/conflict] → done`. The coordinator has a parallel pipeline: `plan → spawn-workers → monitor → synthesize → done`. These stage transitions drive signal emission (WORKER_DONE, MERGE_REQUEST, MERGE_COMPLETE) and lifecycle handlers. OpenTeams doesn't model execution stages at all.
-
-**What to do.**
-- Add optional `stages` to `RoleDefinition`: an ordered list of named stages that a role moves through.
-- Define a base set of well-known stage names: `init`, `work`, `review`, `merge`, `done`, `failed`.
-- Map stages to signal emissions — when a role enters a stage, it can auto-emit the corresponding signal.
-- This gives runtimes a shared vocabulary for progress tracking without prescribing execution details.
-
-**Touches:** `src/template/types.ts` (RoleDefinition), `schema/role.schema.json`.
-
----
-
-## Priority 6 — Spawn Rules Enrichment
+## Priority 5 — Spawn Rules Enrichment
 
 **Gap.** OpenTeams has `spawn_rules: Record<string, string[]>` — a flat map of "who can spawn whom." Macro-agent extends this with constraints: max concurrent instances, scaling triggers (`task_queue_depth`), idle drain policies, and dynamic child registration (agents spawned at runtime auto-join the team). The current schema can't express "planner can spawn up to 5 grinders, scaled by queue depth."
 
@@ -89,7 +75,7 @@ Review of the [macro-agent](https://github.com/snarktank/macro-agent) orchestrat
 
 ---
 
-## Priority 7 — Observability Schema
+## Priority 6 — Observability Schema
 
 **Gap.** Macro-agent defines per-team observability config: `metrics_window_s`, `snapshot_interval_s`, health check timers, stale agent detection thresholds. Currently all in `macro_agent.observability`. As teams grow, any runtime needs to know what to measure and when to alert.
 
@@ -110,7 +96,7 @@ Review of the [macro-agent](https://github.com/snarktank/macro-agent) orchestrat
 
 ---
 
-## Priority 8 — API & External Protocol (Deferred)
+## Priority 7 — API & External Protocol (Deferred)
 
 Macro-agent exposes REST + WebSocket + MAP protocol + ACP stdio. Whether OpenTeams should define a standard external API shape is a larger question. Parking this for later.
 
@@ -124,14 +110,13 @@ Macro-agent exposes REST + WebSocket + MAP protocol + ACP stdio. Whether OpenTea
 | 2 | Lifecycle types | `RoleDefinition.lifecycle` | Medium — new type union |
 | 3 | Workspace isolation | `RoleDefinition.workspace` | Low — declarative only |
 | 4 | Integration strategies | `TeamManifest.integration` | Low — declarative only |
-| 5 | Pipeline stages | `RoleDefinition.stages` | Medium — stages + signal mapping |
-| 6 | Spawn rules enrichment | `TopologyConfig.spawn_rules` | Medium — backward-compat parsing |
-| 7 | Observability schema | `TeamManifest.observability` | Low — optional config block |
-| 8 | API & external protocol | TBD | — deferred |
+| 5 | Spawn rules enrichment | `TopologyConfig.spawn_rules` | Medium — backward-compat parsing |
+| 6 | Observability schema | `TeamManifest.observability` | Low — optional config block |
+| 7 | API & external protocol | TBD | — deferred |
 
 ## Cross-Cutting Notes
 
-- **Backward compatibility.** Priorities 1, 3, 4, 6, 7 are purely additive — new optional fields, no breaking changes. Priorities 2, 5 introduce new type structures but existing templates remain valid.
+- **Backward compatibility.** Priorities 1, 3, 4, 5, 6 are purely additive — new optional fields, no breaking changes. Priority 2 introduces a new type structure but existing templates remain valid.
 - **Schema migration.** All priorities are YAML-only — no database schema changes required.
 - **macro_agent namespace.** As fields graduate to first-class, they should be removed from the `macro_agent` extension. Macro-agent-specific config that doesn't generalize (e.g., `acp-factory` transport options, TinyBase store config) stays in the extension namespace. Task management (push/pull assignment, claiming, task lifecycle) stays entirely in macro-agent's runtime — OpenTeams' `TaskService` remains a simple CRUD layer.
 - **Validation.** Each priority should include JSON Schema updates and test coverage for the new fields in `loader.test.ts`.
