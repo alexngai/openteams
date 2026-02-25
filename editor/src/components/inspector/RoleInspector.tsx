@@ -35,9 +35,9 @@ export function RoleInspector({ nodeId, data }: Props) {
   if (!role) return <div style={panelStyle}>Role not found</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div data-testid="role-inspector" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <div style={{
+      <div data-testid="role-inspector-header" style={{
         padding: '12px',
         borderBottom: '1px solid var(--ot-border)',
         fontWeight: 600,
@@ -56,6 +56,7 @@ export function RoleInspector({ nodeId, data }: Props) {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
+            data-testid={`role-tab-${tab}`}
             style={{
               flex: 1,
               padding: '8px 4px',
@@ -131,13 +132,14 @@ function IdentityTab({ role, data, nodeId, updateRole }: {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <Field label="Name">
-        <input style={{ ...inputStyle, opacity: 0.6 }} value={data.roleName} readOnly />
+        <input style={{ ...inputStyle, opacity: 0.6 }} value={data.roleName} readOnly data-testid="role-name" />
       </Field>
       <Field label="Display Name">
         <input
           style={inputStyle}
           value={role.displayName}
           onChange={e => updateRole({ displayName: e.target.value })}
+          data-testid="role-display-name"
         />
       </Field>
       <Field label="Description">
@@ -145,12 +147,14 @@ function IdentityTab({ role, data, nodeId, updateRole }: {
           style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }}
           value={role.description}
           onChange={e => updateRole({ description: e.target.value })}
+          data-testid="role-description"
         />
       </Field>
       <Field label="Model">
         <select
           style={inputStyle}
           value={data.model || ''}
+          data-testid="role-model"
           onChange={e => {
             pushSnapshot();
             const model = e.target.value || undefined;
@@ -169,6 +173,7 @@ function IdentityTab({ role, data, nodeId, updateRole }: {
           style={inputStyle}
           value={data.topologyPosition}
           onChange={e => handlePositionChange(e.target.value as 'root' | 'companion' | 'spawned')}
+          data-testid="role-position"
         >
           <option value="root">Root</option>
           <option value="companion">Companion</option>

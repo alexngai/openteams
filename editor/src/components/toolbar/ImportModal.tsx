@@ -50,11 +50,11 @@ export function ImportModal({ onClose }: Props) {
   };
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div style={modalStyle} onClick={e => e.stopPropagation()}>
+    <div style={overlayStyle} onClick={onClose} data-testid="import-modal-overlay">
+      <div style={modalStyle} onClick={e => e.stopPropagation()} data-testid="import-modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--ot-text)' }}>Import Template</h3>
-          <button onClick={onClose} style={closeBtnStyle}>{'\u00D7'}</button>
+          <button onClick={onClose} style={closeBtnStyle} data-testid="import-close">{'\u00D7'}</button>
         </div>
 
         {/* Mode toggle */}
@@ -62,12 +62,14 @@ export function ImportModal({ onClose }: Props) {
           <button
             onClick={() => setMode('template')}
             style={{ ...tabBtnStyle, borderColor: mode === 'template' ? 'var(--ot-accent)' : 'var(--ot-border)' }}
+            data-testid="import-tab-template"
           >
             Load Template
           </button>
           <button
             onClick={() => setMode('paste')}
             style={{ ...tabBtnStyle, borderColor: mode === 'paste' ? 'var(--ot-accent)' : 'var(--ot-border)' }}
+            data-testid="import-tab-paste"
           >
             Paste YAML
           </button>
@@ -102,6 +104,7 @@ export function ImportModal({ onClose }: Props) {
                 value={teamYaml}
                 onChange={e => { setTeamYaml(e.target.value); setError(''); }}
                 placeholder="Paste your team.yaml content here..."
+                data-testid="import-team-yaml"
               />
             </div>
             <div>
@@ -113,8 +116,8 @@ export function ImportModal({ onClose }: Props) {
                 placeholder="Paste role YAMLs separated by ---"
               />
             </div>
-            {error && <div style={{ color: 'var(--ot-error)', fontSize: '12px' }}>{error}</div>}
-            <button onClick={handleImportPaste} style={actionBtnStyle}>Import</button>
+            {error && <div data-testid="import-error" style={{ color: 'var(--ot-error)', fontSize: '12px' }}>{error}</div>}
+            <button onClick={handleImportPaste} style={actionBtnStyle} data-testid="import-submit">Import</button>
           </div>
         )}
       </div>

@@ -82,8 +82,8 @@ export function ChannelInspector({ nodeId, data }: Props) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{
+    <div data-testid="channel-inspector" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div data-testid="channel-inspector-header" style={{
         padding: '12px',
         borderBottom: '1px solid var(--ot-border)',
         fontWeight: 600,
@@ -101,6 +101,7 @@ export function ChannelInspector({ nodeId, data }: Props) {
             defaultValue={data.channelName}
             onBlur={e => handleRenameChannel(e.target.value.trim())}
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+            data-testid="channel-name"
           />
         </div>
         <div>

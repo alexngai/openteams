@@ -25,11 +25,11 @@ export function ExportModal({ onClose }: Props) {
   };
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div style={modalStyle} onClick={e => e.stopPropagation()}>
+    <div style={overlayStyle} onClick={onClose} data-testid="export-modal-overlay">
+      <div style={modalStyle} onClick={e => e.stopPropagation()} data-testid="export-modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--ot-text)' }}>Export Template</h3>
-          <button onClick={onClose} style={closeBtnStyle}>{'\u00D7'}</button>
+          <button onClick={onClose} style={closeBtnStyle} data-testid="export-close">{'\u00D7'}</button>
         </div>
 
         {/* File tabs */}
@@ -38,6 +38,7 @@ export function ExportModal({ onClose }: Props) {
             <button
               key={f.path}
               onClick={() => setActiveFile(i)}
+              data-testid={`export-tab-${f.path}`}
               style={{
                 padding: '4px 10px',
                 fontSize: '11px',
@@ -56,7 +57,7 @@ export function ExportModal({ onClose }: Props) {
 
         {/* Content */}
         <div style={{ position: 'relative' }}>
-          <pre style={preStyle}>
+          <pre style={preStyle} data-testid="export-content">
             {files[activeFile]?.content || ''}
           </pre>
           <button

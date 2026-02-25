@@ -40,6 +40,7 @@ export function Toolbar() {
         onClick={toggleSidebar}
         style={btnStyle}
         title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+        data-testid="toggle-sidebar"
       >
         {'\u2630'}
       </button>
@@ -48,17 +49,18 @@ export function Toolbar() {
 
       <div style={dividerStyle} />
 
-      <button onClick={() => setImportModalOpen(true)} style={btnStyle}>Import</button>
-      <button onClick={() => setExportModalOpen(true)} style={btnStyle}>Export</button>
+      <button onClick={() => setImportModalOpen(true)} style={btnStyle} data-testid="btn-import">Import</button>
+      <button onClick={() => setExportModalOpen(true)} style={btnStyle} data-testid="btn-export">Export</button>
 
       <div style={dividerStyle} />
 
-      <button onClick={handleAutoLayout} style={btnStyle} title="Auto Layout">Layout</button>
+      <button onClick={handleAutoLayout} style={btnStyle} title="Auto Layout" data-testid="btn-layout">Layout</button>
       <button
         onClick={() => historyStore.undo()}
         disabled={!historyStore.canUndo()}
         style={btnStyle}
         title="Undo (Ctrl+Z)"
+        data-testid="btn-undo"
       >
         Undo
       </button>
@@ -67,6 +69,7 @@ export function Toolbar() {
         disabled={!historyStore.canRedo()}
         style={btnStyle}
         title="Redo (Ctrl+Y)"
+        data-testid="btn-redo"
       >
         Redo
       </button>
@@ -85,6 +88,7 @@ export function Toolbar() {
             color: layers[layer] ? '#fff' : undefined,
           }}
           title={`Toggle ${layer}`}
+          data-testid={`layer-${layer}`}
         >
           {LAYER_LABELS[layer]}
         </button>
@@ -94,14 +98,14 @@ export function Toolbar() {
       <div style={{ flex: 1 }} />
 
       {/* Status */}
-      <span style={{ color: 'var(--ot-text-muted)', fontSize: '11px' }}>
+      <span data-testid="toolbar-status" style={{ color: 'var(--ot-text-muted)', fontSize: '11px' }}>
         {roleCount} roles {'\u00B7'} {channelCount} ch
-        {errors.length > 0 && <span style={{ color: 'var(--ot-error)', marginLeft: 6 }}>{errors.length} err</span>}
-        {warnings.length > 0 && <span style={{ color: 'var(--ot-warning)', marginLeft: 6 }}>{warnings.length} warn</span>}
-        {errors.length === 0 && warnings.length === 0 && <span style={{ color: 'var(--ot-success)', marginLeft: 6 }}>{'\u2713'} valid</span>}
+        {errors.length > 0 && <span data-testid="status-errors" style={{ color: 'var(--ot-error)', marginLeft: 6 }}>{errors.length} err</span>}
+        {warnings.length > 0 && <span data-testid="status-warnings" style={{ color: 'var(--ot-warning)', marginLeft: 6 }}>{warnings.length} warn</span>}
+        {errors.length === 0 && warnings.length === 0 && <span data-testid="status-valid" style={{ color: 'var(--ot-success)', marginLeft: 6 }}>{'\u2713'} valid</span>}
       </span>
 
-      <button onClick={toggleInspector} style={btnStyle} title={inspectorOpen ? 'Hide inspector' : 'Show inspector'}>
+      <button onClick={toggleInspector} style={btnStyle} title={inspectorOpen ? 'Hide inspector' : 'Show inspector'} data-testid="toggle-inspector">
         {inspectorOpen ? '\u00BB' : '\u00AB'}
       </button>
     </div>

@@ -113,10 +113,10 @@ export function Sidebar() {
           Add Blocks
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
-          <button onClick={handleAddRole} style={blockBtnStyle('#3b82f6')}>
+          <button onClick={handleAddRole} style={blockBtnStyle('#3b82f6')} data-testid="add-role">
             + Role
           </button>
-          <button onClick={handleAddChannel} style={blockBtnStyle('#8b5cf6')}>
+          <button onClick={handleAddChannel} style={blockBtnStyle('#8b5cf6')} data-testid="add-channel">
             + Channel
           </button>
         </div>
@@ -134,6 +134,7 @@ export function Sidebar() {
             <div
               key={name}
               onClick={() => setSelection(`role-${name}`, null)}
+              data-testid={`sidebar-role-${name}`}
               style={{
                 padding: '4px 8px',
                 cursor: 'pointer',
@@ -162,6 +163,7 @@ export function Sidebar() {
           <div
             key={name}
             onClick={() => setSelection(`channel-${name}`, null)}
+            data-testid={`sidebar-channel-${name}`}
             style={{
               padding: '4px 8px',
               cursor: 'pointer',
@@ -190,6 +192,7 @@ export function Sidebar() {
           <button
             key={key}
             onClick={() => handleLoadTemplate(key)}
+            data-testid={`template-${key}`}
             style={{
               display: 'block',
               width: '100%',

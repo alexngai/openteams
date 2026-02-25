@@ -24,7 +24,7 @@ export function TeamInspector() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div data-testid="team-inspector" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{
         padding: '12px',
         borderBottom: '1px solid var(--ot-border)',
@@ -41,6 +41,7 @@ export function TeamInspector() {
             style={inputStyle}
             value={team.name}
             onChange={e => { pushSnapshot(); setTeam({ name: e.target.value }); }}
+            data-testid="team-name"
           />
         </Field>
 
@@ -49,6 +50,7 @@ export function TeamInspector() {
             style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }}
             value={team.description}
             onChange={e => { pushSnapshot(); setTeam({ description: e.target.value }); }}
+            data-testid="team-description"
           />
         </Field>
 
@@ -57,6 +59,7 @@ export function TeamInspector() {
             style={inputStyle}
             value={team.enforcement}
             onChange={e => { pushSnapshot(); setTeam({ enforcement: e.target.value as 'strict' | 'permissive' | 'audit' }); }}
+            data-testid="team-enforcement"
           >
             <option value="permissive">permissive</option>
             <option value="audit">audit</option>
