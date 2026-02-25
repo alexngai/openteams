@@ -91,71 +91,52 @@ When a child adds a capability that needs config, it uses the map form in `capab
 
 ---
 
-## Priority 2 — Integration Strategies
+## Priority 2 — Spawn Rules: `max_instances`
 
-**Gap.** Macro-agent implements three merge/integration strategies — `queue` (serialized, safe), `trunk` (direct rebase-push), `optimistic` (push + async validation) — each with config for retry limits and conflict resolution. OpenTeams has no concept of how work gets merged back.
-
-**What to do.**
-- Add `integration` to the team manifest: `{ strategy: "queue" | "trunk" | "optimistic", config?: { max_retries?: number, conflict_action?: "abandon" | "rebase" | "escalate" } }`.
-- This is purely declarative schema — execution is the runtime's job.
-- Document the strategy semantics so multiple runtimes implement them consistently.
-
-**Touches:** `src/template/types.ts` (TeamManifest or new IntegrationConfig), `schema/team.schema.json`.
-
----
-
-## Priority 3 — Spawn Rules Enrichment
-
-**Gap.** OpenTeams has `spawn_rules: Record<string, string[]>` — a flat map of "who can spawn whom." Macro-agent extends this with constraints: max concurrent instances, scaling triggers (`task_queue_depth`), idle drain policies, and dynamic child registration (agents spawned at runtime auto-join the team). The current schema can't express "planner can spawn up to 5 grinders, scaled by queue depth."
+**Gap.** OpenTeams has `spawn_rules: Record<string, string[]>` — a flat map of "who can spawn whom." This can't express "planner can spawn up to 5 workers." That's a team topology constraint — it shapes how the team scales — and belongs in the shared schema.
 
 **What to do.**
 - Extend `spawn_rules` value type from `string[]` to `SpawnRule[]`:
   ```
-  SpawnRule = string | { role: string, max_instances?: number, scale_on?: string }
+  SpawnRule = string | { role: string, max_instances?: number }
   ```
 - Keep backward compatibility — a bare `string[]` is shorthand for unconstrained rules.
-- Dynamic registration (auto-join) is a runtime behavior, but the schema should declare whether a team allows it: `topology.dynamic_membership: boolean`.
+
+```yaml
+# Current form — still valid
+spawn_rules:
+  planner: [worker, reviewer]
+
+# Extended form — with instance caps
+spawn_rules:
+  planner:
+    - { role: worker, max_instances: 8 }
+    - reviewer
+```
 
 **Touches:** `src/template/types.ts` (TopologyConfig), `src/template/loader.ts` (parse both forms), `schema/team.schema.json`.
 
 ---
 
-## Priority 4 — Observability Schema
+## Deferred
 
-**Gap.** Macro-agent defines per-team observability config: `metrics_window_s`, `snapshot_interval_s`, health check timers, stale agent detection thresholds. Currently all in `macro_agent.observability`. As teams grow, any runtime needs to know what to measure and when to alert.
+The following were evaluated and deferred — they are runtime-specific concerns or lack a second consumer to justify standardization:
 
-**What to do.**
-- Add optional `observability` to the team manifest:
-  ```
-  observability?: {
-    metrics_window_s?: number;
-    snapshot_interval_s?: number;
-    stale_threshold_s?: number;
-    health_check_interval_s?: number;
-  }
-  ```
-- Keep it minimal — these are hints to the runtime, not a full monitoring spec.
-- The runtime decides *how* to collect and expose metrics; the schema says *what* to watch.
-
-**Touches:** `src/template/types.ts` (TeamManifest), `schema/team.schema.json`.
-
----
-
-## Priority 5 — API & External Protocol (Deferred)
-
-Macro-agent exposes REST + WebSocket + MAP protocol + ACP stdio. Whether OpenTeams should define a standard external API shape is a larger question. Parking this for later.
+- **Integration strategies** (`queue` / `trunk` / `optimistic`) — describes how the runtime merges git branches. OpenTeams doesn't touch git; this stays in `macro_agent:`.
+- **Spawn scaling triggers** (`scale_on`, `idle_drain`) — what triggers scaling is runtime-specific. `max_instances` is the only constraint that's truly structural.
+- **Dynamic membership** (`topology.dynamic_membership`) — reasonable idea, but no second runtime needs it yet.
+- **Observability schema** (`metrics_window_s`, `stale_threshold_s`, etc.) — consumed by a single runtime. No interoperability benefit until a second runtime shares the same monitoring surface.
+- **API & external protocol** — REST / WebSocket / MAP / ACP transport config. Larger question, parking for later.
 
 ---
 
 ## Summary Table
 
-| # | Priority | Schema Impact | Complexity |
-|---|----------|---------------|------------|
-| 1 | Enhanced capabilities | `RoleDefinition.capabilities` (map form) | Medium — new parse path + inheritance |
-| 2 | Integration strategies | `TeamManifest.integration` | Low — declarative only |
-| 3 | Spawn rules enrichment | `TopologyConfig.spawn_rules` | Medium — backward-compat parsing |
-| 4 | Observability schema | `TeamManifest.observability` | Low — optional config block |
-| 5 | API & external protocol | TBD | — deferred |
+| # | Priority | Schema Impact | Complexity | Status |
+|---|----------|---------------|------------|--------|
+| 1 | Enhanced capabilities (map form) | `RoleDefinition.capabilities` | Medium — new parse path + inheritance | Ready |
+| 2 | Spawn rules — `max_instances` | `TopologyConfig.spawn_rules` | Low — backward-compat union type | Ready |
+| — | Integration, observability, scaling, API | — | — | Deferred |
 
 ## Cross-Cutting Notes
 
@@ -163,3 +144,4 @@ Macro-agent exposes REST + WebSocket + MAP protocol + ACP stdio. Whether OpenTea
 - **Schema migration.** All priorities are YAML-only — no database schema changes required.
 - **macro_agent namespace.** As fields graduate to first-class, they should be removed from the `macro_agent` extension. Macro-agent-specific config that doesn't generalize (e.g., `acp-factory` transport options, TinyBase store config) stays in the extension namespace. Task management (push/pull assignment, claiming, task lifecycle) stays entirely in macro-agent's runtime — OpenTeams' `TaskService` remains a simple CRUD layer.
 - **Validation.** Each priority should include JSON Schema updates and test coverage for the new fields in `loader.test.ts`.
+- **Deferred items** stay in `macro_agent:` extension namespace. They can be revisited when a second runtime needs them or when the design pressure becomes clearer.
