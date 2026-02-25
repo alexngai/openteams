@@ -33,21 +33,7 @@ Review of the [macro-agent](https://github.com/snarktank/macro-agent) orchestrat
 
 ---
 
-## Priority 3 — Task Management Protocol
-
-**Gap.** OpenTeams has a `TaskService` for CRUD and dependency tracking but no concept of push vs. pull assignment, claiming, or task lifecycle states beyond status strings. Macro-agent has a full pluggable task backend with `create`, `assign`, `claim`, `unclaim`, and two modes (push = coordinator assigns, pull = workers claim from pool).
-
-**What to do.**
-- Add `task_assignment` to the team manifest communication config: `{ mode: "push" | "pull" }` with optional pull-mode config (`idle_timeout_s`, `claim_retry_delay_ms`, `max_concurrent_per_agent`).
-- Add `claim` / `unclaim` operations to `TaskService` (atomic status transitions).
-- Define standard task lifecycle states: `pending → claimed → in_progress → completed | failed | abandoned`.
-- Keep the backend-agnostic interface so runtimes can swap implementations.
-
-**Touches:** `src/template/types.ts` (CommunicationConfig or new TaskConfig), `src/services/task-service.ts`, `src/types.ts` (Task type), `schema/team.schema.json`.
-
----
-
-## Priority 4 — Workspace Isolation Schema
+## Priority 3 — Workspace Isolation Schema
 
 **Gap.** Macro-agent manages a git worktree pool with per-role branch naming patterns (`worker/{prefix}/{agent-id}/{task-id}@{timestamp}`), isolation rules (own worktree vs. shared), and integration branch concepts. None of this is representable in the OpenTeams schema today.
 
@@ -60,7 +46,7 @@ Review of the [macro-agent](https://github.com/snarktank/macro-agent) orchestrat
 
 ---
 
-## Priority 5 — Integration Strategies
+## Priority 4 — Integration Strategies
 
 **Gap.** Macro-agent implements three merge/integration strategies — `queue` (serialized, safe), `trunk` (direct rebase-push), `optimistic` (push + async validation) — each with config for retry limits and conflict resolution. OpenTeams has no concept of how work gets merged back.
 
@@ -73,7 +59,7 @@ Review of the [macro-agent](https://github.com/snarktank/macro-agent) orchestrat
 
 ---
 
-## Priority 6 — Pipeline Stages
+## Priority 5 — Pipeline Stages
 
 **Gap.** Macro-agent's worker lifecycle follows a clear pipeline: `spawn → initialize → work → commit → merge-request → [merge/conflict] → done`. The coordinator has a parallel pipeline: `plan → spawn-workers → monitor → synthesize → done`. These stage transitions drive signal emission (WORKER_DONE, MERGE_REQUEST, MERGE_COMPLETE) and lifecycle handlers. OpenTeams doesn't model execution stages at all.
 
@@ -87,7 +73,7 @@ Review of the [macro-agent](https://github.com/snarktank/macro-agent) orchestrat
 
 ---
 
-## Priority 7 — Spawn Rules Enrichment
+## Priority 6 — Spawn Rules Enrichment
 
 **Gap.** OpenTeams has `spawn_rules: Record<string, string[]>` — a flat map of "who can spawn whom." Macro-agent extends this with constraints: max concurrent instances, scaling triggers (`task_queue_depth`), idle drain policies, and dynamic child registration (agents spawned at runtime auto-join the team). The current schema can't express "planner can spawn up to 5 grinders, scaled by queue depth."
 
@@ -103,7 +89,7 @@ Review of the [macro-agent](https://github.com/snarktank/macro-agent) orchestrat
 
 ---
 
-## Priority 8 — Observability Schema
+## Priority 7 — Observability Schema
 
 **Gap.** Macro-agent defines per-team observability config: `metrics_window_s`, `snapshot_interval_s`, health check timers, stale agent detection thresholds. Currently all in `macro_agent.observability`. As teams grow, any runtime needs to know what to measure and when to alert.
 
@@ -124,7 +110,7 @@ Review of the [macro-agent](https://github.com/snarktank/macro-agent) orchestrat
 
 ---
 
-## Priority 9 — API & External Protocol (Deferred)
+## Priority 8 — API & External Protocol (Deferred)
 
 Macro-agent exposes REST + WebSocket + MAP protocol + ACP stdio. Whether OpenTeams should define a standard external API shape is a larger question. Parking this for later.
 
@@ -136,17 +122,16 @@ Macro-agent exposes REST + WebSocket + MAP protocol + ACP stdio. Whether OpenTea
 |---|----------|---------------|------------|
 | 1 | Role capabilities vocabulary | `RoleDefinition.capabilities` | Low — vocabulary + docs |
 | 2 | Lifecycle types | `RoleDefinition.lifecycle` | Medium — new type union |
-| 3 | Task management protocol | `TaskService` + manifest config | High — new service ops |
-| 4 | Workspace isolation | `RoleDefinition.workspace` | Low — declarative only |
-| 5 | Integration strategies | `TeamManifest.integration` | Low — declarative only |
-| 6 | Pipeline stages | `RoleDefinition.stages` | Medium — stages + signal mapping |
-| 7 | Spawn rules enrichment | `TopologyConfig.spawn_rules` | Medium — backward-compat parsing |
-| 8 | Observability schema | `TeamManifest.observability` | Low — optional config block |
-| 9 | API & external protocol | TBD | — deferred |
+| 3 | Workspace isolation | `RoleDefinition.workspace` | Low — declarative only |
+| 4 | Integration strategies | `TeamManifest.integration` | Low — declarative only |
+| 5 | Pipeline stages | `RoleDefinition.stages` | Medium — stages + signal mapping |
+| 6 | Spawn rules enrichment | `TopologyConfig.spawn_rules` | Medium — backward-compat parsing |
+| 7 | Observability schema | `TeamManifest.observability` | Low — optional config block |
+| 8 | API & external protocol | TBD | — deferred |
 
 ## Cross-Cutting Notes
 
-- **Backward compatibility.** Priorities 1, 4, 5, 7, 8 are purely additive — new optional fields, no breaking changes. Priorities 2, 3, 6 introduce new type structures but existing templates remain valid.
-- **Schema migration.** Database schema changes are needed only for Priority 3 (task claiming adds columns to the `tasks` table). The rest are YAML-only.
-- **macro_agent namespace.** As fields graduate to first-class, they should be removed from the `macro_agent` extension. Macro-agent-specific config that doesn't generalize (e.g., `acp-factory` transport options, TinyBase store config) stays in the extension namespace.
+- **Backward compatibility.** Priorities 1, 3, 4, 6, 7 are purely additive — new optional fields, no breaking changes. Priorities 2, 5 introduce new type structures but existing templates remain valid.
+- **Schema migration.** All priorities are YAML-only — no database schema changes required.
+- **macro_agent namespace.** As fields graduate to first-class, they should be removed from the `macro_agent` extension. Macro-agent-specific config that doesn't generalize (e.g., `acp-factory` transport options, TinyBase store config) stays in the extension namespace. Task management (push/pull assignment, claiming, task lifecycle) stays entirely in macro-agent's runtime — OpenTeams' `TaskService` remains a simple CRUD layer.
 - **Validation.** Each priority should include JSON Schema updates and test coverage for the new fields in `loader.test.ts`.
