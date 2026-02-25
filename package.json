@@ -7,14 +7,19 @@
   "bin": {
     "openteams": "dist/cli.js"
   },
+  "workspaces": ["editor"],
   "scripts": {
     "clean": "rm -rf dist",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && echo '{\"type\":\"module\"}' > dist/esm/package.json",
-    "build": "npm run clean && npm run build:cjs && npm run build:esm",
+    "build": "npm run clean && npm run build:cjs && npm run build:esm && npm run build:editor",
+    "build:editor": "npm run build -w editor",
+    "prepublishOnly": "npm run build",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:editor": "npm test -w editor",
+    "test:all": "npm run test && npm run test:editor",
     "version:patch": "npm version patch && git push && git push --tags",
     "version:minor": "npm version minor && git push && git push --tags",
     "version:major": "npm version major && git push && git push --tags",
@@ -45,6 +50,10 @@
   "optionalDependencies": {
     "acp-factory": "^0.1.9"
   },
+  "files": [
+    "dist/",
+    "editor/dist/"
+  ],
   "engines": {
     "node": ">=18.0.0"
   }
