@@ -53,7 +53,7 @@ export function ImportModal({ onClose }: Props) {
     <div style={overlayStyle} onClick={onClose} data-testid="import-modal-overlay">
       <div style={modalStyle} onClick={e => e.stopPropagation()} data-testid="import-modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--ot-text)' }}>Import Template</h3>
+          <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--color-text)' }}>Import Template</h3>
           <button onClick={onClose} style={closeBtnStyle} data-testid="import-close">{'\u00D7'}</button>
         </div>
 
@@ -61,14 +61,14 @@ export function ImportModal({ onClose }: Props) {
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
           <button
             onClick={() => setMode('template')}
-            style={{ ...tabBtnStyle, borderColor: mode === 'template' ? 'var(--ot-accent)' : 'var(--ot-border)' }}
+            style={{ ...tabBtnStyle, borderColor: mode === 'template' ? 'var(--color-accent)' : 'var(--color-border)' }}
             data-testid="import-tab-template"
           >
             Load Template
           </button>
           <button
             onClick={() => setMode('paste')}
-            style={{ ...tabBtnStyle, borderColor: mode === 'paste' ? 'var(--ot-accent)' : 'var(--ot-border)' }}
+            style={{ ...tabBtnStyle, borderColor: mode === 'paste' ? 'var(--color-accent)' : 'var(--color-border)' }}
             data-testid="import-tab-paste"
           >
             Paste YAML
@@ -83,11 +83,11 @@ export function ImportModal({ onClose }: Props) {
                 onClick={() => handleLoadTemplate(key)}
                 style={templateBtnStyle}
               >
-                <div style={{ fontWeight: 600, color: 'var(--ot-text)' }}>{key}</div>
-                <div style={{ fontSize: '11px', color: 'var(--ot-text-muted)', marginTop: '2px' }}>
+                <div style={{ fontWeight: 600, color: 'var(--color-text)' }}>{key}</div>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                   {tmpl.manifest.roles.length} roles {'\u00B7'} {Object.keys(tmpl.manifest.communication?.channels || {}).length} channels
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--ot-text-muted)', marginTop: '2px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                   {tmpl.manifest.description}
                 </div>
               </button>
@@ -116,7 +116,7 @@ export function ImportModal({ onClose }: Props) {
                 placeholder="Paste role YAMLs separated by ---"
               />
             </div>
-            {error && <div data-testid="import-error" style={{ color: 'var(--ot-error)', fontSize: '12px' }}>{error}</div>}
+            {error && <div data-testid="import-error" style={{ color: 'var(--color-danger)', fontSize: '12px' }}>{error}</div>}
             <button onClick={handleImportPaste} style={actionBtnStyle} data-testid="import-submit">Import</button>
           </div>
         )}
@@ -126,14 +126,14 @@ export function ImportModal({ onClose }: Props) {
 }
 
 const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0, background: 'var(--ot-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+  position: 'fixed', inset: 0, background: 'var(--color-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
 };
 const modalStyle: React.CSSProperties = {
-  background: 'var(--ot-surface)', borderRadius: '12px', padding: '20px', width: '600px', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+  background: 'var(--color-surface)', borderRadius: '12px', padding: '20px', width: '600px', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
 };
-const closeBtnStyle: React.CSSProperties = { background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--ot-text-muted)' };
-const tabBtnStyle: React.CSSProperties = { flex: 1, padding: '8px', fontSize: '12px', background: 'var(--ot-bg)', border: '2px solid', borderRadius: '6px', cursor: 'pointer', color: 'var(--ot-text)' };
-const labelStyle: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--ot-text-muted)', display: 'block', marginBottom: '4px' };
-const textareaStyle: React.CSSProperties = { width: '100%', minHeight: '180px', padding: '8px', fontSize: '11px', fontFamily: 'monospace', border: '1px solid var(--ot-border)', borderRadius: '6px', background: 'var(--ot-bg)', color: 'var(--ot-text)', resize: 'vertical', boxSizing: 'border-box' as const };
-const templateBtnStyle: React.CSSProperties = { textAlign: 'left' as const, padding: '12px', background: 'var(--ot-bg)', border: '1px solid var(--ot-border)', borderRadius: '8px', cursor: 'pointer' };
-const actionBtnStyle: React.CSSProperties = { background: 'var(--ot-accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '10px', fontSize: '13px', cursor: 'pointer', fontWeight: 600 };
+const closeBtnStyle: React.CSSProperties = { background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--color-text-muted)' };
+const tabBtnStyle: React.CSSProperties = { flex: 1, padding: '8px', fontSize: '12px', background: 'var(--color-bg)', border: '2px solid', borderRadius: '6px', cursor: 'pointer', color: 'var(--color-text)' };
+const labelStyle: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' };
+const textareaStyle: React.CSSProperties = { width: '100%', minHeight: '180px', padding: '8px', fontSize: '11px', fontFamily: 'monospace', border: '1px solid var(--color-border)', borderRadius: '6px', background: 'var(--color-bg)', color: 'var(--color-text)', resize: 'vertical', boxSizing: 'border-box' as const };
+const templateBtnStyle: React.CSSProperties = { textAlign: 'left' as const, padding: '12px', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '8px', cursor: 'pointer' };
+const actionBtnStyle: React.CSSProperties = { background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '10px', fontSize: '13px', cursor: 'pointer', fontWeight: 600 };

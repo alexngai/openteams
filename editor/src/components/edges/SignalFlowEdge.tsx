@@ -50,13 +50,13 @@ function SignalFlowEdgeComponent({
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
               pointerEvents: 'none',
-              background: 'var(--ot-surface)',
-              border: '1px solid var(--ot-border)',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
               borderRadius: '4px',
               padding: '2px 6px',
               fontSize: '9px',
               fontFamily: 'monospace',
-              color: 'var(--ot-text-muted)',
+              color: 'var(--color-text-muted)',
               whiteSpace: 'nowrap',
             }}
           >

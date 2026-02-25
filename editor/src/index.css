@@ -1,88 +1,245 @@
-@import "tailwindcss";
-@import "@xyflow/react/dist/style.css";
+@import 'tailwindcss';
+@import '@xyflow/react/dist/style.css';
 
-:root {
-  --ot-bg: #ffffff;
-  --ot-surface: #f9fafb;
-  --ot-sidebar: #f3f4f6;
-  --ot-text: #111827;
-  --ot-text-secondary: #374151;
-  --ot-text-muted: #6b7280;
-  --ot-border: #e5e7eb;
-  --ot-border-subtle: #f3f4f6;
-  --ot-accent: #f59e0b;
-  --ot-overlay: rgba(0, 0, 0, 0.4);
-  --ot-elevated: #ffffff;
+/* ═══════════════════════════════════════════════════════════════
+   THEME — OpenHive-coherent design tokens
+═══════════════════════════════════════════════════════════════ */
+@theme {
+  --color-honey-50: #fffbeb;
+  --color-honey-100: #fef3c7;
+  --color-honey-200: #fde68a;
+  --color-honey-300: #fcd34d;
+  --color-honey-400: #fbbf24;
+  --color-honey-500: #f59e0b;
+  --color-honey-600: #d97706;
+  --color-honey-700: #b45309;
+  --color-honey-800: #92400e;
+  --color-honey-900: #78350f;
 
-  --ot-role-root: #3b82f6;
-  --ot-role-companion: #14b8a6;
-  --ot-role-spawned: #6b7280;
-  --ot-channel: #8b5cf6;
-  --ot-peer-route: #f59e0b;
-  --ot-signal-flow: #6b7280;
-  --ot-spawn-edge: #d1d5db;
+  --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'DM Mono', 'SF Mono', 'Fira Code', monospace;
 
-  --ot-error: #ef4444;
-  --ot-warning: #eab308;
-  --ot-success: #22c55e;
-  --ot-info: #3b82f6;
+  --animate-fade-in: fade-in 150ms ease-out;
+  --animate-slide-in: slide-in 150ms ease-out;
 }
 
-.dark {
-  --ot-bg: #0f172a;
-  --ot-surface: #1e293b;
-  --ot-sidebar: #1e293b;
-  --ot-text: #f1f5f9;
-  --ot-text-secondary: #cbd5e1;
-  --ot-text-muted: #94a3b8;
-  --ot-border: #334155;
-  --ot-border-subtle: #1e293b;
-  --ot-elevated: #334155;
-  --ot-overlay: rgba(0, 0, 0, 0.6);
+/* ═══════════════════════════════════════════════════════════════
+   BASE — Theme CSS variables
+═══════════════════════════════════════════════════════════════ */
+@layer base {
+  :root, .dark {
+    --color-bg: #1a1d21;
+    --color-sidebar: #19171d;
+    --color-surface: #222529;
+    --color-elevated: #2c2d31;
+    --color-hover: #35373b;
+    --color-border: #35373b;
+    --color-border-subtle: #2c2d31;
+    --color-text: #d1d2d3;
+    --color-text-secondary: #ababad;
+    --color-text-muted: #7a7b7e;
+    --color-accent: #f59e0b;
+    --color-accent-hover: #fbbf24;
+    --color-accent-bg: rgba(245, 158, 11, 0.08);
+    --color-canvas-dot: #2c2d31;
+    --color-overlay: rgba(0, 0, 0, 0.5);
+    --color-danger: #ef4444;
+    --color-danger-bg: rgba(239, 68, 68, 0.1);
+    --color-warning: #eab308;
+    --color-warning-bg: rgba(234, 179, 8, 0.1);
+    --color-success: #22c55e;
+    --color-success-bg: rgba(34, 197, 94, 0.1);
+    --color-info: #3b82f6;
+    --color-info-bg: rgba(59, 130, 246, 0.1);
+  }
+
+  .light {
+    --color-bg: #f4f4f5;
+    --color-sidebar: #ffffff;
+    --color-surface: #ffffff;
+    --color-elevated: #f0f0f1;
+    --color-hover: #e8e8e9;
+    --color-border: #e0e0e1;
+    --color-border-subtle: #ebebec;
+    --color-text: #1d1c1d;
+    --color-text-secondary: #616061;
+    --color-text-muted: #999a9b;
+    --color-accent: #d97706;
+    --color-accent-hover: #b45309;
+    --color-accent-bg: rgba(217, 119, 6, 0.06);
+    --color-canvas-dot: #d1d5db;
+    --color-overlay: rgba(0, 0, 0, 0.3);
+    --color-danger: #dc2626;
+    --color-danger-bg: rgba(220, 38, 38, 0.08);
+    --color-warning: #ca8a04;
+    --color-warning-bg: rgba(202, 138, 4, 0.08);
+    --color-success: #16a34a;
+    --color-success-bg: rgba(22, 163, 74, 0.08);
+    --color-info: #2563eb;
+    --color-info-bg: rgba(37, 99, 235, 0.08);
+  }
+
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background-color: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  #root {
+    width: 100vw;
+    height: 100vh;
+  }
+
+  ::selection {
+    background-color: rgba(245, 158, 11, 0.25);
+    color: #fff;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-hover);
+    @apply rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-text-muted);
+  }
 }
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background: var(--ot-bg);
-  color: var(--ot-text);
+/* ═══════════════════════════════════════════════════════════════
+   COMPONENT CLASSES
+═══════════════════════════════════════════════════════════════ */
+@layer components {
+  .ot-btn {
+    @apply px-3 py-1.5 rounded-md font-medium text-sm cursor-pointer select-none;
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+  }
+
+  .ot-btn-primary {
+    @apply bg-honey-500 text-black hover:bg-honey-400;
+  }
+
+  .ot-btn-secondary {
+    background-color: var(--color-elevated);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+  }
+  .ot-btn-secondary:hover {
+    background-color: var(--color-hover);
+  }
+
+  .ot-btn-ghost {
+    color: var(--color-text-secondary);
+  }
+  .ot-btn-ghost:hover {
+    color: var(--color-text);
+    background-color: var(--color-hover);
+  }
+
+  .ot-input {
+    background-color: var(--color-elevated);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    @apply rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-honey-500/40 focus:border-honey-500/40;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .ot-input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .ot-card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border-subtle);
+    @apply rounded-lg;
+  }
+
+  .ot-divider {
+    border-color: var(--color-border-subtle);
+    @apply border-t;
+  }
+
+  .ot-label {
+    @apply text-[11px] font-medium uppercase tracking-wide;
+    color: var(--color-text-muted);
+  }
 }
 
-#root {
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
+/* ═══════════════════════════════════════════════════════════════
+   KEYFRAMES
+═══════════════════════════════════════════════════════════════ */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-/* React Flow overrides */
-.react-flow__background {
-  background: var(--ot-bg) !important;
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.react-flow__minimap {
-  background: var(--ot-surface) !important;
-  border: 1px solid var(--ot-border) !important;
-  border-radius: 6px !important;
-}
-
-.react-flow__controls {
-  border: 1px solid var(--ot-border) !important;
-  border-radius: 6px !important;
-  overflow: hidden;
-}
-
-.react-flow__controls button {
-  background: var(--ot-surface) !important;
-  color: var(--ot-text) !important;
-  border-bottom-color: var(--ot-border) !important;
-}
-
-.react-flow__controls button:hover {
-  background: var(--ot-border) !important;
-}
-
-/* Edge animations */
 @keyframes ot-edge-flow {
   from { stroke-dashoffset: 20; }
   to { stroke-dashoffset: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   REACTFLOW OVERRIDES — theme-aware via --xy- CSS variables
+═══════════════════════════════════════════════════════════════ */
+
+/* Dark mode variable overrides */
+.dark .react-flow {
+  --xy-minimap-background-color-default: var(--color-surface);
+  --xy-controls-button-background-color-default: var(--color-surface);
+  --xy-controls-button-background-color-hover-default: var(--color-hover);
+  --xy-controls-button-border-color-default: var(--color-border-subtle);
+  --xy-controls-button-color-default: var(--color-text-secondary);
+  --xy-controls-button-color-hover-default: var(--color-text);
+  --xy-controls-box-shadow-default: none;
+  --xy-node-background-color-default: var(--color-surface);
+  --xy-node-border-default: 1px solid var(--color-border);
+  --xy-node-boxshadow-selected-default: 0 0 0 1.5px var(--color-accent);
+  --xy-handle-background-color-default: var(--color-text-muted);
+  --xy-handle-border-color-default: var(--color-surface);
+  --xy-edge-stroke-default: var(--color-text-muted);
+  --xy-background-pattern-dots-color-default: var(--color-canvas-dot);
+}
+
+/* Light mode variable overrides */
+.light .react-flow {
+  --xy-minimap-background-color-default: var(--color-surface);
+  --xy-controls-button-background-color-default: var(--color-surface);
+  --xy-controls-button-background-color-hover-default: var(--color-hover);
+  --xy-controls-button-border-color-default: var(--color-border);
+  --xy-controls-button-color-default: var(--color-text-secondary);
+  --xy-controls-button-color-hover-default: var(--color-text);
+  --xy-controls-box-shadow-default: 0 0 2px 1px rgba(0, 0, 0, 0.06);
+  --xy-node-boxshadow-selected-default: 0 0 0 1.5px var(--color-accent);
+  --xy-handle-background-color-default: var(--color-text-muted);
+  --xy-handle-border-color-default: var(--color-surface);
+  --xy-background-pattern-dots-color-default: var(--color-canvas-dot);
+}
+
+/* Controls border-radius */
+.react-flow__controls {
+  border-radius: 6px !important;
+  overflow: hidden;
+}
+
+/* Minimap border-radius and border */
+.react-flow__minimap {
+  border: 1px solid var(--color-border) !important;
+  border-radius: 6px !important;
+}
+
+.react-flow__attribution {
+  display: none;
 }

@@ -13,7 +13,7 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
   return (
     <div
       style={{
-        borderColor: selected ? 'var(--ot-accent)' : colors.border,
+        borderColor: selected ? 'var(--color-accent)' : colors.border,
         borderWidth: '2px',
         borderStyle: 'solid',
         backgroundColor: colors.bg,
@@ -22,7 +22,7 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
         minWidth: '200px',
         maxWidth: '240px',
         fontSize: '12px',
-        boxShadow: selected ? '0 0 0 2px var(--ot-accent)' : '0 1px 3px rgba(0,0,0,0.1)',
+        boxShadow: selected ? '0 0 0 2px var(--color-accent)' : '0 1px 3px rgba(0,0,0,0.1)',
         cursor: 'pointer',
       }}
     >
@@ -32,11 +32,11 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
       {/* Header */}
       <div style={{
         padding: '8px 10px',
-        borderBottom: '1px solid var(--ot-border-subtle)',
+        borderBottom: '1px solid var(--color-border-subtle)',
       }}>
         <div style={{
           fontWeight: 600,
-          color: 'var(--ot-text)',
+          color: 'var(--color-text)',
           display: 'flex',
           alignItems: 'center',
           gap: '4px',
@@ -46,7 +46,7 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
         </div>
         {data.description && (
           <div style={{
-            color: 'var(--ot-text-muted)',
+            color: 'var(--color-text-muted)',
             fontSize: '10px',
             marginTop: '2px',
             overflow: 'hidden',
@@ -61,11 +61,11 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
       {/* Signals */}
       <div style={{
         padding: '6px 10px',
-        borderBottom: '1px solid var(--ot-border-subtle)',
+        borderBottom: '1px solid var(--color-border-subtle)',
       }}>
         {displaySignals.map(signal => (
           <div key={signal} style={{
-            color: 'var(--ot-text-secondary)',
+            color: 'var(--color-text-secondary)',
             fontSize: '10px',
             fontFamily: 'monospace',
             padding: '1px 0',
@@ -75,7 +75,7 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
         ))}
         {extraCount > 0 && (
           <div style={{
-            color: 'var(--ot-text-muted)',
+            color: 'var(--color-text-muted)',
             fontSize: '10px',
             fontStyle: 'italic',
           }}>
@@ -89,7 +89,7 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
         padding: '5px 10px',
         display: 'flex',
         gap: '8px',
-        color: 'var(--ot-text-muted)',
+        color: 'var(--color-text-muted)',
         fontSize: '10px',
       }}>
         <span>{data.emitterCount} emitter{data.emitterCount !== 1 ? 's' : ''}</span>

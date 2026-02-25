@@ -33,8 +33,8 @@ export function Inspector() {
   return (
     <div data-testid="inspector-panel" style={{
       width: '340px',
-      background: 'var(--ot-surface)',
-      borderLeft: '1px solid var(--ot-border)',
+      background: 'var(--color-surface)',
+      borderLeft: '1px solid var(--color-border)',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',

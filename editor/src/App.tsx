@@ -10,6 +10,8 @@ import { useUIStore } from './stores/ui-store';
 import { useKeyboard } from './hooks/use-keyboard';
 import { useValidation } from './hooks/use-validation';
 import { useAutosave } from './hooks/use-autosave';
+// Import theme store to initialize theme on load
+import './stores/theme-store';
 import { BUNDLED_TEMPLATES } from './lib/bundled-templates';
 import { loadTemplate } from './lib/load-template';
 

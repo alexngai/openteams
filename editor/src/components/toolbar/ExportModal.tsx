@@ -28,7 +28,7 @@ export function ExportModal({ onClose }: Props) {
     <div style={overlayStyle} onClick={onClose} data-testid="export-modal-overlay">
       <div style={modalStyle} onClick={e => e.stopPropagation()} data-testid="export-modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--ot-text)' }}>Export Template</h3>
+          <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--color-text)' }}>Export Template</h3>
           <button onClick={onClose} style={closeBtnStyle} data-testid="export-close">{'\u00D7'}</button>
         </div>
 
@@ -42,10 +42,10 @@ export function ExportModal({ onClose }: Props) {
               style={{
                 padding: '4px 10px',
                 fontSize: '11px',
-                border: '1px solid var(--ot-border)',
+                border: '1px solid var(--color-border)',
                 borderRadius: '4px',
-                background: i === activeFile ? 'var(--ot-accent)' : 'var(--ot-bg)',
-                color: i === activeFile ? '#fff' : 'var(--ot-text-muted)',
+                background: i === activeFile ? 'var(--color-accent)' : 'var(--color-bg)',
+                color: i === activeFile ? '#fff' : 'var(--color-text-muted)',
                 cursor: 'pointer',
                 fontFamily: 'monospace',
               }}
@@ -73,7 +73,7 @@ export function ExportModal({ onClose }: Props) {
           <button onClick={handleCopyAll} style={actionBtnStyle}>
             Copy All Files
           </button>
-          <button onClick={onClose} style={{ ...actionBtnStyle, background: 'var(--ot-border)', color: 'var(--ot-text)' }}>
+          <button onClick={onClose} style={{ ...actionBtnStyle, background: 'var(--color-border)', color: 'var(--color-text)' }}>
             Close
           </button>
         </div>
@@ -83,20 +83,20 @@ export function ExportModal({ onClose }: Props) {
 }
 
 const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0, background: 'var(--ot-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+  position: 'fixed', inset: 0, background: 'var(--color-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
 };
 const modalStyle: React.CSSProperties = {
-  background: 'var(--ot-surface)', borderRadius: '12px', padding: '20px', width: '720px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+  background: 'var(--color-surface)', borderRadius: '12px', padding: '20px', width: '720px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
 };
 const closeBtnStyle: React.CSSProperties = {
-  background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--ot-text-muted)',
+  background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--color-text-muted)',
 };
 const preStyle: React.CSSProperties = {
-  background: 'var(--ot-bg)', border: '1px solid var(--ot-border)', borderRadius: '8px', padding: '12px', fontSize: '11px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '400px', whiteSpace: 'pre-wrap', margin: 0, color: 'var(--ot-text)',
+  background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px', fontSize: '11px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '400px', whiteSpace: 'pre-wrap', margin: 0, color: 'var(--color-text)',
 };
 const copyBtnStyle: React.CSSProperties = {
-  background: 'var(--ot-accent)', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
+  background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
 };
 const actionBtnStyle: React.CSSProperties = {
-  background: 'var(--ot-accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer', fontWeight: 600,
+  background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer', fontWeight: 600,
 };

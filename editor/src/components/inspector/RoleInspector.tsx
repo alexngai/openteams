@@ -39,10 +39,10 @@ export function RoleInspector({ nodeId, data }: Props) {
       {/* Header */}
       <div data-testid="role-inspector-header" style={{
         padding: '12px',
-        borderBottom: '1px solid var(--ot-border)',
+        borderBottom: '1px solid var(--color-border)',
         fontWeight: 600,
         fontSize: '13px',
-        color: 'var(--ot-text)',
+        color: 'var(--color-text)',
       }}>
         Role: {data.roleName}
       </div>
@@ -50,7 +50,7 @@ export function RoleInspector({ nodeId, data }: Props) {
       {/* Tabs */}
       <div style={{
         display: 'flex',
-        borderBottom: '1px solid var(--ot-border)',
+        borderBottom: '1px solid var(--color-border)',
       }}>
         {(['identity', 'communication', 'capabilities', 'prompts'] as Tab[]).map(tab => (
           <button
@@ -63,8 +63,8 @@ export function RoleInspector({ nodeId, data }: Props) {
               fontSize: '11px',
               background: 'none',
               border: 'none',
-              borderBottom: activeTab === tab ? '2px solid var(--ot-accent)' : '2px solid transparent',
-              color: activeTab === tab ? 'var(--ot-text)' : 'var(--ot-text-muted)',
+              borderBottom: activeTab === tab ? '2px solid var(--color-accent)' : '2px solid transparent',
+              color: activeTab === tab ? 'var(--color-text)' : 'var(--color-text-muted)',
               cursor: 'pointer',
               fontWeight: activeTab === tab ? 600 : 400,
               textTransform: 'capitalize',
@@ -287,7 +287,7 @@ function CommunicationTab({ data }: { data: RoleNodeData }) {
         <div style={sectionLabel}>Peer Routes (outgoing)</div>
         {outRoutes.length === 0 && <div style={emptyStyle}>None</div>}
         {outRoutes.map((r, i) => (
-          <div key={i} style={{ fontSize: '11px', padding: '2px 0', color: 'var(--ot-text-secondary)' }}>
+          <div key={i} style={{ fontSize: '11px', padding: '2px 0', color: 'var(--color-text-secondary)' }}>
             {'\u2192'} {r.to} via {r.via} {r.signals?.length ? `[${r.signals.join(', ')}]` : ''}
           </div>
         ))}
@@ -323,7 +323,7 @@ function CommunicationTab({ data }: { data: RoleNodeData }) {
         <div style={sectionLabel}>Peer Routes (incoming)</div>
         {inRoutes.length === 0 && <div style={emptyStyle}>None</div>}
         {inRoutes.map((r, i) => (
-          <div key={i} style={{ fontSize: '11px', padding: '2px 0', color: 'var(--ot-text-secondary)' }}>
+          <div key={i} style={{ fontSize: '11px', padding: '2px 0', color: 'var(--color-text-secondary)' }}>
             {'\u2190'} {r.from} via {r.via} {r.signals?.length ? `[${r.signals.join(', ')}]` : ''}
           </div>
         ))}
@@ -457,7 +457,7 @@ function PromptsTab({ role, updateRole }: {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ot-text-muted)', display: 'block', marginBottom: '4px' }}>
+      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
         {label}
       </label>
       {children}
@@ -465,24 +465,24 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const panelStyle: React.CSSProperties = { padding: '12px', color: 'var(--ot-text-muted)' };
+const panelStyle: React.CSSProperties = { padding: '12px', color: 'var(--color-text-muted)' };
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '6px 8px',
   fontSize: '12px',
-  border: '1px solid var(--ot-border)',
+  border: '1px solid var(--color-border)',
   borderRadius: '4px',
-  background: 'var(--ot-bg)',
-  color: 'var(--ot-text)',
+  background: 'var(--color-bg)',
+  color: 'var(--color-text)',
   boxSizing: 'border-box',
 };
-const sectionLabel: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--ot-text-muted)', marginBottom: '6px' };
+const sectionLabel: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '6px' };
 const tagStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: '2px',
-  background: 'var(--ot-border)',
-  color: 'var(--ot-text-secondary)',
+  background: 'var(--color-border)',
+  color: 'var(--color-text-secondary)',
   padding: '2px 6px',
   borderRadius: '4px',
   fontSize: '10px',
@@ -492,17 +492,17 @@ const tagRemoveBtn: React.CSSProperties = {
   background: 'none',
   border: 'none',
   cursor: 'pointer',
-  color: 'var(--ot-text-muted)',
+  color: 'var(--color-text-muted)',
   padding: '0 2px',
   fontSize: '12px',
 };
 const addBtnStyle: React.CSSProperties = {
   background: 'none',
-  border: '1px dashed var(--ot-border)',
+  border: '1px dashed var(--color-border)',
   borderRadius: '4px',
   padding: '2px 8px',
   cursor: 'pointer',
   fontSize: '11px',
-  color: 'var(--ot-text-muted)',
+  color: 'var(--color-text-muted)',
 };
-const emptyStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--ot-text-muted)', fontStyle: 'italic' };
+const emptyStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--color-text-muted)', fontStyle: 'italic' };

@@ -121,7 +121,7 @@ export function EdgeInspector({ edge }: Props) {
               </div>
             </div>
           )}
-          <div style={{ fontSize: '11px', color: 'var(--ot-text-muted)', fontStyle: 'italic' }}>
+          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
             Modify via Role Inspector {'\u2192'} Communication tab
           </div>
         </div>
@@ -138,7 +138,7 @@ export function EdgeInspector({ edge }: Props) {
         <div style={{ flex: 1, overflow: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <InfoRow label="From" value={from} />
           <InfoRow label="Can Spawn" value={to} />
-          <div style={{ fontSize: '11px', color: 'var(--ot-text-muted)', fontStyle: 'italic' }}>
+          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
             Modify via Role Inspector {'\u2192'} Capabilities tab
           </div>
         </div>
@@ -153,16 +153,16 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <label style={labelStyle}>{label}</label>
-      <div style={{ fontSize: '12px', color: 'var(--ot-text)' }}>{value}</div>
+      <div style={{ fontSize: '12px', color: 'var(--color-text)' }}>{value}</div>
     </div>
   );
 }
 
-const headerStyle: React.CSSProperties = { padding: '12px', borderBottom: '1px solid var(--ot-border)', fontWeight: 600, fontSize: '13px', color: 'var(--ot-text)' };
-const labelStyle: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--ot-text-muted)', display: 'block', marginBottom: '4px' };
-const selectStyle: React.CSSProperties = { width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid var(--ot-border)', borderRadius: '4px', background: 'var(--ot-bg)', color: 'var(--ot-text)', boxSizing: 'border-box' as const };
-const tagStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '2px', background: 'var(--ot-border)', color: 'var(--ot-text-secondary)', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace' };
-const tagRemoveBtn: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ot-text-muted)', padding: '0 2px', fontSize: '12px' };
-const addBtnStyle: React.CSSProperties = { background: 'none', border: '1px dashed var(--ot-border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px', color: 'var(--ot-text-muted)' };
-const emptyStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--ot-text-muted)', fontStyle: 'italic' };
-const deleteBtnStyle: React.CSSProperties = { background: 'var(--ot-error)', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', marginTop: '8px' };
+const headerStyle: React.CSSProperties = { padding: '12px', borderBottom: '1px solid var(--color-border)', fontWeight: 600, fontSize: '13px', color: 'var(--color-text)' };
+const labelStyle: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' };
+const selectStyle: React.CSSProperties = { width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid var(--color-border)', borderRadius: '4px', background: 'var(--color-bg)', color: 'var(--color-text)', boxSizing: 'border-box' as const };
+const tagStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '2px', background: 'var(--color-border)', color: 'var(--color-text-secondary)', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace' };
+const tagRemoveBtn: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: '0 2px', fontSize: '12px' };
+const addBtnStyle: React.CSSProperties = { background: 'none', border: '1px dashed var(--color-border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px', color: 'var(--color-text-muted)' };
+const emptyStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--color-text-muted)', fontStyle: 'italic' };
+const deleteBtnStyle: React.CSSProperties = { background: 'var(--color-danger)', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', marginTop: '8px' };

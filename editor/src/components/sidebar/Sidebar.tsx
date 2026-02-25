@@ -100,16 +100,16 @@ export function Sidebar() {
   return (
     <div style={{
       width: '240px',
-      background: 'var(--ot-sidebar)',
-      borderRight: '1px solid var(--ot-border)',
+      background: 'var(--color-sidebar)',
+      borderRight: '1px solid var(--color-border)',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
       flexShrink: 0,
     }}>
       {/* Block Palette */}
-      <div style={{ padding: '12px', borderBottom: '1px solid var(--ot-border)' }}>
-        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ot-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+      <div style={{ padding: '12px', borderBottom: '1px solid var(--color-border)' }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Add Blocks
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
@@ -124,7 +124,7 @@ export function Sidebar() {
 
       {/* Config Tree */}
       <div style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
-        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ot-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Roles ({roles.size})
         </div>
         {Array.from(roles.keys()).map(name => {
@@ -139,13 +139,13 @@ export function Sidebar() {
                 padding: '4px 8px',
                 cursor: 'pointer',
                 fontSize: '12px',
-                color: 'var(--ot-text)',
+                color: 'var(--color-text)',
                 borderRadius: '4px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
               }}
-              onMouseOver={e => (e.currentTarget.style.background = 'var(--ot-border)')}
+              onMouseOver={e => (e.currentTarget.style.background = 'var(--color-border)')}
               onMouseOut={e => (e.currentTarget.style.background = 'none')}
             >
               <span style={{ color: isRoot ? '#3b82f6' : isCompanion ? '#14b8a6' : '#6b7280', fontSize: '10px' }}>
@@ -156,7 +156,7 @@ export function Sidebar() {
           );
         })}
 
-        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ot-text-muted)', marginTop: '16px', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginTop: '16px', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Channels ({Object.keys(channels).length})
         </div>
         {Object.keys(channels).map(name => (
@@ -168,13 +168,13 @@ export function Sidebar() {
               padding: '4px 8px',
               cursor: 'pointer',
               fontSize: '12px',
-              color: 'var(--ot-text)',
+              color: 'var(--color-text)',
               borderRadius: '4px',
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
             }}
-            onMouseOver={e => (e.currentTarget.style.background = 'var(--ot-border)')}
+            onMouseOver={e => (e.currentTarget.style.background = 'var(--color-border)')}
             onMouseOut={e => (e.currentTarget.style.background = 'none')}
           >
             <span style={{ color: '#8b5cf6', fontSize: '10px' }}>{'\u25C6'}</span>
@@ -184,8 +184,8 @@ export function Sidebar() {
       </div>
 
       {/* Template Gallery */}
-      <div style={{ padding: '12px', borderTop: '1px solid var(--ot-border)' }}>
-        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ot-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+      <div style={{ padding: '12px', borderTop: '1px solid var(--color-border)' }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Templates
         </div>
         {Object.entries(BUNDLED_TEMPLATES).map(([key, tmpl]) => (
@@ -197,8 +197,8 @@ export function Sidebar() {
               display: 'block',
               width: '100%',
               textAlign: 'left',
-              background: 'var(--ot-elevated)',
-              border: '1px solid var(--ot-border)',
+              background: 'var(--color-elevated)',
+              border: '1px solid var(--color-border)',
               borderRadius: '6px',
               padding: '8px',
               marginBottom: '6px',
@@ -206,8 +206,8 @@ export function Sidebar() {
               fontSize: '11px',
             }}
           >
-            <div style={{ fontWeight: 600, color: 'var(--ot-text)' }}>{key}</div>
-            <div style={{ color: 'var(--ot-text-muted)', marginTop: '2px' }}>
+            <div style={{ fontWeight: 600, color: 'var(--color-text)' }}>{key}</div>
+            <div style={{ color: 'var(--color-text-muted)', marginTop: '2px' }}>
               {tmpl.manifest.roles.length} roles {'\u00B7'} {Object.keys(tmpl.manifest.communication?.channels || {}).length} channels
             </div>
           </button>

@@ -30,7 +30,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
         minWidth: '240px',
         maxWidth: '280px',
         fontSize: '12px',
-        boxShadow: selected ? '0 0 0 2px var(--ot-accent)' : '0 1px 3px rgba(0,0,0,0.1)',
+        boxShadow: selected ? '0 0 0 2px var(--color-accent)' : '0 1px 3px rgba(0,0,0,0.1)',
         cursor: 'pointer',
       }}
     >
@@ -40,7 +40,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
       {/* Header */}
       <div style={{
         padding: '8px 10px',
-        borderBottom: '1px solid var(--ot-border-subtle)',
+        borderBottom: '1px solid var(--color-border-subtle)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
@@ -52,7 +52,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
             )}
             <span style={{
               fontWeight: 600,
-              color: 'var(--ot-text)',
+              color: 'var(--color-text)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -62,7 +62,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
           </div>
           {data.displayName && data.displayName !== data.roleName && (
             <div style={{
-              color: 'var(--ot-text-muted)',
+              color: 'var(--color-text-muted)',
               fontSize: '11px',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -88,7 +88,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
           )}
           {hasErrors && (
             <span style={{
-              background: 'var(--ot-error)',
+              background: 'var(--color-danger)',
               color: '#fff',
               padding: '1px 5px',
               borderRadius: '4px',
@@ -100,7 +100,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
           )}
           {hasWarnings && !hasErrors && (
             <span style={{
-              background: 'var(--ot-warning)',
+              background: 'var(--color-warning)',
               color: '#000',
               padding: '1px 5px',
               borderRadius: '4px',
@@ -117,8 +117,8 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
       {data.capabilities.length > 0 && (
         <div style={{
           padding: '6px 10px',
-          borderBottom: '1px solid var(--ot-border-subtle)',
-          color: 'var(--ot-text-muted)',
+          borderBottom: '1px solid var(--color-border-subtle)',
+          color: 'var(--color-text-muted)',
           fontSize: '11px',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -134,7 +134,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
         padding: '6px 10px',
         display: 'flex',
         gap: '8px',
-        color: 'var(--ot-text-muted)',
+        color: 'var(--color-text-muted)',
         fontSize: '11px',
       }}>
         {emitsCount > 0 && (

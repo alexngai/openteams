@@ -3,6 +3,7 @@ import { useHistoryStore } from '../../stores/history-store';
 import { useCanvasStore } from '../../stores/canvas-store';
 import { useConfigStore } from '../../stores/config-store';
 import { useValidationStore } from '../../stores/validation-store';
+import { useThemeStore } from '../../stores/theme-store';
 import { computeLayout } from '../../lib/auto-layout';
 
 export function Toolbar() {
@@ -13,6 +14,14 @@ export function Toolbar() {
   const { errors, warnings } = useValidationStore();
   const roleCount = useConfigStore(s => s.roles.size);
   const channelCount = Object.keys(useConfigStore(s => s.channels)).length;
+  const { theme, setTheme } = useThemeStore();
+
+  const cycleTheme = () => {
+    const next = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark';
+    setTheme(next);
+  };
+  const themeIcon = theme === 'dark' ? '\u263E' : theme === 'light' ? '\u2600' : '\u25D0';
+  const themeLabel = theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System';
 
   const handleAutoLayout = () => {
     historyStore.pushSnapshot();
@@ -26,8 +35,8 @@ export function Toolbar() {
   return (
     <div style={{
       height: '40px',
-      background: 'var(--ot-surface)',
-      borderBottom: '1px solid var(--ot-border)',
+      background: 'var(--color-surface)',
+      borderBottom: '1px solid var(--color-border)',
       display: 'flex',
       alignItems: 'center',
       padding: '0 12px',
@@ -45,7 +54,7 @@ export function Toolbar() {
         {'\u2630'}
       </button>
 
-      <span style={{ fontWeight: 600, color: 'var(--ot-text)' }}>OpenTeams Editor</span>
+      <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>OpenTeams Editor</span>
 
       <div style={dividerStyle} />
 
@@ -77,14 +86,14 @@ export function Toolbar() {
       <div style={dividerStyle} />
 
       {/* Layer toggles */}
-      <span style={{ color: 'var(--ot-text-muted)', fontSize: '11px' }}>Layers:</span>
+      <span style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Layers:</span>
       {(['peerRoutes', 'channels', 'spawnRules', 'inheritance'] as const).map(layer => (
         <button
           key={layer}
           onClick={() => toggleLayer(layer)}
           style={{
             ...btnStyle,
-            background: layers[layer] ? 'var(--ot-accent)' : undefined,
+            background: layers[layer] ? 'var(--color-accent)' : undefined,
             color: layers[layer] ? '#fff' : undefined,
           }}
           title={`Toggle ${layer}`}
@@ -98,12 +107,16 @@ export function Toolbar() {
       <div style={{ flex: 1 }} />
 
       {/* Status */}
-      <span data-testid="toolbar-status" style={{ color: 'var(--ot-text-muted)', fontSize: '11px' }}>
+      <span data-testid="toolbar-status" style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
         {roleCount} roles {'\u00B7'} {channelCount} ch
-        {errors.length > 0 && <span data-testid="status-errors" style={{ color: 'var(--ot-error)', marginLeft: 6 }}>{errors.length} err</span>}
-        {warnings.length > 0 && <span data-testid="status-warnings" style={{ color: 'var(--ot-warning)', marginLeft: 6 }}>{warnings.length} warn</span>}
-        {errors.length === 0 && warnings.length === 0 && <span data-testid="status-valid" style={{ color: 'var(--ot-success)', marginLeft: 6 }}>{'\u2713'} valid</span>}
+        {errors.length > 0 && <span data-testid="status-errors" style={{ color: 'var(--color-danger)', marginLeft: 6 }}>{errors.length} err</span>}
+        {warnings.length > 0 && <span data-testid="status-warnings" style={{ color: 'var(--color-warning)', marginLeft: 6 }}>{warnings.length} warn</span>}
+        {errors.length === 0 && warnings.length === 0 && <span data-testid="status-valid" style={{ color: 'var(--color-success)', marginLeft: 6 }}>{'\u2713'} valid</span>}
       </span>
+
+      <button onClick={cycleTheme} style={btnStyle} title={`Theme: ${themeLabel}`} data-testid="btn-theme">
+        {themeIcon}
+      </button>
 
       <button onClick={toggleInspector} style={btnStyle} title={inspectorOpen ? 'Hide inspector' : 'Show inspector'} data-testid="toggle-inspector">
         {inspectorOpen ? '\u00BB' : '\u00AB'}
@@ -121,16 +134,16 @@ const LAYER_LABELS: Record<string, string> = {
 
 const btnStyle: React.CSSProperties = {
   background: 'none',
-  border: '1px solid var(--ot-border)',
+  border: '1px solid var(--color-border)',
   borderRadius: '4px',
   padding: '3px 8px',
   cursor: 'pointer',
   fontSize: '12px',
-  color: 'var(--ot-text-secondary)',
+  color: 'var(--color-text-secondary)',
 };
 
 const dividerStyle: React.CSSProperties = {
   width: '1px',
   height: '20px',
-  background: 'var(--ot-border)',
+  background: 'var(--color-border)',
 };

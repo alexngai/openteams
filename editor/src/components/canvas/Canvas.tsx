@@ -16,6 +16,7 @@ import { SpawnEdge } from '../edges/SpawnEdge';
 import { QuickAddMenu } from './QuickAddMenu';
 import { useCanvasStore } from '../../stores/canvas-store';
 import { useUIStore } from '../../stores/ui-store';
+import { useThemeStore } from '../../stores/theme-store';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const nodeTypes: NodeTypes = {
@@ -42,6 +43,7 @@ export function Canvas() {
   const onEdgesChange = useCanvasStore(s => s.onEdgesChange);
   const setSelection = useCanvasStore(s => s.setSelection);
   const layers = useUIStore(s => s.layers);
+  const resolvedTheme = useThemeStore(s => s.resolvedTheme);
   const [quickAdd, setQuickAdd] = useState<QuickAddState | null>(null);
   const reactFlow = useReactFlow();
 
@@ -97,12 +99,13 @@ export function Canvas() {
         onDoubleClick={handleDoubleClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        colorMode={resolvedTheme}
         fitView
         deleteKeyCode={null}
         minZoom={0.1}
         maxZoom={2}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--ot-border)" />
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--color-canvas-dot)" />
         <Controls position="bottom-right" />
         <MiniMap
           position="bottom-right"

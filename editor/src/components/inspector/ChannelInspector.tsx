@@ -85,10 +85,10 @@ export function ChannelInspector({ nodeId, data }: Props) {
     <div data-testid="channel-inspector" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div data-testid="channel-inspector-header" style={{
         padding: '12px',
-        borderBottom: '1px solid var(--ot-border)',
+        borderBottom: '1px solid var(--color-border)',
         fontWeight: 600,
         fontSize: '13px',
-        color: 'var(--ot-text)',
+        color: 'var(--color-text)',
       }}>
         Channel: {data.channelName}
       </div>
@@ -130,7 +130,7 @@ export function ChannelInspector({ nodeId, data }: Props) {
           <label style={labelStyle}>Emitters (derived)</label>
           {emitters.length === 0 && <div style={emptyStyle}>None</div>}
           {emitters.map(e => (
-            <div key={e.role} style={{ fontSize: '11px', padding: '2px 0', color: 'var(--ot-text-secondary)' }}>
+            <div key={e.role} style={{ fontSize: '11px', padding: '2px 0', color: 'var(--color-text-secondary)' }}>
               {e.role} {'\u2192'} {e.signals.join(', ')}
             </div>
           ))}
@@ -140,7 +140,7 @@ export function ChannelInspector({ nodeId, data }: Props) {
           <label style={labelStyle}>Subscribers (derived)</label>
           {subscribers.length === 0 && <div style={emptyStyle}>None</div>}
           {subscribers.map((s, i) => (
-            <div key={i} style={{ fontSize: '11px', padding: '2px 0', color: 'var(--ot-text-secondary)' }}>
+            <div key={i} style={{ fontSize: '11px', padding: '2px 0', color: 'var(--color-text-secondary)' }}>
               {s.role} {'\u2190'} {s.signals === 'all' ? 'all signals' : s.signals.join(', ')}
             </div>
           ))}
@@ -150,9 +150,9 @@ export function ChannelInspector({ nodeId, data }: Props) {
   );
 }
 
-const labelStyle: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--ot-text-muted)', display: 'block', marginBottom: '4px' };
-const inputStyle: React.CSSProperties = { width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid var(--ot-border)', borderRadius: '4px', background: 'var(--ot-bg)', color: 'var(--ot-text)', boxSizing: 'border-box' as const };
-const tagStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '2px', background: 'var(--ot-border)', color: 'var(--ot-text-secondary)', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace' };
-const tagRemoveBtn: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ot-text-muted)', padding: '0 2px', fontSize: '12px' };
-const addBtnStyle: React.CSSProperties = { background: 'none', border: '1px dashed var(--ot-border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px', color: 'var(--ot-text-muted)' };
-const emptyStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--ot-text-muted)', fontStyle: 'italic' };
+const labelStyle: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' };
+const inputStyle: React.CSSProperties = { width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid var(--color-border)', borderRadius: '4px', background: 'var(--color-bg)', color: 'var(--color-text)', boxSizing: 'border-box' as const };
+const tagStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '2px', background: 'var(--color-border)', color: 'var(--color-text-secondary)', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace' };
+const tagRemoveBtn: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: '0 2px', fontSize: '12px' };
+const addBtnStyle: React.CSSProperties = { background: 'none', border: '1px dashed var(--color-border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px', color: 'var(--color-text-muted)' };
+const emptyStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--color-text-muted)', fontStyle: 'italic' };
