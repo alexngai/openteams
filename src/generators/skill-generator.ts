@@ -167,6 +167,14 @@ function generateRolesSection(template: ResolvedTemplate): string {
       }
       if (role.capabilities.length > 0) {
         lines.push(`- **Capabilities**: ${role.capabilities.join(", ")}`);
+        if (role.capabilityConfig) {
+          const configured = Object.entries(role.capabilityConfig)
+            .filter(([, v]) => v != null)
+            .map(([k]) => k);
+          if (configured.length > 0) {
+            lines.push(`- **Configured**: ${configured.join(", ")}`);
+          }
+        }
       }
     }
 
@@ -263,6 +271,12 @@ function generateCommunicationSection(template: ResolvedTemplate): string {
   return lines.join("\n");
 }
 
+function formatSpawnTarget(entry: string | { role: string; max_instances?: number }): string {
+  if (typeof entry === "string") return entry;
+  const limit = entry.max_instances != null ? ` (max: ${entry.max_instances})` : "";
+  return `${entry.role}${limit}`;
+}
+
 function generateSpawnRulesSection(template: ResolvedTemplate): string {
   const rules = template.manifest.topology.spawn_rules!;
   const lines: string[] = ["## Spawn Rules"];
@@ -270,7 +284,7 @@ function generateSpawnRulesSection(template: ResolvedTemplate): string {
   lines.push("| Role | Can Spawn |");
   lines.push("|------|-----------|");
   for (const [from, targets] of Object.entries(rules)) {
-    const targetStr = targets.length > 0 ? targets.join(", ") : "(none)";
+    const targetStr = targets.length > 0 ? targets.map(formatSpawnTarget).join(", ") : "(none)";
     lines.push(`| ${from} | ${targetStr} |`);
   }
   return lines.join("\n");

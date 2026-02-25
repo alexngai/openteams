@@ -495,6 +495,107 @@ topology:
       );
     });
 
+    it("accepts spawn_rules with object entries (max_instances)", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: spawn-obj
+version: 1
+roles:
+  - orchestrator
+  - worker
+  - monitor
+topology:
+  root:
+    role: orchestrator
+  spawn_rules:
+    orchestrator:
+      - role: worker
+        max_instances: 5
+      - monitor
+    worker: []
+    monitor: []
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      const rules = template.manifest.topology.spawn_rules!;
+      expect(rules.orchestrator).toHaveLength(2);
+      expect(rules.orchestrator[0]).toEqual({ role: "worker", max_instances: 5 });
+      expect(rules.orchestrator[1]).toBe("monitor");
+    });
+
+    it("throws when spawn_rules object entry references unknown role", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: bad-obj
+version: 1
+roles:
+  - worker
+topology:
+  root:
+    role: worker
+  spawn_rules:
+    worker:
+      - role: ghost
+        max_instances: 3
+`
+      );
+
+      expect(() => TemplateLoader.load(tmpDir)).toThrow(
+        'spawn_rules "worker" references unknown role "ghost"'
+      );
+    });
+
+    it("throws when max_instances is zero", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: bad-max
+version: 1
+roles:
+  - lead
+  - worker
+topology:
+  root:
+    role: lead
+  spawn_rules:
+    lead:
+      - role: worker
+        max_instances: 0
+`
+      );
+
+      expect(() => TemplateLoader.load(tmpDir)).toThrow(
+        'invalid max_instances'
+      );
+    });
+
+    it("throws when max_instances is negative", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: bad-neg
+version: 1
+roles:
+  - lead
+  - worker
+topology:
+  root:
+    role: lead
+  spawn_rules:
+    lead:
+      - role: worker
+        max_instances: -1
+`
+      );
+
+      expect(() => TemplateLoader.load(tmpDir)).toThrow(
+        'invalid max_instances'
+      );
+    });
+
     it("throws when subscription references unknown channel", () => {
       writeYaml(
         "team.yaml",
@@ -952,6 +1053,207 @@ capabilities:
       const template = TemplateLoader.load(tmpDir);
       expect(template.roles.get("child")!.capabilities).toEqual(["foo", "bar"]);
       expect(template.roles.get("child")!.extends).toBe("nonexistent-parent");
+    });
+  });
+
+  describe("capability map form", () => {
+    it("parses map form with null and object values", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: map-test
+version: 1
+roles:
+  - agent
+topology:
+  root:
+    role: agent
+`
+      );
+
+      writeYaml(
+        "roles/agent.yaml",
+        `
+name: agent
+description: "Agent with map capabilities"
+capabilities:
+  file.read: null
+  file.write: null
+  lifecycle.ephemeral:
+    max_duration: 3600
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      const agent = template.roles.get("agent")!;
+      expect(agent.capabilities.sort()).toEqual([
+        "file.read",
+        "file.write",
+        "lifecycle.ephemeral",
+      ]);
+      expect(agent.capabilityConfig).toEqual({
+        "file.read": null,
+        "file.write": null,
+        "lifecycle.ephemeral": { max_duration: 3600 },
+      });
+    });
+
+    it("map form overrides parent capabilities (no merge)", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: map-override
+version: 1
+roles:
+  - parent
+  - child
+topology:
+  root:
+    role: parent
+`
+      );
+
+      writeYaml(
+        "roles/parent.yaml",
+        `
+name: parent
+capabilities:
+  - a
+  - b
+  - c
+`
+      );
+
+      writeYaml(
+        "roles/child.yaml",
+        `
+name: child
+extends: parent
+capabilities:
+  x.one: null
+  y.two:
+    level: high
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      const child = template.roles.get("child")!;
+      // Map form = explicit override, not merged with parent
+      expect(child.capabilities.sort()).toEqual(["x.one", "y.two"]);
+      expect(child.capabilityConfig).toEqual({
+        "x.one": null,
+        "y.two": { level: "high" },
+      });
+    });
+
+    it("inherits capabilityConfig from parent via composition add/remove", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: config-inherit
+version: 1
+roles:
+  - parent
+  - child
+topology:
+  root:
+    role: parent
+`
+      );
+
+      writeYaml(
+        "roles/parent.yaml",
+        `
+name: parent
+capabilities:
+  file.read: null
+  file.write:
+    mode: async
+  admin.deploy:
+    env: production
+`
+      );
+
+      writeYaml(
+        "roles/child.yaml",
+        `
+name: child
+extends: parent
+capabilities:
+  add:
+    - debug
+  remove:
+    - admin.deploy
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      const child = template.roles.get("child")!;
+      // parent: [file.read, file.write, admin.deploy] + debug - admin.deploy
+      expect(child.capabilities.sort()).toEqual(["debug", "file.read", "file.write"]);
+      // Config inherited for retained capabilities
+      expect(child.capabilityConfig).toEqual({
+        "file.read": null,
+        "file.write": { mode: "async" },
+      });
+    });
+
+    it("empty map form produces empty capabilities", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: empty-map
+version: 1
+roles:
+  - agent
+topology:
+  root:
+    role: agent
+`
+      );
+
+      writeYaml(
+        "roles/agent.yaml",
+        `
+name: agent
+capabilities: {}
+`
+      );
+
+      const template = TemplateLoader.load(tmpDir);
+      const agent = template.roles.get("agent")!;
+      expect(agent.capabilities).toEqual([]);
+      expect(agent.capabilityConfig).toEqual({});
+    });
+
+    it("errors when map form is combined with flat fields", () => {
+      writeYaml(
+        "team.yaml",
+        `
+name: conflict
+version: 1
+roles:
+  - bad
+topology:
+  root:
+    role: bad
+`
+      );
+
+      writeYaml(
+        "roles/bad.yaml",
+        `
+name: bad
+capabilities:
+  file.read: null
+capabilities_add:
+  - extra
+`
+      );
+
+      expect(() => TemplateLoader.load(tmpDir)).toThrow(
+        'uses both CapabilityComposition'
+      );
     });
   });
 

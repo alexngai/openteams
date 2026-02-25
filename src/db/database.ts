@@ -20,7 +20,7 @@ export interface Migration {
   up: string;
 }
 
-export const CURRENT_VERSION = 2;
+export const CURRENT_VERSION = 3;
 
 /**
  * Migrations applied incrementally to existing databases.
@@ -29,11 +29,10 @@ export const CURRENT_VERSION = 2;
  * older databases. Future changes add entries here.
  */
 export const MIGRATIONS: Migration[] = [
-  // Example for a future change:
-  // {
-  //   version: 3,
-  //   up: `ALTER TABLE teams ADD COLUMN some_new_col TEXT;`
-  // },
+  {
+    version: 3,
+    up: `ALTER TABLE spawn_rules ADD COLUMN max_instances INTEGER;`,
+  },
 ];
 
 const SCHEMA_SQL = `
@@ -157,10 +156,11 @@ CREATE TABLE IF NOT EXISTS signal_events (
 
 -- Spawn rules per team
 CREATE TABLE IF NOT EXISTS spawn_rules (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  team_name   TEXT NOT NULL REFERENCES teams(name),
-  from_role   TEXT NOT NULL,
-  to_role     TEXT NOT NULL,
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  team_name       TEXT NOT NULL REFERENCES teams(name),
+  from_role       TEXT NOT NULL,
+  to_role         TEXT NOT NULL,
+  max_instances   INTEGER,
   UNIQUE(team_name, from_role, to_role)
 );
 `;

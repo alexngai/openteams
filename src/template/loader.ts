@@ -9,10 +9,44 @@ import type {
   ResolvedPrompts,
   PromptSection,
   CapabilityComposition,
+  CapabilityMap,
+  SpawnRuleEntry,
   McpServerEntry,
   LoadOptions,
   AsyncLoadOptions,
 } from "./types";
+
+/**
+ * Extract the role name from a SpawnRuleEntry (string or { role, max_instances? }).
+ */
+function spawnRuleTarget(entry: SpawnRuleEntry): string {
+  return typeof entry === "string" ? entry : entry.role;
+}
+
+/**
+ * Detect whether a capabilities value is a CapabilityMap (map form).
+ *
+ * Distinguishes from CapabilityComposition by checking that the object
+ * does NOT have only "add"/"remove" keys — i.e. it has at least one key
+ * that isn't "add" or "remove", OR all values are null/plain objects
+ * (not arrays like add/remove would be).
+ */
+function isCapabilityMap(
+  caps: Record<string, unknown>
+): caps is CapabilityMap {
+  const keys = Object.keys(caps);
+  if (keys.length === 0) return true; // empty map is valid
+  // CapabilityComposition has only "add" and/or "remove" keys with array values
+  const compositionKeys = new Set(["add", "remove"]);
+  const allKeysAreComposition = keys.every((k) => compositionKeys.has(k));
+  if (allKeysAreComposition) {
+    // Check if values are arrays (CapabilityComposition) vs objects/null (CapabilityMap)
+    return keys.some(
+      (k) => !Array.isArray(caps[k]) && caps[k] !== undefined
+    );
+  }
+  return true;
+}
 
 export class TemplateLoader {
   /**
@@ -240,11 +274,22 @@ export class TemplateLoader {
             `spawn_rules key "${from}" is not in the roles list`
           );
         }
-        for (const target of targets) {
+        for (const entry of targets) {
+          const target = spawnRuleTarget(entry);
           if (!declaredRoles.has(target)) {
             throw new Error(
               `spawn_rules "${from}" references unknown role "${target}"`
             );
+          }
+          // Validate max_instances if present
+          if (typeof entry === "object") {
+            if (entry.max_instances !== undefined) {
+              if (!Number.isInteger(entry.max_instances) || entry.max_instances < 1) {
+                throw new Error(
+                  `spawn_rules "${from}" → "${target}" has invalid max_instances: must be a positive integer`
+                );
+              }
+            }
           }
         }
       }
@@ -308,7 +353,8 @@ export class TemplateLoader {
     parentRole: ResolvedRole
   ): void {
     const raw = role.raw;
-    if (raw.capabilities && !Array.isArray(raw.capabilities)) {
+    if (raw.capabilities && !Array.isArray(raw.capabilities) &&
+        !isCapabilityMap(raw.capabilities as Record<string, unknown>)) {
       // CapabilityComposition — merge with parent
       const comp = raw.capabilities as CapabilityComposition;
       const parentCaps = [...parentRole.capabilities];
@@ -318,8 +364,21 @@ export class TemplateLoader {
       // Start with parent caps, add child additions, remove exclusions
       const merged = [...new Set([...parentCaps, ...toAdd])];
       role.capabilities = merged.filter((c) => !toRemove.has(c));
+
+      // Inherit capabilityConfig from parent for retained capabilities
+      if (parentRole.capabilityConfig) {
+        const inherited: CapabilityMap = {};
+        for (const cap of role.capabilities) {
+          if (cap in parentRole.capabilityConfig) {
+            inherited[cap] = parentRole.capabilityConfig[cap];
+          }
+        }
+        if (Object.keys(inherited).length > 0) {
+          role.capabilityConfig = inherited;
+        }
+      }
     }
-    // If capabilities is a plain array, it's an explicit override — keep as-is
+    // If capabilities is a plain array or map form, it's an explicit override — keep as-is
   }
 
   /**
@@ -466,10 +525,15 @@ export class TemplateLoader {
    * Validation: errors if both syntaxes are used simultaneously.
    */
   private static normalizeRoleDefinition(def: RoleDefinition): RoleDefinition {
-    const hasComposition = def.capabilities && !Array.isArray(def.capabilities);
     const hasFlatFields = def.capabilities_add !== undefined || def.capabilities_remove !== undefined;
 
-    if (hasComposition && hasFlatFields) {
+    // Detect what kind of capabilities value we have
+    const isArray = Array.isArray(def.capabilities);
+    const isObject = def.capabilities != null && typeof def.capabilities === "object" && !isArray;
+    const isMap = isObject && isCapabilityMap(def.capabilities as Record<string, unknown>);
+    const hasComposition = isObject && !isMap;
+
+    if ((hasComposition || isMap) && hasFlatFields) {
       throw new Error(
         `Role "${def.name}" uses both CapabilityComposition in "capabilities" and flat ` +
         `"capabilities_add"/"capabilities_remove" fields. Use one syntax or the other.`
@@ -495,10 +559,16 @@ export class TemplateLoader {
     // Normalize flat capabilities_add/remove into CapabilityComposition
     const normalized = TemplateLoader.normalizeRoleDefinition(def);
     let capabilities: string[] = [];
+    let capabilityConfig: CapabilityMap | undefined;
 
     if (normalized.capabilities) {
       if (Array.isArray(normalized.capabilities)) {
         capabilities = normalized.capabilities;
+      } else if (isCapabilityMap(normalized.capabilities as Record<string, unknown>)) {
+        // Map form — keys are capability tokens, values are config objects
+        const map = normalized.capabilities as CapabilityMap;
+        capabilities = Object.keys(map);
+        capabilityConfig = map;
       } else {
         // CapabilityComposition — resolve against parent later if extends is used.
         // For now, just collect the add list.
@@ -508,7 +578,7 @@ export class TemplateLoader {
       }
     }
 
-    return {
+    const result: ResolvedRole = {
       name: normalized.name,
       extends: normalized.extends,
       displayName: normalized.display_name ?? normalized.name,
@@ -518,6 +588,12 @@ export class TemplateLoader {
       promptFiles: normalized.prompts,
       raw: normalized,
     };
+
+    if (capabilityConfig) {
+      result.capabilityConfig = capabilityConfig;
+    }
+
+    return result;
   }
 
   /**

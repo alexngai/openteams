@@ -30,6 +30,7 @@ export type {
 export type {
   TeamManifest,
   TopologyConfig,
+  SpawnRuleEntry,
   TopologyNode,
   TopologyNodeConfig,
   CommunicationConfig,
@@ -39,6 +40,7 @@ export type {
   PeerRoute,
   RoleDefinition,
   CapabilityComposition,
+  CapabilityMap,
   McpServerEntry,
   LoadOptions,
   AsyncLoadOptions,

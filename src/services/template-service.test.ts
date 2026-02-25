@@ -242,6 +242,58 @@ describe("TemplateService", () => {
     });
   });
 
+  describe("getSpawnLimit", () => {
+    it("returns max_instances when set", () => {
+      const manifest: TeamManifest = {
+        name: "limits-test",
+        version: 1,
+        roles: ["lead", "worker", "monitor"],
+        topology: {
+          root: { role: "lead" },
+          spawn_rules: {
+            lead: [
+              { role: "worker", max_instances: 5 },
+              "monitor",
+            ],
+            worker: [],
+            monitor: [],
+          },
+        },
+      };
+
+      templateService.bootstrapFromManifest(manifest);
+
+      expect(templateService.getSpawnLimit("limits-test", "lead", "worker")).toBe(5);
+      expect(templateService.getSpawnLimit("limits-test", "lead", "monitor")).toBeUndefined();
+      expect(templateService.getSpawnLimit("limits-test", "worker", "lead")).toBeUndefined();
+    });
+
+    it("respects canSpawn with mixed entries", () => {
+      const manifest: TeamManifest = {
+        name: "mixed-rules",
+        version: 1,
+        roles: ["orch", "a", "b"],
+        topology: {
+          root: { role: "orch" },
+          spawn_rules: {
+            orch: [
+              { role: "a", max_instances: 3 },
+              "b",
+            ],
+            a: [],
+            b: [],
+          },
+        },
+      };
+
+      templateService.bootstrapFromManifest(manifest);
+
+      expect(templateService.canSpawn("mixed-rules", "orch", "a")).toBe(true);
+      expect(templateService.canSpawn("mixed-rules", "orch", "b")).toBe(true);
+      expect(templateService.canSpawn("mixed-rules", "a", "b")).toBe(false);
+    });
+  });
+
   describe("structured team template (backward compat)", () => {
     it("bootstraps a traditional coordinator/worker structure", () => {
       const structured: TeamManifest = {

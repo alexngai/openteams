@@ -200,7 +200,8 @@ function generateRoleFrontmatter(
 
   const spawnRules = m.topology.spawn_rules?.[roleName];
   if (spawnRules && spawnRules.length > 0) {
-    lines.push(`can_spawn: [${spawnRules.join(", ")}]`);
+    const names = spawnRules.map((e) => typeof e === "string" ? e : e.role);
+    lines.push(`can_spawn: [${names.join(", ")}]`);
   }
 
   lines.push("---");
@@ -471,7 +472,12 @@ function generateRoleSpawnSection(
   } else if (allowed.length === 0) {
     lines.push("You **cannot** spawn other agents.");
   } else {
-    lines.push(`You can spawn: **${allowed.join(", ")}**`);
+    const formatted = allowed.map((e) => {
+      if (typeof e === "string") return e;
+      const limit = e.max_instances != null ? ` (max: ${e.max_instances})` : "";
+      return `${e.role}${limit}`;
+    });
+    lines.push(`You can spawn: **${formatted.join(", ")}**`);
   }
 
   return lines.join("\n");

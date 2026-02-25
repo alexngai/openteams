@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import type { Team } from "../types";
-import type { ResolvedTemplate, TeamManifest } from "../template/types";
+import type { ResolvedTemplate, TeamManifest, SpawnRuleEntry } from "../template/types";
 import { TemplateLoader } from "../template/loader";
 import { TeamService } from "./team-service";
 import { CommunicationService } from "./communication-service";
@@ -76,15 +76,19 @@ export class TemplateService {
     const spawnRules: Array<{ from: string; canSpawn: string[] }> = [];
     if (template.manifest.topology.spawn_rules) {
       const insertRule = this.db.prepare(
-        "INSERT OR IGNORE INTO spawn_rules (team_name, from_role, to_role) VALUES (?, ?, ?)"
+        "INSERT OR IGNORE INTO spawn_rules (team_name, from_role, to_role, max_instances) VALUES (?, ?, ?, ?)"
       );
-      for (const [from, targets] of Object.entries(
+      for (const [from, entries] of Object.entries(
         template.manifest.topology.spawn_rules
       )) {
-        for (const to of targets) {
-          insertRule.run(teamName, from, to);
+        const roleNames: string[] = [];
+        for (const entry of entries) {
+          const toRole = typeof entry === "string" ? entry : entry.role;
+          const maxInst = typeof entry === "object" ? (entry.max_instances ?? null) : null;
+          insertRule.run(teamName, from, toRole, maxInst);
+          roleNames.push(toRole);
         }
-        spawnRules.push({ from, canSpawn: targets });
+        spawnRules.push({ from, canSpawn: roleNames });
       }
     }
 
@@ -178,5 +182,23 @@ export class TemplateService {
       from: r.from_role,
       canSpawn: this.getSpawnRules(teamName, r.from_role),
     }));
+  }
+
+  /**
+   * Get the max_instances limit for a specific spawn rule.
+   * Returns undefined if no limit is set or no rule exists.
+   */
+  getSpawnLimit(
+    teamName: string,
+    fromRole: string,
+    toRole: string
+  ): number | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT max_instances FROM spawn_rules WHERE team_name = ? AND from_role = ? AND to_role = ?"
+      )
+      .get(teamName, fromRole, toRole) as { max_instances: number | null } | undefined;
+
+    return row?.max_instances ?? undefined;
   }
 }
