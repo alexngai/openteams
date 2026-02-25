@@ -78,7 +78,8 @@ export function configToCanvas(
 
     const peerOut = peerRoutes.filter(r => r.from === roleName).length;
     const peerIn = peerRoutes.filter(r => r.to === roleName).length;
-    const canSpawn = spawnRules[roleName] || [];
+    const rawSpawn = spawnRules[roleName] || [];
+    const canSpawn = rawSpawn.map(e => typeof e === 'string' ? e : e.role);
 
     const capabilities = Array.isArray(roleDef?.capabilities)
       ? roleDef.capabilities as string[]

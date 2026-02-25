@@ -12,7 +12,11 @@ export function loadTemplate(manifest: TeamManifest, roleDefinitions: Map<string
   const subscriptions = comm.subscriptions || {};
   const emissions = comm.emissions || {};
   const peerRoutes = comm.routing?.peers || [];
-  const spawnRules = manifest.topology.spawn_rules || {};
+  const rawSpawnRules = manifest.topology.spawn_rules || {};
+  const spawnRules: Record<string, string[]> = {};
+  for (const [role, entries] of Object.entries(rawSpawnRules)) {
+    spawnRules[role] = entries.map(e => typeof e === 'string' ? e : e.role);
+  }
 
   // Build editor role configs
   const roles = new Map<string, EditorRoleConfig>();
