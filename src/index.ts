@@ -30,6 +30,7 @@ export type {
 export type {
   TeamManifest,
   TopologyConfig,
+  SpawnRuleEntry,
   TopologyNode,
   TopologyNodeConfig,
   CommunicationConfig,
@@ -39,6 +40,7 @@ export type {
   PeerRoute,
   RoleDefinition,
   CapabilityComposition,
+  CapabilityMap,
   McpServerEntry,
   LoadOptions,
   AsyncLoadOptions,
@@ -69,7 +71,7 @@ export type {
 export { CommunicationService } from "./services/communication-service";
 
 // Template
-export { TemplateLoader } from "./template/loader";
+export { TemplateLoader, spawnRuleTarget, isCapabilityMap } from "./template/loader";
 
 // Generators
 export { generateSkillMd, generateCatalog } from "./generators/skill-generator";

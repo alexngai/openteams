@@ -42,9 +42,12 @@
         },
         {
           "$ref": "#/$defs/CapabilityComposition"
+        },
+        {
+          "$ref": "#/$defs/CapabilityMap"
         }
       ],
-      "description": "Capabilities for this role. Either a flat list (full replacement) or a composition object with add/remove operations on the parent role's capabilities."
+      "description": "Capabilities for this role. Either a flat list (full replacement), a composition object with add/remove operations on the parent role's capabilities, or a map from capability tokens to config objects."
     },
     "capabilities_add": {
       "type": "array",
@@ -120,6 +123,25 @@
         }
       },
       "additionalProperties": false
+    },
+    "CapabilityMap": {
+      "type": "object",
+      "description": "Map form for capabilities: keys are dot-namespaced capability tokens, values are config objects (or null for no config). Replaces any inherited capabilities entirely.",
+      "patternProperties": {
+        "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)*$": {
+          "oneOf": [
+            { "type": "object", "description": "Opaque config for this capability." },
+            { "type": "null", "description": "Capability with no additional config." }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "file.read": null,
+          "lifecycle.ephemeral": { "max_duration": 3600 }
+        }
+      ]
     }
   }
 }

@@ -67,12 +67,33 @@
         },
         "spawn_rules": {
           "type": "object",
-          "description": "Maps each role to the list of roles it is allowed to spawn. Omitting a role or the entire spawn_rules section makes spawning permissive (any role can spawn any role).",
+          "description": "Maps each role to the list of roles it is allowed to spawn. Each entry can be a plain role name (string) or an object with role and optional max_instances. Omitting a role or the entire spawn_rules section makes spawning permissive (any role can spawn any role).",
           "additionalProperties": {
             "type": "array",
             "items": {
-              "type": "string",
-              "description": "A role name from the top-level roles list."
+              "oneOf": [
+                {
+                  "type": "string",
+                  "description": "A role name from the top-level roles list."
+                },
+                {
+                  "type": "object",
+                  "description": "A spawn rule with role name and optional instance limit.",
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "description": "A role name from the top-level roles list."
+                    },
+                    "max_instances": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "description": "Maximum number of concurrent instances of this role that can be spawned."
+                    }
+                  },
+                  "required": ["role"],
+                  "additionalProperties": false
+                }
+              ]
             }
           },
           "examples": [
@@ -80,6 +101,12 @@
               "planner": ["grinder", "planner"],
               "judge": [],
               "grinder": []
+            },
+            {
+              "orchestrator": [
+                { "role": "worker", "max_instances": 5 },
+                "monitor"
+              ]
             }
           ]
         }

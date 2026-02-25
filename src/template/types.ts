@@ -22,10 +22,16 @@ export interface TeamManifest {
 
 // --- Topology ---
 
+/**
+ * A spawn rule entry: either a plain role name (string) or an object
+ * with a role name and optional max_instances constraint.
+ */
+export type SpawnRuleEntry = string | { role: string; max_instances?: number };
+
 export interface TopologyConfig {
   root: TopologyNode;
   companions?: TopologyNode[];
-  spawn_rules?: Record<string, string[]>;
+  spawn_rules?: Record<string, SpawnRuleEntry[]>;
 }
 
 export interface TopologyNode {
@@ -78,7 +84,7 @@ export interface RoleDefinition {
   extends?: string;
   display_name?: string;
   description?: string;
-  capabilities?: string[] | CapabilityComposition;
+  capabilities?: string[] | CapabilityComposition | CapabilityMap;
   prompt?: string; // path to a single prompt file
   prompts?: string[]; // ordered list of prompt files (relative to prompts/<role>/)
 
@@ -96,6 +102,17 @@ export interface CapabilityComposition {
   add?: string[];
   remove?: string[];
 }
+
+/**
+ * Map form for capabilities: keys are dot-namespaced capability tokens,
+ * values are opaque config objects (or null for no config).
+ *
+ * Example:
+ *   capabilities:
+ *     file.read: null
+ *     lifecycle.ephemeral: { max_duration: 3600 }
+ */
+export type CapabilityMap = Record<string, Record<string, unknown> | null>;
 
 // --- Prompt Sections ---
 
@@ -129,6 +146,7 @@ export interface ResolvedRole {
   displayName: string;
   description: string;
   capabilities: string[];
+  capabilityConfig?: CapabilityMap;
   promptFile?: string;
   promptFiles?: string[]; // explicit ordering from role YAML
   raw: RoleDefinition; // original YAML for extension fields
