@@ -1,0 +1,88 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+:root {
+  --ot-bg: #ffffff;
+  --ot-surface: #f9fafb;
+  --ot-sidebar: #f3f4f6;
+  --ot-text: #111827;
+  --ot-text-secondary: #374151;
+  --ot-text-muted: #6b7280;
+  --ot-border: #e5e7eb;
+  --ot-border-subtle: #f3f4f6;
+  --ot-accent: #f59e0b;
+  --ot-overlay: rgba(0, 0, 0, 0.4);
+  --ot-elevated: #ffffff;
+
+  --ot-role-root: #3b82f6;
+  --ot-role-companion: #14b8a6;
+  --ot-role-spawned: #6b7280;
+  --ot-channel: #8b5cf6;
+  --ot-peer-route: #f59e0b;
+  --ot-signal-flow: #6b7280;
+  --ot-spawn-edge: #d1d5db;
+
+  --ot-error: #ef4444;
+  --ot-warning: #eab308;
+  --ot-success: #22c55e;
+  --ot-info: #3b82f6;
+}
+
+.dark {
+  --ot-bg: #0f172a;
+  --ot-surface: #1e293b;
+  --ot-sidebar: #1e293b;
+  --ot-text: #f1f5f9;
+  --ot-text-secondary: #cbd5e1;
+  --ot-text-muted: #94a3b8;
+  --ot-border: #334155;
+  --ot-border-subtle: #1e293b;
+  --ot-elevated: #334155;
+  --ot-overlay: rgba(0, 0, 0, 0.6);
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--ot-bg);
+  color: var(--ot-text);
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* React Flow overrides */
+.react-flow__background {
+  background: var(--ot-bg) !important;
+}
+
+.react-flow__minimap {
+  background: var(--ot-surface) !important;
+  border: 1px solid var(--ot-border) !important;
+  border-radius: 6px !important;
+}
+
+.react-flow__controls {
+  border: 1px solid var(--ot-border) !important;
+  border-radius: 6px !important;
+  overflow: hidden;
+}
+
+.react-flow__controls button {
+  background: var(--ot-surface) !important;
+  color: var(--ot-text) !important;
+  border-bottom-color: var(--ot-border) !important;
+}
+
+.react-flow__controls button:hover {
+  background: var(--ot-border) !important;
+}
+
+/* Edge animations */
+@keyframes ot-edge-flow {
+  from { stroke-dashoffset: 20; }
+  to { stroke-dashoffset: 0; }
+}

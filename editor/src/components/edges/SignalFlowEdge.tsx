@@ -1,0 +1,71 @@
+import { memo, useState } from 'react';
+import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react';
+import type { EdgeProps } from '@xyflow/react';
+import type { SignalFlowEdgeData } from '../../types/editor';
+
+function SignalFlowEdgeComponent({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  data,
+  selected,
+}: EdgeProps & { data?: SignalFlowEdgeData }) {
+  const [hovered, setHovered] = useState(false);
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
+  });
+
+  const isActive = selected || hovered;
+  const strokeColor = isActive ? '#9ca3af' : '#d1d5db';
+
+  const label = data?.channel || '';
+
+  return (
+    <>
+      <path
+        d={edgePath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={16}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      />
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        style={{
+          stroke: strokeColor,
+          strokeWidth: isActive ? 2 : 1.5,
+          strokeDasharray: data?.direction === 'subscription' ? '4 3' : undefined,
+        }}
+      />
+      {label && isActive && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              pointerEvents: 'none',
+              background: 'var(--ot-surface)',
+              border: '1px solid var(--ot-border)',
+              borderRadius: '4px',
+              padding: '2px 6px',
+              fontSize: '9px',
+              fontFamily: 'monospace',
+              color: 'var(--ot-text-muted)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {data?.direction === 'emission' ? '\u25B2' : '\u25BC'} {label}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+}
+
+export const SignalFlowEdge = memo(SignalFlowEdgeComponent);
