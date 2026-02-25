@@ -19,7 +19,7 @@ import type {
 /**
  * Extract the role name from a SpawnRuleEntry (string or { role, max_instances? }).
  */
-function spawnRuleTarget(entry: SpawnRuleEntry): string {
+export function spawnRuleTarget(entry: SpawnRuleEntry): string {
   return typeof entry === "string" ? entry : entry.role;
 }
 
@@ -31,7 +31,7 @@ function spawnRuleTarget(entry: SpawnRuleEntry): string {
  * that isn't "add" or "remove", OR all values are null/plain objects
  * (not arrays like add/remove would be).
  */
-function isCapabilityMap(
+export function isCapabilityMap(
   caps: Record<string, unknown>
 ): caps is CapabilityMap {
   const keys = Object.keys(caps);

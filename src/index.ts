@@ -71,7 +71,7 @@ export type {
 export { CommunicationService } from "./services/communication-service";
 
 // Template
-export { TemplateLoader } from "./template/loader";
+export { TemplateLoader, spawnRuleTarget, isCapabilityMap } from "./template/loader";
 
 // Generators
 export { generateSkillMd, generateCatalog } from "./generators/skill-generator";
