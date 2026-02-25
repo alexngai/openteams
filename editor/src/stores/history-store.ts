@@ -22,6 +22,7 @@ interface Snapshot {
     emissions: Record<string, string[]>;
     peerRoutes: PeerRoute[];
     spawnRules: Record<string, string[]>;
+    roleModels: Record<string, string>;
     topologyRoot: string;
     topologyCompanions: string[];
   };
@@ -56,6 +57,7 @@ function captureSnapshot(): Snapshot {
       emissions: deepClone(config.emissions),
       peerRoutes: deepClone(config.peerRoutes),
       spawnRules: deepClone(config.spawnRules),
+      roleModels: deepClone(config.roleModels),
       topologyRoot: config.topologyRoot,
       topologyCompanions: [...config.topologyCompanions],
     },
@@ -76,6 +78,7 @@ function restoreSnapshot(snapshot: Snapshot) {
     configState.emissions,
     configState.peerRoutes,
     configState.spawnRules,
+    configState.roleModels,
     configState.topologyRoot,
     configState.topologyCompanions,
   );

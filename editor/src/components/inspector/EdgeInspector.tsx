@@ -18,14 +18,47 @@ export function EdgeInspector({ edge }: Props) {
     const fromRole = edge.source.replace('role-', '');
     const toRole = edge.target.replace('role-', '');
 
+    const findRouteIndex = () => {
+      return useConfigStore.getState().peerRoutes.findIndex(
+        r => r.from === fromRole && r.to === toRole
+      );
+    };
+
+    const updateRoute = (updates: Partial<{ via: string; signals: string[] }>) => {
+      pushSnapshot();
+      const routes = [...useConfigStore.getState().peerRoutes];
+      const idx = findRouteIndex();
+      if (idx < 0) return;
+      routes[idx] = { ...routes[idx], ...updates } as any;
+      useConfigStore.getState().setPeerRoutes(routes);
+      // Update edge data on canvas
+      const edgeUpdates: Record<string, unknown> = {};
+      if (updates.via) edgeUpdates.via = updates.via;
+      if (updates.signals) edgeUpdates.signals = updates.signals;
+      const canvas = useCanvasStore.getState();
+      const updatedEdges = canvas.edges.map(e =>
+        e.id === edge.id ? { ...e, data: { ...e.data, ...edgeUpdates } } : e
+      );
+      canvas.setEdges(updatedEdges as any);
+    };
+
     const handleDelete = () => {
       pushSnapshot();
-      const routes = useConfigStore.getState().peerRoutes;
-      const idx = routes.findIndex(r => r.from === fromRole && r.to === toRole);
+      const idx = findRouteIndex();
       if (idx >= 0) {
         useConfigStore.getState().removePeerRoute(idx);
       }
       useCanvasStore.getState().removeEdge(edge.id);
+    };
+
+    const handleRemoveSignal = (signal: string) => {
+      updateRoute({ signals: data.signals.filter(s => s !== signal) });
+    };
+
+    const handleAddSignal = () => {
+      const signal = prompt('Signal name (UPPER_CASE):');
+      if (!signal) return;
+      updateRoute({ signals: [...data.signals, signal] });
     };
 
     return (
@@ -34,18 +67,32 @@ export function EdgeInspector({ edge }: Props) {
         <div style={{ flex: 1, overflow: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <InfoRow label="From" value={fromRole} />
           <InfoRow label="To" value={toRole} />
-          <InfoRow label="Via" value={data.via} />
+          <div>
+            <label style={labelStyle}>Via</label>
+            <select
+              style={selectStyle}
+              value={data.via}
+              onChange={e => updateRoute({ via: e.target.value })}
+            >
+              <option value="direct">direct</option>
+              <option value="topic">topic</option>
+              <option value="scope">scope</option>
+            </select>
+          </div>
           <div>
             <label style={labelStyle}>Signals</label>
-            {data.signals.length === 0 ? (
-              <div style={emptyStyle}>All signals</div>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                {data.signals.map(sig => (
-                  <span key={sig} style={tagStyle}>{sig}</span>
-                ))}
-              </div>
-            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+              {data.signals.length === 0 && (
+                <div style={emptyStyle}>All signals</div>
+              )}
+              {data.signals.map(sig => (
+                <span key={sig} style={tagStyle}>
+                  {sig}
+                  <button onClick={() => handleRemoveSignal(sig)} style={tagRemoveBtn}>{'\u00D7'}</button>
+                </span>
+              ))}
+              <button onClick={handleAddSignal} style={addBtnStyle}>+</button>
+            </div>
           </div>
           <button onClick={handleDelete} style={deleteBtnStyle}>Delete Route</button>
         </div>
@@ -113,6 +160,9 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 const headerStyle: React.CSSProperties = { padding: '12px', borderBottom: '1px solid var(--ot-border)', fontWeight: 600, fontSize: '13px', color: 'var(--ot-text)' };
 const labelStyle: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--ot-text-muted)', display: 'block', marginBottom: '4px' };
-const tagStyle: React.CSSProperties = { display: 'inline-flex', background: 'var(--ot-border)', color: 'var(--ot-text-secondary)', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace' };
+const selectStyle: React.CSSProperties = { width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid var(--ot-border)', borderRadius: '4px', background: 'var(--ot-bg)', color: 'var(--ot-text)', boxSizing: 'border-box' as const };
+const tagStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '2px', background: 'var(--ot-border)', color: 'var(--ot-text-secondary)', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace' };
+const tagRemoveBtn: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ot-text-muted)', padding: '0 2px', fontSize: '12px' };
+const addBtnStyle: React.CSSProperties = { background: 'none', border: '1px dashed var(--ot-border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px', color: 'var(--ot-text-muted)' };
 const emptyStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--ot-text-muted)', fontStyle: 'italic' };
 const deleteBtnStyle: React.CSSProperties = { background: 'var(--ot-error)', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', marginTop: '8px' };

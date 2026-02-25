@@ -1,5 +1,4 @@
 import * as yaml from 'js-yaml';
-import { useCanvasStore } from '../stores/canvas-store';
 import { useConfigStore } from '../stores/config-store';
 import { canvasToManifest, rolesToDefinitions } from './serializer';
 
@@ -18,15 +17,9 @@ const YAML_OPTIONS: yaml.DumpOptions = {
 
 export function compileToYaml(): CompiledFile[] {
   const config = useConfigStore.getState();
-  const canvas = useCanvasStore.getState();
 
-  // Collect models from canvas node data
-  const roleModels = new Map<string, string>();
-  for (const node of canvas.nodes) {
-    if (node.data.kind === 'role' && node.data.model) {
-      roleModels.set(node.data.roleName, node.data.model);
-    }
-  }
+  // Use roleModels from config store (canonical source)
+  const roleModels = new Map<string, string>(Object.entries(config.roleModels));
 
   const manifest = canvasToManifest(
     config.team,

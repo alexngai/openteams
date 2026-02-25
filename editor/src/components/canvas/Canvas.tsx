@@ -1,10 +1,11 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
   BackgroundVariant,
+  useReactFlow,
 } from '@xyflow/react';
 import type { NodeMouseHandler, EdgeMouseHandler, NodeTypes, EdgeTypes } from '@xyflow/react';
 import { RoleNode } from '../nodes/RoleNode';
@@ -12,6 +13,7 @@ import { ChannelNode } from '../nodes/ChannelNode';
 import { PeerRouteEdge } from '../edges/PeerRouteEdge';
 import { SignalFlowEdge } from '../edges/SignalFlowEdge';
 import { SpawnEdge } from '../edges/SpawnEdge';
+import { QuickAddMenu } from './QuickAddMenu';
 import { useCanvasStore } from '../../stores/canvas-store';
 import { useUIStore } from '../../stores/ui-store';
 
@@ -28,6 +30,11 @@ const edgeTypes: EdgeTypes = {
   spawn: SpawnEdge,
 } as any;
 
+interface QuickAddState {
+  screen: { x: number; y: number };
+  canvas: { x: number; y: number };
+}
+
 export function Canvas() {
   const nodes = useCanvasStore(s => s.nodes);
   const edges = useCanvasStore(s => s.edges);
@@ -35,6 +42,8 @@ export function Canvas() {
   const onEdgesChange = useCanvasStore(s => s.onEdgesChange);
   const setSelection = useCanvasStore(s => s.setSelection);
   const layers = useUIStore(s => s.layers);
+  const [quickAdd, setQuickAdd] = useState<QuickAddState | null>(null);
+  const reactFlow = useReactFlow();
 
   // Filter edges based on active layers
   const visibleEdges = edges.filter(edge => {
@@ -54,18 +63,29 @@ export function Canvas() {
 
   const handleNodeClick: NodeMouseHandler = useCallback((_, node) => {
     setSelection(node.id, null);
+    setQuickAdd(null);
   }, [setSelection]);
 
   const handleEdgeClick: EdgeMouseHandler = useCallback((_, edge) => {
     setSelection(null, edge.id);
+    setQuickAdd(null);
   }, [setSelection]);
 
   const handlePaneClick = useCallback(() => {
     setSelection(null, null);
+    setQuickAdd(null);
   }, [setSelection]);
 
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    const canvasPos = reactFlow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    setQuickAdd({
+      screen: { x: e.clientX, y: e.clientY },
+      canvas: canvasPos,
+    });
+  }, [reactFlow]);
+
   return (
-    <div style={{ flex: 1, height: '100%' }}>
+    <div style={{ flex: 1, height: '100%', position: 'relative' }}>
       <ReactFlow
         nodes={visibleNodes as any}
         edges={visibleEdges as any}
@@ -74,6 +94,7 @@ export function Canvas() {
         onNodeClick={handleNodeClick}
         onEdgeClick={handleEdgeClick}
         onPaneClick={handlePaneClick}
+        onDoubleClick={handleDoubleClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
@@ -95,6 +116,13 @@ export function Canvas() {
           }}
         />
       </ReactFlow>
+      {quickAdd && (
+        <QuickAddMenu
+          position={quickAdd.screen}
+          canvasPosition={quickAdd.canvas}
+          onClose={() => setQuickAdd(null)}
+        />
+      )}
     </div>
   );
 }

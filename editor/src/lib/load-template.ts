@@ -31,6 +31,17 @@ export function loadTemplate(manifest: TeamManifest, roleDefinitions: Map<string
     });
   }
 
+  // Extract model assignments from topology
+  const roleModels: Record<string, string> = {};
+  if (manifest.topology.root.config?.model) {
+    roleModels[manifest.topology.root.role] = manifest.topology.root.config.model;
+  }
+  for (const companion of manifest.topology.companions || []) {
+    if (companion.config?.model) {
+      roleModels[companion.role] = companion.config.model;
+    }
+  }
+
   // Build team config
   const extensions: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(manifest)) {
@@ -52,7 +63,7 @@ export function loadTemplate(manifest: TeamManifest, roleDefinitions: Map<string
 
   // Load into stores
   useConfigStore.getState().loadFromManifest(
-    team, roles, channels, subscriptions, emissions, peerRoutes, spawnRules, topologyRoot, topologyCompanions,
+    team, roles, channels, subscriptions, emissions, peerRoutes, spawnRules, roleModels, topologyRoot, topologyCompanions,
   );
 
   // Build canvas from config

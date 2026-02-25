@@ -4,6 +4,7 @@ import { useCanvasStore } from '../stores/canvas-store';
 import { useConfigStore } from '../stores/config-store';
 import { useUIStore } from '../stores/ui-store';
 import { rebuildDerivedEdges } from '../lib/rebuild-edges';
+import { computeLayout } from '../lib/auto-layout';
 
 export function useKeyboard() {
   useEffect(() => {
@@ -35,6 +36,16 @@ export function useKeyboard() {
       if (isMod && e.key === 'e') {
         e.preventDefault();
         useUIStore.getState().setExportModalOpen(true);
+        return;
+      }
+
+      // Auto-layout: Ctrl+Shift+L
+      if (isMod && e.shiftKey && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        const canvas = useCanvasStore.getState();
+        useHistoryStore.getState().pushSnapshot();
+        const layoutNodes = computeLayout(canvas.nodes, canvas.edges);
+        canvas.setNodes(layoutNodes);
         return;
       }
 

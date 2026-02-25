@@ -31,6 +31,7 @@ interface ConfigStore {
   emissions: Record<string, string[]>;
   peerRoutes: PeerRoute[];
   spawnRules: Record<string, string[]>;
+  roleModels: Record<string, string>;
   topologyRoot: string;
   topologyCompanions: string[];
 
@@ -46,6 +47,7 @@ interface ConfigStore {
   removePeerRoute: (index: number) => void;
   setPeerRoutes: (routes: PeerRoute[]) => void;
   setSpawnRules: (role: string, canSpawn: string[]) => void;
+  setRoleModel: (role: string, model: string | undefined) => void;
   setTopologyRoot: (role: string) => void;
   setTopologyCompanions: (roles: string[]) => void;
   clear: () => void;
@@ -57,6 +59,7 @@ interface ConfigStore {
     emissions: Record<string, string[]>,
     peerRoutes: PeerRoute[],
     spawnRules: Record<string, string[]>,
+    roleModels: Record<string, string>,
     topologyRoot: string,
     topologyCompanions: string[],
   ) => void;
@@ -78,6 +81,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   emissions: {},
   peerRoutes: [],
   spawnRules: {},
+  roleModels: {},
   topologyRoot: '',
   topologyCompanions: [],
 
@@ -105,11 +109,14 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     for (const key of Object.keys(newSpawnRules)) {
       newSpawnRules[key] = newSpawnRules[key].filter(r => r !== name);
     }
+    const newModels = { ...get().roleModels };
+    delete newModels[name];
     set({
       roles,
       subscriptions: newSubs,
       emissions: newEmissions,
       spawnRules: newSpawnRules,
+      roleModels: newModels,
       peerRoutes: peerRoutes.filter(r => r.from !== name && r.to !== name),
       topologyRoot: topologyRoot === name ? '' : topologyRoot,
       topologyCompanions: topologyCompanions.filter(c => c !== name),
@@ -143,11 +150,16 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       newSpawnRules[renamedKey] = val.map(r => (r === oldName ? newName : r));
     }
 
+    const newModels: Record<string, string> = {};
+    for (const [key, val] of Object.entries(get().roleModels)) {
+      newModels[key === oldName ? newName : key] = val;
+    }
     set({
       roles: newRoles,
       subscriptions: newSubs,
       emissions: newEmissions,
       spawnRules: newSpawnRules,
+      roleModels: newModels,
       peerRoutes: peerRoutes.map(r => ({
         ...r,
         from: r.from === oldName ? newName : r.from,
@@ -197,6 +209,16 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     set({ spawnRules: { ...get().spawnRules, [role]: canSpawn } });
   },
 
+  setRoleModel: (role, model) => {
+    const models = { ...get().roleModels };
+    if (model) {
+      models[role] = model;
+    } else {
+      delete models[role];
+    }
+    set({ roleModels: models });
+  },
+
   setTopologyRoot: (role) => set({ topologyRoot: role }),
   setTopologyCompanions: (roles) => set({ topologyCompanions: roles }),
 
@@ -209,12 +231,13 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       emissions: {},
       peerRoutes: [],
       spawnRules: {},
+      roleModels: {},
       topologyRoot: '',
       topologyCompanions: [],
     });
   },
 
-  loadFromManifest: (team, roles, channels, subscriptions, emissions, peerRoutes, spawnRules, topologyRoot, topologyCompanions) => {
-    set({ team, roles, channels, subscriptions, emissions, peerRoutes, spawnRules, topologyRoot, topologyCompanions });
+  loadFromManifest: (team, roles, channels, subscriptions, emissions, peerRoutes, spawnRules, roleModels, topologyRoot, topologyCompanions) => {
+    set({ team, roles, channels, subscriptions, emissions, peerRoutes, spawnRules, roleModels, topologyRoot, topologyCompanions });
   },
 }));

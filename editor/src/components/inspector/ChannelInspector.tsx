@@ -32,6 +32,32 @@ export function ChannelInspector({ nodeId, data }: Props) {
     }
   }
 
+  const handleRenameChannel = (newName: string) => {
+    if (!newName || newName === data.channelName) return;
+    if (configStore.channels[newName]) {
+      alert(`Channel "${newName}" already exists.`);
+      return;
+    }
+    pushSnapshot();
+    // Create new channel, remove old
+    const config = useConfigStore.getState();
+    config.setChannel(newName, channel);
+    config.removeChannel(data.channelName);
+    // Update subscriptions referencing old channel name
+    for (const [role, subs] of Object.entries(config.subscriptions)) {
+      const updated = subs.map(s =>
+        s.channel === data.channelName ? { ...s, channel: newName } : s
+      );
+      if (updated.some((s, i) => s !== subs[i])) {
+        config.setSubscriptions(role, updated);
+      }
+    }
+    // Update canvas node
+    useCanvasStore.getState().updateNodeData(nodeId, { channelName: newName });
+    // Rebuild derived edges (they reference channel names)
+    rebuildDerivedEdges();
+  };
+
   const handleUpdateDescription = (description: string) => {
     pushSnapshot();
     useConfigStore.getState().setChannel(data.channelName, { ...channel, description });
@@ -68,6 +94,15 @@ export function ChannelInspector({ nodeId, data }: Props) {
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div>
+          <label style={labelStyle}>Name</label>
+          <input
+            style={inputStyle}
+            defaultValue={data.channelName}
+            onBlur={e => handleRenameChannel(e.target.value.trim())}
+            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          />
+        </div>
         <div>
           <label style={labelStyle}>Description</label>
           <textarea

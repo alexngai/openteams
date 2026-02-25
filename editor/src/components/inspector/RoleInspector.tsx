@@ -130,6 +130,9 @@ function IdentityTab({ role, data, nodeId, updateRole }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <Field label="Name">
+        <input style={{ ...inputStyle, opacity: 0.6 }} value={data.roleName} readOnly />
+      </Field>
       <Field label="Display Name">
         <input
           style={inputStyle}
@@ -150,9 +153,9 @@ function IdentityTab({ role, data, nodeId, updateRole }: {
           value={data.model || ''}
           onChange={e => {
             pushSnapshot();
-            useCanvasStore.getState().updateNodeData(nodeId, {
-              model: e.target.value || undefined,
-            });
+            const model = e.target.value || undefined;
+            useCanvasStore.getState().updateNodeData(nodeId, { model });
+            useConfigStore.getState().setRoleModel(data.roleName, model);
           }}
         >
           <option value="">— default —</option>
@@ -283,6 +286,33 @@ function CommunicationTab({ data }: { data: RoleNodeData }) {
             {'\u2192'} {r.to} via {r.via} {r.signals?.length ? `[${r.signals.join(', ')}]` : ''}
           </div>
         ))}
+        <button
+          onClick={() => {
+            const allRoles = Array.from(useConfigStore.getState().roles.keys()).filter(r => r !== data.roleName);
+            if (allRoles.length === 0) { alert('No other roles to route to.'); return; }
+            const to = prompt(`Target role (${allRoles.join(', ')}):`);
+            if (!to || !useConfigStore.getState().roles.has(to)) return;
+            pushSnapshot();
+            const route = { from: data.roleName, to, via: 'direct' as const, signals: [] };
+            useConfigStore.getState().addPeerRoute(route);
+            // Add peer route edge to canvas
+            useCanvasStore.getState().addEdge({
+              id: `peer-${data.roleName}-${to}-${Date.now()}`,
+              source: `role-${data.roleName}`,
+              target: `role-${to}`,
+              type: 'peer-route',
+              data: { kind: 'peer-route', signals: [], via: 'direct' },
+            });
+            // Update route counts on node
+            const newOutCount = useConfigStore.getState().peerRoutes.filter(r2 => r2.from === data.roleName).length;
+            useCanvasStore.getState().updateNodeData(`role-${data.roleName}`, { peerRoutesOut: newOutCount });
+            const newInCount = useConfigStore.getState().peerRoutes.filter(r2 => r2.to === to).length;
+            useCanvasStore.getState().updateNodeData(`role-${to}`, { peerRoutesIn: newInCount });
+          }}
+          style={{ ...addBtnStyle, marginTop: '4px' }}
+        >
+          + Add Route
+        </button>
       </div>
       <div>
         <div style={sectionLabel}>Peer Routes (incoming)</div>
