@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import JSZip from 'jszip';
 import { compileToYaml } from '../../lib/compiler';
 import type { CompiledFile } from '../../lib/compiler';
 
@@ -17,11 +18,18 @@ export function ExportModal({ onClose }: Props) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleCopyAll = async () => {
-    const combined = files.map(f => `# --- ${f.path} ---\n${f.content}`).join('\n\n');
-    await navigator.clipboard.writeText(combined);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleDownloadZip = async () => {
+    const zip = new JSZip();
+    for (const f of files) {
+      zip.file(f.path, f.content);
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'template.zip';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -70,8 +78,8 @@ export function ExportModal({ onClose }: Props) {
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' }}>
-          <button onClick={handleCopyAll} style={actionBtnStyle}>
-            Copy All Files
+          <button onClick={handleDownloadZip} style={actionBtnStyle}>
+            Download All
           </button>
           <button onClick={onClose} style={{ ...actionBtnStyle, background: 'var(--color-border)', color: 'var(--color-text)' }}>
             Close
