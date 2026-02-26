@@ -11,9 +11,9 @@ export function computeLayout(nodes: EditorNode[], edges: EditorEdge[]): EditorN
 
   const g = new dagre.graphlib.Graph();
   g.setGraph({
-    rankdir: 'LR',
-    ranksep: 140,
-    nodesep: 60,
+    rankdir: 'TB',
+    ranksep: 120,
+    nodesep: 80,
     marginx: 40,
     marginy: 40,
   });

@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react';
+import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import type { PeerRouteEdgeData } from '../../types/editor';
 
@@ -15,8 +15,14 @@ function PeerRouteEdgeComponent({
   selected,
 }: EdgeProps & { data?: PeerRouteEdgeData }) {
   const [hovered, setHovered] = useState(false);
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
+  const offset = data?.pathOffset as { sourceX: number; sourceY: number; targetX: number; targetY: number } | undefined;
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
+    sourceX: sourceX + (offset?.sourceX ?? 0),
+    sourceY: sourceY + (offset?.sourceY ?? 0),
+    targetX: targetX + (offset?.targetX ?? 0),
+    targetY: targetY + (offset?.targetY ?? 0),
+    sourcePosition,
+    targetPosition,
   });
 
   const isActive = selected || hovered;

@@ -26,8 +26,8 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
         cursor: 'pointer',
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ background: colors.badge }} />
-      <Handle type="source" position={Position.Right} style={{ background: colors.badge }} />
+      <Handle type="target" position={Position.Top} style={{ background: colors.badge }} />
+      <Handle type="source" position={Position.Bottom} style={{ background: colors.badge }} />
 
       {/* Header */}
       <div style={{

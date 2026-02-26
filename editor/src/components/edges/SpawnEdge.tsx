@@ -1,6 +1,7 @@
 import { memo, useState } from 'react';
-import { BaseEdge, getBezierPath } from '@xyflow/react';
+import { BaseEdge, getSmoothStepPath } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
+import type { SpawnEdgeData } from '../../types/editor';
 
 function SpawnEdgeComponent({
   id,
@@ -11,10 +12,17 @@ function SpawnEdgeComponent({
   sourcePosition,
   targetPosition,
   selected,
-}: EdgeProps) {
+  data,
+}: EdgeProps & { data?: SpawnEdgeData }) {
   const [hovered, setHovered] = useState(false);
-  const [edgePath] = getBezierPath({
-    sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
+  const offset = data?.pathOffset as { sourceX: number; sourceY: number; targetX: number; targetY: number } | undefined;
+  const [edgePath] = getSmoothStepPath({
+    sourceX: sourceX + (offset?.sourceX ?? 0),
+    sourceY: sourceY + (offset?.sourceY ?? 0),
+    targetX: targetX + (offset?.targetX ?? 0),
+    targetY: targetY + (offset?.targetY ?? 0),
+    sourcePosition,
+    targetPosition,
   });
 
   const isActive = selected || hovered;

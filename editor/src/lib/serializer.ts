@@ -48,6 +48,55 @@ function getModelForRole(roleName: string, manifest: TeamManifest): string | und
   return companion?.config?.model;
 }
 
+// ── Path offset computation ───────────────────────────
+
+const EDGE_SPREAD_X = 8; // horizontal px between sibling edge paths
+const EDGE_SPREAD_Y = 6; // vertical px between sibling edge paths
+
+/**
+ * For edges sharing the same source or target node, assign small X and Y
+ * offsets so their SmoothStep paths don't overlap.  X offsets fan sibling
+ * edges at the connection point; Y offsets separate the horizontal segments
+ * that would otherwise run along the same line.
+ */
+function assignPathOffsets(edges: EditorEdge[]): void {
+  // Count how many edges leave/enter each node
+  const sourceCount = new Map<string, number>();
+  const targetCount = new Map<string, number>();
+  for (const e of edges) {
+    sourceCount.set(e.source, (sourceCount.get(e.source) ?? 0) + 1);
+    targetCount.set(e.target, (targetCount.get(e.target) ?? 0) + 1);
+  }
+
+  // Assign per-edge index within each group
+  const sourceIdx = new Map<string, number>();
+  const targetIdx = new Map<string, number>();
+
+  for (const e of edges) {
+    const srcTotal = sourceCount.get(e.source) ?? 1;
+    const si = sourceIdx.get(e.source) ?? 0;
+    sourceIdx.set(e.source, si + 1);
+
+    const tgtTotal = targetCount.get(e.target) ?? 1;
+    const ti = targetIdx.get(e.target) ?? 0;
+    targetIdx.set(e.target, ti + 1);
+
+    const srcOffsetX = (si - (srcTotal - 1) / 2) * EDGE_SPREAD_X;
+    const tgtOffsetX = (ti - (tgtTotal - 1) / 2) * EDGE_SPREAD_X;
+    const srcOffsetY = (si - (srcTotal - 1) / 2) * EDGE_SPREAD_Y;
+    const tgtOffsetY = (ti - (tgtTotal - 1) / 2) * EDGE_SPREAD_Y;
+
+    if (e.data) {
+      (e.data as Record<string, unknown>).pathOffset = {
+        sourceX: srcOffsetX,
+        sourceY: srcOffsetY,
+        targetX: tgtOffsetX,
+        targetY: tgtOffsetY,
+      };
+    }
+  }
+}
+
 // ── Config → Canvas ────────────────────────────────────
 
 export function configToCanvas(
@@ -229,7 +278,10 @@ export function configToCanvas(
     }
   }
 
-  // 7. Auto-layout
+  // 7. Compute path offsets so sibling edges don't overlap
+  assignPathOffsets(edges);
+
+  // 8. Auto-layout
   const layoutNodes = computeLayout(nodes, edges);
 
   return {

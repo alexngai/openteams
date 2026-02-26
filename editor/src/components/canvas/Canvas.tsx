@@ -106,7 +106,7 @@ export function Canvas() {
         maxZoom={2}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--color-canvas-dot)" />
-        <Controls position="bottom-right" />
+        <Controls position="bottom-left" />
         <MiniMap
           position="bottom-right"
           style={{ marginBottom: 50 }}
