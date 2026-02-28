@@ -6,3 +6,6 @@ dist/
 .firebase/
 .firebaserc
 firebase.json
+
+# Cloned reference repos
+self-driving-repo/
