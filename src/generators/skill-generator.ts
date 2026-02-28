@@ -7,6 +7,8 @@ export interface SkillGeneratorOptions {
   includeCliExamples?: boolean;
   /** Whether to include YAML frontmatter */
   includeFrontmatter?: boolean;
+  /** Whether to include Claude Code agent teams integration section */
+  includeClaudeCodeTeams?: boolean;
 }
 
 export interface CatalogOptions {
@@ -91,6 +93,7 @@ export function generateSkillMd(
   const teamName = options.teamName ?? template.manifest.name;
   const includeCliExamples = options.includeCliExamples ?? true;
   const includeFrontmatter = options.includeFrontmatter ?? false;
+  const includeClaudeCodeTeams = options.includeClaudeCodeTeams ?? false;
   const m = template.manifest;
 
   const sections: string[] = [];
@@ -124,6 +127,11 @@ export function generateSkillMd(
 
   // Interaction guidelines
   sections.push(generateGuidelinesSection(teamName, template, includeCliExamples));
+
+  // Claude Code agent teams integration
+  if (includeClaudeCodeTeams) {
+    sections.push(generateClaudeCodeTeamsSection(template, teamName));
+  }
 
   return sections.join("\n\n") + "\n";
 }
@@ -367,6 +375,155 @@ function generateGuidelinesSection(
 
     lines.push("```");
   }
+
+  return lines.join("\n");
+}
+
+function generateClaudeCodeTeamsSection(
+  template: ResolvedTemplate,
+  teamName: string
+): string {
+  const m = template.manifest;
+  const lines: string[] = ["## Claude Code Agent Teams Integration"];
+
+  lines.push("");
+  lines.push(
+    "This team is designed to work with Claude Code's agent teams feature. " +
+    "The OpenTeams template defines the team topology, roles, and communication " +
+    "patterns. Claude Code handles spawning and managing the teammate sessions."
+  );
+
+  // Lead role mapping
+  lines.push("");
+  lines.push("### Team Lead");
+  lines.push("");
+  const rootRole = m.topology.root.role;
+  const rootConfig = m.topology.root.config;
+  lines.push(
+    `The **${rootRole}** role maps to the Claude Code team lead. ` +
+    `When creating the agent team, the lead session should adopt the ${rootRole} role identity.`
+  );
+  if (rootConfig?.model) {
+    lines.push(`Recommended model for lead: **${rootConfig.model}**`);
+  }
+
+  // Teammate spawning
+  lines.push("");
+  lines.push("### Spawning Teammates");
+  lines.push("");
+  lines.push(
+    "When the lead spawns teammates, use the generated role prompts as spawn instructions. " +
+    "Each role's prompt file contains full context: identity, communication subscriptions, " +
+    "spawn permissions, and CLI reference."
+  );
+  lines.push("");
+  lines.push("```");
+  lines.push("# Generate role prompts for use as spawn instructions");
+  lines.push(`openteams generate agents <template-dir> --name ${teamName}`);
+  lines.push("```");
+  lines.push("");
+  lines.push("Map OpenTeams roles to Claude Code teammates:");
+  lines.push("");
+
+  // Companions = immediate teammates
+  if (m.topology.companions && m.topology.companions.length > 0) {
+    for (const companion of m.topology.companions) {
+      const model = companion.config?.model;
+      const modelNote = model ? ` (model: ${model})` : "";
+      lines.push(
+        `- **${companion.role}**: spawn as a teammate${modelNote}`
+      );
+    }
+  }
+
+  // Spawned roles
+  const spawnedRoles = m.roles.filter(
+    (r) =>
+      r !== rootRole &&
+      !m.topology.companions?.some((c) => c.role === r)
+  );
+  if (spawnedRoles.length > 0) {
+    for (const role of spawnedRoles) {
+      lines.push(
+        `- **${role}**: spawn on demand per spawn rules`
+      );
+    }
+  }
+
+  // Spawn rules as teammate guidance
+  if (m.topology.spawn_rules) {
+    lines.push("");
+    lines.push(
+      "Respect the spawn rules above when creating teammates. " +
+      "Only the lead or permitted roles should spawn additional teammates."
+    );
+  }
+
+  // Communication bridging
+  lines.push("");
+  lines.push("### Communication");
+  lines.push("");
+  lines.push(
+    "Claude Code teammates communicate via direct messages and broadcast. " +
+    "OpenTeams adds structured signal channels on top of this. Use both:"
+  );
+  lines.push("");
+  lines.push(
+    "- **Direct messages**: use Claude Code's native messaging for ad-hoc coordination"
+  );
+  lines.push(
+    "- **Signal channels**: use `openteams template emit` for structured lifecycle " +
+    "events (task transitions, status updates, phase gates)"
+  );
+  lines.push(
+    "- **Task board**: use `openteams task` to track work items with dependency tracking " +
+    "alongside Claude Code's native shared task list"
+  );
+
+  // Hooks
+  lines.push("");
+  lines.push("### Hooks");
+  lines.push("");
+  lines.push(
+    "Install OpenTeams hooks to bridge Claude Code team events to signal channels:"
+  );
+  lines.push("");
+  lines.push("```bash");
+  lines.push(`openteams generate hooks <template-dir> --name ${teamName}`);
+  lines.push("```");
+  lines.push("");
+  lines.push("This installs two hooks:");
+  lines.push(
+    "- **TeammateIdle**: emits `teammate_idle` on the lifecycle channel when a teammate finishes. " +
+    "If pending tasks remain, the teammate is told to pick one up."
+  );
+  lines.push(
+    "- **TaskCompleted**: emits `task_completed` on the lifecycle channel when a task is marked done, " +
+    "so subscribed roles can react."
+  );
+
+  // Quick start
+  lines.push("");
+  lines.push("### Quick Start");
+  lines.push("");
+  lines.push("```bash");
+  lines.push("# 1. Bootstrap the team in OpenTeams");
+  lines.push(`openteams template bootstrap <template-dir>`);
+  lines.push("");
+  lines.push("# 2. Generate role prompts");
+  lines.push(`openteams generate agents <template-dir> --name ${teamName}`);
+  lines.push("");
+  lines.push("# 3. Install hooks");
+  lines.push(`openteams generate hooks <template-dir> --name ${teamName}`);
+  lines.push("");
+  lines.push("# 4. Enable agent teams in Claude Code");
+  lines.push(`export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`);
+  lines.push("");
+  lines.push("# 5. Tell the lead to create the team using the role prompts");
+  lines.push(
+    `claude "Create an agent team for ${teamName}. Use the role prompts in agents/ as spawn instructions for each teammate."`
+  );
+  lines.push("```");
 
   return lines.join("\n");
 }

@@ -9,6 +9,7 @@ import {
   generateRoleSkillMd,
 } from "../generators/agent-prompt-generator";
 import { generatePackage } from "../generators/package-generator";
+import { installHooks } from "../hooks/claude-code";
 
 export function createGenerateCommands(): Command {
   const generate = new Command("generate").description(
@@ -210,6 +211,44 @@ export function createGenerateCommands(): Command {
         } else {
           process.stdout.write(result.content);
         }
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  generate
+    .command("hooks <dir>")
+    .description(
+      "Install Claude Code agent team hooks for a team template"
+    )
+    .option("-n, --name <name>", "Override the team name")
+    .option(
+      "-o, --output <path>",
+      "Output directory for hook scripts (default: .claude/hooks/)"
+    )
+    .option("--openteams-path <path>", "Path to openteams CLI", "openteams")
+    .action((dir: string, opts) => {
+      try {
+        const template = TemplateLoader.load(dir);
+        const teamName = opts.name ?? template.manifest.name;
+
+        const result = installHooks(template, {
+          teamName,
+          outputDir: opts.output,
+          openteamsPath: opts.openteamsPath,
+        });
+
+        console.log(`Installed Claude Code hooks for team "${teamName}":`);
+        for (const scriptPath of result.scriptPaths) {
+          console.log(`  ${scriptPath}`);
+        }
+        console.log(
+          `\nHook config written to .claude/hooks.json`
+        );
+        console.log(
+          `\nEnsure CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 is set in your environment.`
+        );
       } catch (err: any) {
         console.error(`Error: ${err.message}`);
         process.exitCode = 1;

@@ -10,9 +10,15 @@ import { createTemplateCommands } from "./cli/template";
 import { createGenerateCommands } from "./cli/generate";
 import { createEditorCommand } from "./cli/editor";
 import { MockSpawner } from "./spawner/mock";
+import { ClaudeCodeSpawner } from "./spawner/claude-code";
 import type { AgentSpawner } from "./types";
 
 function loadSpawner(): AgentSpawner {
+  // Use Claude Code teams spawner when the feature flag is set
+  if (process.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS === "1") {
+    return new ClaudeCodeSpawner();
+  }
+
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { ACPFactorySpawner } = require("./spawner/acp-factory");

@@ -100,6 +100,21 @@ export type {
 // Spawner
 export { setSpawner, getSpawner, hasSpawner } from "./spawner/interface";
 export { MockSpawner } from "./spawner/mock";
+export { ClaudeCodeSpawner } from "./spawner/claude-code";
+export type { ClaudeCodeSpawnerOptions } from "./spawner/claude-code";
+
+// Hooks
+export {
+  generateHookScripts,
+  installHooks,
+  mergeHooksConfig,
+} from "./hooks/claude-code";
+export type {
+  HookConfig,
+  HookEntry,
+  GenerateHooksOptions,
+  GenerateHooksResult,
+} from "./hooks/claude-code";
 
 /**
  * Create an ACPFactorySpawner instance. Requires the optional `acp-factory` package.

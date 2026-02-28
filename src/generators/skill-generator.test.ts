@@ -202,6 +202,76 @@ describe("generateSkillMd", () => {
   });
 });
 
+describe("generateSkillMd with Claude Code teams", () => {
+  it("omits Claude Code section by default", () => {
+    const md = generateSkillMd(makeFullTemplate());
+    expect(md).not.toContain("## Claude Code Agent Teams Integration");
+  });
+
+  it("includes Claude Code section when enabled", () => {
+    const md = generateSkillMd(makeFullTemplate(), {
+      includeClaudeCodeTeams: true,
+    });
+    expect(md).toContain("## Claude Code Agent Teams Integration");
+  });
+
+  it("maps root role to team lead", () => {
+    const md = generateSkillMd(makeFullTemplate(), {
+      includeClaudeCodeTeams: true,
+    });
+    expect(md).toContain("**planner** role maps to the Claude Code team lead");
+  });
+
+  it("includes model recommendation for lead", () => {
+    const md = generateSkillMd(makeFullTemplate(), {
+      includeClaudeCodeTeams: true,
+    });
+    expect(md).toContain("Recommended model for lead: **sonnet**");
+  });
+
+  it("lists companions as teammates", () => {
+    const md = generateSkillMd(makeFullTemplate(), {
+      includeClaudeCodeTeams: true,
+    });
+    expect(md).toContain("**judge**: spawn as a teammate");
+  });
+
+  it("lists spawned roles as on-demand", () => {
+    const md = generateSkillMd(makeFullTemplate(), {
+      includeClaudeCodeTeams: true,
+    });
+    expect(md).toContain("**grinder**: spawn on demand per spawn rules");
+  });
+
+  it("includes hooks section", () => {
+    const md = generateSkillMd(makeFullTemplate(), {
+      includeClaudeCodeTeams: true,
+    });
+    expect(md).toContain("### Hooks");
+    expect(md).toContain("openteams generate hooks");
+    expect(md).toContain("TeammateIdle");
+    expect(md).toContain("TaskCompleted");
+  });
+
+  it("includes quick start section", () => {
+    const md = generateSkillMd(makeFullTemplate(), {
+      includeClaudeCodeTeams: true,
+    });
+    expect(md).toContain("### Quick Start");
+    expect(md).toContain("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1");
+    expect(md).toContain("openteams template bootstrap");
+  });
+
+  it("uses overridden team name in Claude Code section", () => {
+    const md = generateSkillMd(makeFullTemplate(), {
+      includeClaudeCodeTeams: true,
+      teamName: "my-project",
+    });
+    expect(md).toContain("openteams generate agents <template-dir> --name my-project");
+    expect(md).toContain("openteams generate hooks <template-dir> --name my-project");
+  });
+});
+
 describe("generateCatalog", () => {
   it("includes team name and description", () => {
     const catalog = generateCatalog(makeFullTemplate());
