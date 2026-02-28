@@ -58,4 +58,62 @@ else
   log "Warning: smoke test failed. You may need to run 'npm run build' manually."
 fi
 
+# --- 5. Bootstrap team template ---
+# Detection order: repo root team.yaml > OPENTEAMS_TEMPLATE env > examples/get-shit-done
+TEAM_TEMPLATE=""
+if [ -f "$PROJECT_DIR/team.yaml" ]; then
+  TEAM_TEMPLATE="$PROJECT_DIR"
+elif [ -n "$OPENTEAMS_TEMPLATE" ] && [ -f "$OPENTEAMS_TEMPLATE/team.yaml" ]; then
+  TEAM_TEMPLATE="$OPENTEAMS_TEMPLATE"
+elif [ -d "$PROJECT_DIR/examples/get-shit-done" ]; then
+  TEAM_TEMPLATE="$PROJECT_DIR/examples/get-shit-done"
+fi
+
+if [ -n "$TEAM_TEMPLATE" ]; then
+  # Extract team name from manifest
+  TEAM_NAME=$(grep '^name:' "$TEAM_TEMPLATE/team.yaml" | head -1 | sed 's/^name: *//' | tr -d '"' | tr -d "'")
+
+  if [ -n "$TEAM_NAME" ]; then
+    # Bootstrap team into database (skip if already exists)
+    if ! openteams team info "$TEAM_NAME" >/dev/null 2>&1; then
+      log "Bootstrapping team '$TEAM_NAME' from $TEAM_TEMPLATE..."
+      if openteams template load "$TEAM_TEMPLATE" 2>&1 | tail -5; then
+        log "Team '$TEAM_NAME' bootstrapped."
+      else
+        log "Warning: team bootstrap failed. You can run 'openteams template load $TEAM_TEMPLATE' manually."
+      fi
+    else
+      log "Team '$TEAM_NAME' already bootstrapped."
+    fi
+
+    # Append team SKILL.md to CLAUDE.md if not already present
+    SKILL_MARKER="<!-- openteams-team-context -->"
+    if ! grep -q "$SKILL_MARKER" "$PROJECT_DIR/CLAUDE.md" 2>/dev/null; then
+      log "Generating team context for CLAUDE.md..."
+      SKILL_FILE=$(mktemp)
+      if openteams generate skill "$TEAM_TEMPLATE" -o "$SKILL_FILE" 2>/dev/null && [ -s "$SKILL_FILE" ]; then
+        {
+          echo ""
+          echo "$SKILL_MARKER"
+          echo ""
+          cat "$SKILL_FILE"
+          echo ""
+          echo "<!-- /openteams-team-context -->"
+        } >> "$PROJECT_DIR/CLAUDE.md"
+        rm -f "$SKILL_FILE"
+        log "Team context appended to CLAUDE.md."
+      else
+        rm -f "$SKILL_FILE"
+        log "Warning: could not generate SKILL.md. Run 'openteams generate skill $TEAM_TEMPLATE' manually."
+      fi
+    else
+      log "Team context already in CLAUDE.md."
+    fi
+  else
+    log "Warning: could not extract team name from $TEAM_TEMPLATE/team.yaml"
+  fi
+else
+  log "No team template found. Place a team.yaml in the repo root or set OPENTEAMS_TEMPLATE."
+fi
+
 log "Setup complete. Run 'openteams --help' to get started."
