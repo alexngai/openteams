@@ -1,0 +1,5 @@
+name: communicator
+display_name: Incident Communicator
+description: "Drafts stakeholder communications and postmortem summaries. Translates technical findings into clear status updates for different audiences."
+capabilities:
+  - issue.comment

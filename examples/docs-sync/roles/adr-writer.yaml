@@ -1,0 +1,7 @@
+name: adr-writer
+display_name: ADR Writer
+description: "Drafts Architecture Decision Records for significant architectural changes. Only triggered when architectural changes are detected."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - file.write

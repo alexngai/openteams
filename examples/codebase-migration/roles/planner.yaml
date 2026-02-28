@@ -1,0 +1,5 @@
+name: planner
+display_name: Migration Planner
+description: "Creates a phased migration strategy with rollback points. Determines ordering constraints and identifies which changes can be parallelized."
+capabilities:
+  - issue.comment

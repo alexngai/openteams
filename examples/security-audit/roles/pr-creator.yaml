@@ -1,0 +1,6 @@
+name: pr-creator
+display_name: Audit PR Creator
+description: "Creates a pull request with the full audit report, listing all findings, remediations applied, and verification results."
+capabilities:
+  - pr.create
+  - issue.comment

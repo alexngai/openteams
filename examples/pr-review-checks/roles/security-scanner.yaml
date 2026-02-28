@@ -1,0 +1,6 @@
+name: security-scanner
+display_name: Security Scanner
+description: "Scans PR changes for security vulnerabilities, including injection risks, credential exposure, and unsafe dependencies."
+capabilities:
+  - codebase.read
+  - codebase.search

@@ -1,0 +1,8 @@
+name: investigator
+display_name: Bug Investigator
+description: "Performs root cause analysis on triaged bugs. Traces control flow, identifies the failing code path, and documents findings for the fixer."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - exec.run
+  - root.cause.analysis

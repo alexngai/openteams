@@ -1,0 +1,7 @@
+name: assessor
+display_name: Migration Assessor
+description: "Evaluates migration scope, identifies affected files and modules, estimates risk, and determines if automated migration is feasible."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - exec.run

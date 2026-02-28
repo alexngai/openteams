@@ -1,0 +1,7 @@
+name: validator
+display_name: Migration Validator
+description: "Runs the full test suite and characterization tests to confirm the migration preserves all existing behavior. Read-only verification."
+capabilities:
+  - codebase.read
+  - exec.run
+  - exec.test

@@ -1,0 +1,9 @@
+name: migrator
+display_name: Code Migrator
+description: "Applies the migration plan — refactors code, updates APIs, modifies configurations. Runs characterization tests after each change to ensure behavioral preservation."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - file.write
+  - exec.run
+  - exec.test

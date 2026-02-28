@@ -1,0 +1,8 @@
+name: incident-triager
+display_name: Incident Triager
+description: "Classifies incident severity (P0-P3), identifies affected services, and performs initial impact assessment for rapid response."
+capabilities:
+  - issue.classify
+  - codebase.read
+  - codebase.search
+  - exec.run

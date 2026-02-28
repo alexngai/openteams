@@ -1,0 +1,6 @@
+name: summarizer
+display_name: Review Summarizer
+description: "Consolidates results from all parallel checks into a single status comment with pass/fail determination and actionable next steps."
+capabilities:
+  - issue.comment
+  - issue.label

@@ -1,0 +1,7 @@
+name: api-doc-writer
+display_name: API Doc Writer
+description: "Updates API documentation, OpenAPI specs, and reference docs to reflect code changes."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - file.write

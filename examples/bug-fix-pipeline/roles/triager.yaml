@@ -1,0 +1,7 @@
+name: triager
+display_name: Bug Triager
+description: "Classifies incoming bug reports by severity, identifies affected areas, and determines if the issue is actionable for automated fixing."
+capabilities:
+  - issue.classify
+  - codebase.read
+  - codebase.search

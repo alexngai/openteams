@@ -1,0 +1,8 @@
+name: verifier
+display_name: Fix Verifier
+description: "Independently verifies that the fix resolves the original bug without introducing regressions. Cannot modify code — read-only verification."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - exec.run
+  - exec.test

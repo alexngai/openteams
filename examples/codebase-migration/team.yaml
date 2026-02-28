@@ -1,0 +1,81 @@
+name: codebase-migration
+description: "Linear migration pipeline with test-first safety net — assess scope, plan strategy, extract characterization tests, apply migration, then validate. Tests are written before migration to ensure behavioral preservation."
+version: 1
+roles:
+  - assessor
+  - planner
+  - test-extractor
+  - migrator
+  - validator
+
+topology:
+  root:
+    role: assessor
+    prompt: prompts/assess.md
+  spawn_rules:
+    assessor: [planner]
+    planner: [test-extractor]
+    test-extractor: [migrator]
+    migrator: [validator]
+    validator: []
+
+communication:
+  enforcement: strict
+
+  channels:
+    assessment_events:
+      description: "Migration scope and impact analysis"
+      signals: [MIGRATION_ASSESSED, MIGRATION_TOO_RISKY]
+    planning_events:
+      description: "Migration strategy and phasing"
+      signals: [MIGRATION_PLANNED]
+    testing_events:
+      description: "Characterization test extraction before migration"
+      signals: [TESTS_READY, TEST_EXTRACTION_FAILED]
+    migration_events:
+      description: "Migration application lifecycle"
+      signals: [MIGRATION_APPLIED, MIGRATION_FAILED]
+    validation_events:
+      description: "Post-migration verification"
+      signals: [MIGRATION_VERIFIED, MIGRATION_NEEDS_REWORK]
+
+  subscriptions:
+    assessor: []
+    planner:
+      - channel: assessment_events
+        signals: [MIGRATION_ASSESSED]
+    test-extractor:
+      - channel: planning_events
+        signals: [MIGRATION_PLANNED]
+    migrator:
+      - channel: testing_events
+        signals: [TESTS_READY]
+    validator:
+      - channel: migration_events
+        signals: [MIGRATION_APPLIED]
+
+  emissions:
+    assessor: [MIGRATION_ASSESSED, MIGRATION_TOO_RISKY]
+    planner: [MIGRATION_PLANNED]
+    test-extractor: [TESTS_READY, TEST_EXTRACTION_FAILED]
+    migrator: [MIGRATION_APPLIED, MIGRATION_FAILED]
+    validator: [MIGRATION_VERIFIED, MIGRATION_NEEDS_REWORK]
+
+  routing:
+    peers:
+      - from: assessor
+        to: planner
+        via: direct
+        signals: [MIGRATION_ASSESSED]
+      - from: planner
+        to: test-extractor
+        via: direct
+        signals: [MIGRATION_PLANNED]
+      - from: test-extractor
+        to: migrator
+        via: direct
+        signals: [TESTS_READY]
+      - from: migrator
+        to: validator
+        via: direct
+        signals: [MIGRATION_APPLIED]
