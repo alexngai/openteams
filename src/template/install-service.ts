@@ -3,7 +3,7 @@ import path from "path";
 import os from "os";
 import { execSync } from "child_process";
 import yaml from "js-yaml";
-import { TemplateLoader } from "../template/loader";
+import { TemplateLoader } from "./loader";
 
 // --- Types ---
 

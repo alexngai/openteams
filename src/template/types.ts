@@ -187,32 +187,3 @@ export interface AsyncLoadOptions {
   postProcess?: (template: ResolvedTemplate) => Promise<ResolvedTemplate> | ResolvedTemplate;
 }
 
-// --- Signal Event (emitted through channels) ---
-
-export interface SignalEvent {
-  id: number;
-  team_name: string;
-  channel: string;
-  signal: string;
-  sender: string;
-  payload: Record<string, unknown>;
-  created_at: string;
-}
-
-export interface SignalEventRow {
-  id: number;
-  team_name: string;
-  channel: string;
-  signal: string;
-  sender: string;
-  payload: string;
-  created_at: string;
-}
-
-export interface EmitSignalOptions {
-  teamName: string;
-  channel: string;
-  signal: string;
-  sender: string;
-  payload?: Record<string, unknown>;
-}

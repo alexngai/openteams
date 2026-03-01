@@ -1,6 +1,8 @@
 # OpenTeams
 
-TypeScript CLI and library for multi-agent team coordination. SQLite-backed state, YAML team templates, typed signal channels.
+TypeScript CLI and library for defining multi-agent team structures. YAML team templates, role inheritance, communication topology, prompt generation.
+
+OpenTeams is a **definition layer** — it defines team structures that agent systems (Claude Code, Gemini, Codex, etc.) consume and map to their own runtime primitives. It does not manage runtime state, spawn agents, or track tasks.
 
 ## Quick Reference
 
@@ -16,31 +18,19 @@ npm run dev              # tsc --watch
 
 ```
 src/
-  cli.ts                 # Entry point. Commander program with 6 subcommand groups.
-  index.ts               # Public API exports (types, services, generators, spawner).
-  types.ts               # Core types: Team, Member, Task, Message, AgentSpawner.
-  cli/                   # CLI command definitions (team, task, message, agent, template, generate).
-  db/database.ts         # SQLite schema, migration framework, createDatabase/createInMemoryDatabase.
-  services/              # Business logic layer. Each service takes a Database instance.
-    team-service.ts      # Team CRUD, enforcement mode.
-    task-service.ts      # Task CRUD, dependency tracking (task_deps), cycle detection.
-    message-service.ts   # send, broadcast, getUndelivered, markDelivered, shutdown protocol.
-    agent-service.ts     # spawn (via AgentSpawner interface), shutdown, member lifecycle.
-    template-service.ts  # TemplateService(db) — bootstrap teams from resolved templates.
-    communication-service.ts  # Channels, subscriptions, emissions, enforcement, signal events.
+  cli.ts                 # Entry point. Commander program with 3 subcommand groups.
+  index.ts               # Public API exports (types, loader, generators, install service).
+  cli/                   # CLI command definitions (template, generate, editor).
   template/
     loader.ts            # TemplateLoader.load() / loadAsync() — static methods. YAML parsing,
                          #   role inheritance resolution, prompt loading, MCP server config.
-    types.ts             # Template types: TeamManifest, ResolvedTemplate, ResolvedRole,
+    types.ts             # All types: TeamManifest, ResolvedTemplate, ResolvedRole,
                          #   CommunicationConfig, LoadOptions, AsyncLoadOptions.
+    install-service.ts   # TemplateInstallService — git clone, discover, install templates.
   generators/
     skill-generator.ts   # generateSkillMd(), generateCatalog() from templates.
     agent-prompt-generator.ts  # generateAgentPrompts(), generateRoleSkillMd().
     package-generator.ts # generatePackage() — bundle template for distribution.
-  spawner/
-    interface.ts         # setSpawner/getSpawner/hasSpawner — global spawner registry.
-    acp-factory.ts       # ACPFactorySpawner (optional dep on acp-factory package).
-    mock.ts              # MockSpawner for testing.
 examples/
   get-shit-done/         # 12-role team template with wave-based execution.
   bmad-method/           # Alternative team topology example.
@@ -50,15 +40,6 @@ schema/
 ```
 
 ## Key Patterns
-
-**Service initialization**: Services take a `Database` (better-sqlite3) instance. `TemplateService` creates its own internal `TeamService` and `CommunicationService`. Do not pass them in.
-
-```typescript
-const db = createDatabase();        // file-backed (~/.openteams/openteams.db)
-const db = createInMemoryDatabase(); // for tests
-const teamService = new TeamService(db);
-const templateService = new TemplateService(db); // creates sub-services internally
-```
 
 **Template loading**: `TemplateLoader` methods are static. `load()` is synchronous, `loadAsync()` supports async hooks.
 
@@ -70,47 +51,48 @@ const template = await TemplateLoader.loadAsync(dir, {
 });
 ```
 
-**Agent spawner**: Pluggable via `AgentSpawner` interface. CLI falls back to `MockSpawner` if `acp-factory` is not installed.
+**Generators**: All generators take a `ResolvedTemplate` and produce artifacts (markdown, file trees).
 
-**Enforcement modes**: `permissive` (log and allow), `audit` (record `permitted: false` in signal_events), `strict` (reject emission). Set per-team on the communication config.
+```typescript
+const template = TemplateLoader.load("./my-team");
+const skillMd = generateSkillMd(template, { teamName: "my-team" });
+const prompts = generateAgentPrompts(template, { teamName: "my-team" });
+const pkg = generatePackage(template, { teamName: "my-team", outputDir: "./out" });
+```
+
+**Template install**: Clone templates from git repos into local `.openteams/templates/` directories.
+
+```typescript
+const installer = new TemplateInstallService();
+const result = await installer.install({ repoUrl: "owner/repo" }, callbacks);
+```
+
+**Communication topology**: Defined in `team.yaml` under `communication:`. Describes channels, signals, subscriptions, emissions, and routing. Agent systems read this and implement enforcement.
+
+**Enforcement modes**: `permissive`, `audit`, `strict` — defined as configuration in the template. Interpretation and enforcement is left to the consuming agent system.
 
 **Extension namespaces**: `team.yaml` supports arbitrary top-level keys (e.g., `macro_agent:`, `gsd:`). OpenTeams stores but does not interpret them.
 
-## Database
-
-SQLite via `better-sqlite3`. WAL mode, foreign keys enabled.
-
-Schema version tracked in `schema_version` table. Migration framework in `src/db/database.ts`:
-1. Update `SCHEMA_SQL` for fresh installs
-2. Add a `Migration` entry with the next version number
-3. Bump `CURRENT_VERSION`
-
-Tables: `teams`, `members`, `tasks`, `task_deps`, `messages`, `channels`, `channel_signals`, `subscriptions`, `emissions`, `peer_routes`, `signal_events`, `spawn_rules`.
-
 ## Testing
 
-Tests are colocated: `src/services/team-service.test.ts` next to `src/services/team-service.ts`. All tests use `createInMemoryDatabase()` for isolation.
+Tests are colocated: `src/template/loader.test.ts` next to `src/template/loader.ts`. No database required.
 
 ```bash
-npm test                          # run all tests
-npx vitest run src/services/task-service.test.ts  # single file
+npm test                                              # run all tests
+npx vitest run src/generators/skill-generator.test.ts  # single file
 ```
 
 Vitest config: `vitest.config.ts`. Globals enabled, watch off by default.
 
 ## CLI Subcommands
 
-- `openteams team` — create, list, show, delete, set-enforcement
-- `openteams task` — create, list, show, update (status, owner, blocked-by)
-- `openteams message` — send, broadcast, list, poll, shutdown-request, shutdown-response
-- `openteams agent` — spawn, list, shutdown
-- `openteams template` — bootstrap (load team.yaml and provision team + communication)
-- `openteams generate` — skill, catalog, prompts, package (from templates)
+- `openteams template` — validate, install (from git repos)
+- `openteams generate` — skill, catalog, agents, all, package, role-package (from templates)
+- `openteams editor` — launch visual team configuration editor
 
 ## Conventions
 
 - TypeScript strict mode. Target ES2022, CommonJS output.
-- Types in `src/types.ts` (runtime types) and `src/template/types.ts` (template types).
-- CLI is a thin layer over services. No business logic in CLI files.
-- Row types (e.g., `TaskRow`, `MessageRow`) have SQLite-native fields (strings for JSON, integers for booleans). Service types have parsed fields.
-- Dependency cycle detection uses chain-following in `TaskService.addDependency()` and `TemplateLoader.resolveInheritance()`.
+- All types in `src/template/types.ts`.
+- CLI is a thin layer. No business logic in CLI files.
+- Role inheritance cycle detection uses chain-following in `TemplateLoader.resolveInheritance()`.

@@ -7,7 +7,7 @@ import {
   TemplateInstallService,
   type DiscoveredTemplate,
   type InstallCallbacks,
-} from "./template-install-service";
+} from "./install-service";
 
 function createTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "openteams-test-"));
