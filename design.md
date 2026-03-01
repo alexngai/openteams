@@ -2,305 +2,146 @@
 
 ## Overview
 
-OpenTeams is a TypeScript CLI tool for managing multi-agent teams. It implements the core coordination primitives from Claude Code's Agent Teams — team lifecycle, shared task lists, inter-agent messaging, and agent spawning — as a standalone CLI backed by SQLite for state management.
+OpenTeams is a TypeScript CLI and library for defining multi-agent team structures. It provides a YAML-based template system for declaring roles, topology, communication patterns, and prompts. It is a **definition layer** — it does not manage runtime state, spawn agents, or track tasks.
 
-Agent spawning uses a swappable interface. The default implementation delegates to [acp-factory](https://github.com/sudocode-ai/acp-factory), which supports multiple AI coding agent providers (Claude Code, Codex, Copilot, Gemini, etc.) via the Agent Client Protocol (ACP).
+Agent systems (Claude Code, Gemini, Codex, etc.) consume the resolved template structure and map it to their own runtime primitives: task management, messaging, agent spawning, and enforcement.
 
 ## Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                      CLI Layer                            │
-│  openteams team|task|message|agent|template|generate      │
+│  openteams template|generate|editor                      │
 └──────────────────────┬───────────────────────────────────┘
                        │
 ┌──────────────────────▼───────────────────────────────────┐
-│                   Service Layer                           │
-│  TeamService   TaskService   MessageService               │
-│  AgentService  TemplateService  CommunicationService      │
-└──────┬──────────────────┬────────────────────────────────┘
-       │                  │
-┌──────▼──────┐  ┌────────▼────────────────────────────────┐
-│  Database   │  │  AgentSpawner Interface (DI)             │
-│  (SQLite)   │  │  ├─ ACPFactorySpawner (optional)        │
-│  + Schema   │  │  └─ MockSpawner (testing)               │
-│  Migrations │  └─────────────────────────────────────────┘
-└─────────────┘
+│                 Template Layer                             │
+│  TemplateLoader — YAML parsing, role inheritance,         │
+│                   prompt loading, MCP server config        │
+│  TemplateInstallService — git clone, discover, install    │
+└──────────────────────┬───────────────────────────────────┘
+                       │
+┌──────────────────────▼───────────────────────────────────┐
+│                  Generator Layer                           │
+│  generateSkillMd · generateCatalog                        │
+│  generateAgentPrompts · generateRoleSkillMd               │
+│  generatePackage                                          │
+└───────────────────────────────────────────────────────────┘
 ```
 
 ### Components
 
-1. **CLI Layer** (`src/cli/`) — Command parsing via `commander`. Thin layer that delegates to services.
-2. **Service Layer** (`src/services/`) — Business logic for teams, tasks, messages, agents, templates, and communication.
-3. **Database Layer** (`src/db/`) — SQLite via `better-sqlite3`. Schema versioning with transactional migrations.
-4. **Template System** (`src/template/`) — YAML-based team manifests with role inheritance, capability composition, and communication topology.
-5. **Generators** (`src/generators/`) — Generate SKILL.md files, agent prompts, and package artifacts from templates.
-6. **Agent Spawner** (`src/spawner/`) — Swappable interface for agent lifecycle via dependency injection. Default: acp-factory (optional).
+1. **CLI Layer** (`src/cli/`) — Command parsing via `commander`. Thin layer that delegates to the template layer and generators.
+2. **Template Layer** (`src/template/`) — YAML parsing, role inheritance resolution, prompt loading, MCP server config, and template installation from git.
+3. **Generator Layer** (`src/generators/`) — Generate SKILL.md files, agent prompts, role catalogs, and deployable package artifacts from resolved templates.
 
 ## Data Model
 
-### Database Schema (SQLite)
+All data lives in YAML files. There is no database or runtime state.
 
-```sql
--- Teams (with enforcement mode and template metadata)
-CREATE TABLE teams (
-  name          TEXT PRIMARY KEY,
-  description   TEXT,
-  agent_type    TEXT,
-  template_name TEXT,
-  template_path TEXT,
-  enforcement   TEXT DEFAULT 'permissive' CHECK (enforcement IN ('strict', 'permissive', 'audit')),
-  created_at    TEXT DEFAULT (datetime('now')),
-  status        TEXT DEFAULT 'active' CHECK (status IN ('active', 'deleted'))
-);
+### TeamManifest (team.yaml)
 
--- Team members (with role binding)
-CREATE TABLE members (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  team_name  TEXT NOT NULL REFERENCES teams(name),
-  agent_name TEXT NOT NULL,
-  agent_id   TEXT,
-  agent_type TEXT DEFAULT 'general-purpose',
-  role       TEXT,
-  status     TEXT DEFAULT 'idle' CHECK (status IN ('idle', 'running', 'shutdown')),
-  spawn_prompt TEXT,
-  model      TEXT,
-  created_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(team_name, agent_name)
-);
-
--- Tasks (with cycle-checked dependencies)
-CREATE TABLE tasks (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  team_name   TEXT NOT NULL REFERENCES teams(name),
-  subject     TEXT NOT NULL,
-  description TEXT NOT NULL,
-  active_form TEXT,
-  status      TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'deleted')),
-  owner       TEXT,
-  metadata    TEXT DEFAULT '{}',
-  created_at  TEXT DEFAULT (datetime('now')),
-  updated_at  TEXT DEFAULT (datetime('now'))
-);
-
--- Task dependency edges (cycle detection enforced at service layer)
-CREATE TABLE task_deps (
-  task_id     INTEGER NOT NULL REFERENCES tasks(id),
-  blocked_by  INTEGER NOT NULL REFERENCES tasks(id),
-  PRIMARY KEY (task_id, blocked_by)
-);
-
--- Messages (with delivery tracking)
-CREATE TABLE messages (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  team_name   TEXT NOT NULL REFERENCES teams(name),
-  type        TEXT NOT NULL CHECK (type IN ('message', 'broadcast', 'shutdown_request', 'shutdown_response', 'plan_approval_response')),
-  sender      TEXT NOT NULL,
-  recipient   TEXT,
-  content     TEXT NOT NULL,
-  summary     TEXT,
-  request_id  TEXT,
-  approve     INTEGER,
-  delivered   INTEGER DEFAULT 0,
-  created_at  TEXT DEFAULT (datetime('now'))
-);
-
--- Schema versioning for migrations
-CREATE TABLE schema_version (version INTEGER NOT NULL);
-```
-
-## Agent Spawner Interface
+The root manifest declares the team structure:
 
 ```typescript
-interface SpawnOptions {
+interface TeamManifest {
   name: string;
-  teamName: string;
-  prompt: string;
-  agentType?: 'bash' | 'general-purpose' | 'explore' | 'plan';
-  model?: 'sonnet' | 'opus' | 'haiku';
-  cwd?: string;
-  env?: Record<string, string>;
-  permissionMode?: 'auto-approve' | 'auto-deny' | 'interactive';
+  description?: string;
+  version: number;
+  roles: string[];
+  topology: TopologyConfig;
+  communication?: CommunicationConfig;
+  // Extension fields — stored but not interpreted
+  [key: string]: unknown;
+}
+```
+
+### TopologyConfig
+
+Describes which roles exist, which is the root, which are companions, and spawn rules:
+
+```typescript
+interface TopologyConfig {
+  root: TopologyNode;              // Primary agent
+  companions?: TopologyNode[];     // Additional agents spawned alongside root
+  spawn_rules?: Record<string, SpawnRuleEntry[]>; // Which roles can spawn which
 }
 
-interface AgentInstance {
-  id: string;
+interface TopologyNode {
+  role: string;
+  prompt?: string;                 // Path to prompt file
+  config?: TopologyNodeConfig;     // Model, custom config
+}
+
+type SpawnRuleEntry = string | { role: string; max_instances?: number };
+```
+
+### CommunicationConfig
+
+Structural metadata describing the communication contract. Agent systems read this and implement enforcement.
+
+```typescript
+interface CommunicationConfig {
+  enforcement?: "strict" | "permissive" | "audit";
+  channels?: Record<string, ChannelDefinition>;
+  subscriptions?: Record<string, SubscriptionEntry[]>;
+  emissions?: Record<string, string[]>;
+  routing?: RoutingConfig;
+}
+```
+
+### RoleDefinition (roles/<name>.yaml)
+
+```typescript
+interface RoleDefinition {
   name: string;
-  isRunning(): boolean;
-  sendPrompt(prompt: string): AsyncIterable<AgentUpdate>;
-  shutdown(): Promise<void>;
-}
-
-interface AgentUpdate {
-  type: 'text' | 'tool_call' | 'thought' | 'error' | 'done';
-  content: string;
-}
-
-interface AgentSpawner {
-  spawn(options: SpawnOptions): Promise<AgentInstance>;
-  shutdown(agentId: string): Promise<void>;
-  list(): AgentInstance[];
+  extends?: string;                // Single inheritance
+  display_name?: string;
+  description?: string;
+  capabilities?: string[] | CapabilityComposition | CapabilityMap;
+  prompt?: string;                 // Single prompt file path
+  prompts?: string[];              // Ordered list of prompt files
+  // Extension fields
+  [key: string]: unknown;
 }
 ```
 
-### Default Implementation: ACPFactorySpawner
+### ResolvedTemplate
 
-Uses `acp-factory` to spawn agents via the Agent Client Protocol:
+The fully loaded and resolved template, output of `TemplateLoader.load()`:
 
 ```typescript
-import { AgentFactory } from "acp-factory";
-
-class ACPFactorySpawner implements AgentSpawner {
-  async spawn(options: SpawnOptions): Promise<AgentInstance> {
-    const agent = await AgentFactory.spawn(options.model ?? "claude-code", {
-      permissionMode: options.permissionMode ?? "auto-approve",
-      env: options.env,
-    });
-    const session = await agent.createSession(options.cwd ?? process.cwd());
-    // Wrap in AgentInstance adapter
-    return new ACPAgentInstance(agent, session, options);
-  }
+interface ResolvedTemplate {
+  manifest: TeamManifest;
+  roles: Map<string, ResolvedRole>;       // After inheritance resolution
+  prompts: Map<string, ResolvedPrompts>;  // Role name → loaded prompts
+  mcpServers: Map<string, McpServerEntry[]>;
+  sourcePath: string;
 }
 ```
 
-### Custom Spawners
+## Template Loading
 
-Users implement `AgentSpawner` and pass it via dependency injection:
-
-```typescript
-import { AgentService } from "openteams";
-const agentService = new AgentService(db, myCustomSpawner);
-```
-
-The global `setSpawner()`/`getSpawner()` API is deprecated in favor of DI.
-
-## CLI Commands
-
-### Team Management
+`TemplateLoader` provides static methods for loading templates:
 
 ```
-openteams team create <name> [--description <desc>] [--agent-type <type>]
-openteams team list
-openteams team info <name>
-openteams team add-member <team> <name> [--role <role>] [--type <type>] [--model <model>]
-openteams team delete <name>
+TemplateLoader.load(dir)
+  → Parse team.yaml (manifest validation)
+  → Load role definitions from roles/*.yaml
+  → Resolve inheritance chains (cycle detection)
+  → Apply capability composition (add/remove)
+  → Load prompts from prompts/<role>/*.md
+  → Load MCP server config
+  → Return ResolvedTemplate
 ```
 
-### Task Management
+### Extension Points
 
-```
-openteams task create <team> -s <subject> -d <desc> [-a <active-form>] [--blocked-by <ids>] [--metadata <json>]
-openteams task list <team> [--status <status>] [--owner <name>] [--json]
-openteams task get <team> <task-id> [--json]
-openteams task update <team> <task-id> [--status <status>] [--owner <name>] [-s <subject>] [-d <desc>] [--add-blocks <ids>] [--add-blocked-by <ids>] [--metadata <json>]
-```
+Both `load()` and `loadAsync()` accept hooks:
 
-### Messaging
-
-```
-openteams message send <team> --to <recipient> --content <content> --summary <summary> [--from <sender>]
-openteams message broadcast <team> --content <content> --summary <summary> [--from <sender>]
-openteams message shutdown <team> --to <recipient> [--reason <reason>] [--from <sender>]
-openteams message shutdown-response <team> --request-id <id> --approve|--reject [--content <text>] [--from <sender>]
-openteams message plan-response <team> --to <recipient> --request-id <id> --approve|--reject [--content <text>] [--from <sender>]
-openteams message list <team> [--agent <name>] [--json]
-openteams message poll <team> --agent <name> [--mark-delivered] [--json]
-openteams message ack <team> <message-id>
-```
-
-### Agent Management
-
-```
-openteams agent spawn <team> -n <name> -p <prompt> [-t <agent-type>] [-m <model>] [--cwd <dir>]
-openteams agent list <team> [--json]
-openteams agent info <team> <name> [--json]
-openteams agent shutdown <team> <name>
-```
-
-## Team Templates
-
-OpenTeams supports declarative team templates — YAML-based definitions that describe team topology, roles, communication patterns, and spawn rules. Templates are designed to be interoperable with other multi-agent systems (e.g., macro-agent); generic fields are top-level, system-specific extensions live under namespaced keys.
-
-### Template Directory Structure
-
-```
-templates/<team-name>/
-├── team.yaml              # Manifest: topology, communication, roles
-├── roles/                 # Role definitions (optional)
-│   └── <role-name>.yaml
-└── prompts/               # Static role prompt files (optional)
-    ├── <role-name>.md     # Single-file prompt (simple roles)
-    └── <role-name>/       # Multi-file prompt directory
-        ├── SOUL.md        # Personality, values, communication style
-        ├── ROLE.md        # Operational instructions (primary)
-        └── RULES.md       # Coding standards, constraints (optional)
-```
-
-### Manifest Schema (team.yaml)
-
-```yaml
-name: self-driving
-description: "Autonomous codebase development"
-version: 1
-roles: [planner, grinder, judge]
-
-topology:
-  root:
-    role: planner
-    prompt: prompts/planner.md
-    config: { model: sonnet }
-  companions:
-    - role: judge
-      prompt: prompts/judge.md
-  spawn_rules:
-    planner: [grinder, planner]
-    judge: []
-    grinder: []
-
-communication:
-  channels:
-    task_updates:
-      description: "Task lifecycle events"
-      signals: [TASK_CREATED, TASK_COMPLETED, TASK_FAILED]
-    work_coordination:
-      signals: [WORK_ASSIGNED, WORKER_DONE]
-  subscriptions:
-    planner:
-      - channel: task_updates
-      - channel: work_coordination
-        signals: [WORKER_DONE]
-    judge:
-      - channel: task_updates
-        signals: [TASK_FAILED]
-  emissions:
-    planner: [TASK_CREATED, WORK_ASSIGNED]
-    grinder: [WORKER_DONE]
-  routing:
-    peers:
-      - from: judge
-        to: planner
-        via: direct
-        signals: [FIXUP_CREATED]
-
-# Extension fields (stored, not interpreted by openteams)
-macro_agent:
-  task_assignment: { mode: pull }
-```
-
-### Communication Model
-
-Three layers:
-
-1. **Status flow** — Automatic upstream propagation (configured via `routing.status`)
-2. **Signal channels** — Topic-based pub/sub with per-role subscription filtering
-3. **Peer routes** — Direct role-to-role messaging (via `direct`, `topic`, or `scope`)
-
-Signals are emitted through channels and routed to subscribers based on their subscription config. Emission permissions restrict which signals a role can emit.
-
-**Enforcement modes** (set in `communication.enforcement`):
-- `strict` — Unauthorized emissions throw errors
-- `audit` — Unauthorized emissions are allowed but flagged as `permitted: false`
-- `permissive` (default) — All emissions are allowed
+- **`resolveExternalRole`** — Resolve a role that `extends` a name not found in the local roles directory
+- **`postProcessRole`** — Enrich each role after inheritance resolution
+- **`postProcess`** — Transform the entire template after loading
 
 ### Role Inheritance
 
@@ -322,58 +163,70 @@ capabilities:
 
 Multi-level chains (A extends B extends C) are resolved in topological order. Circular inheritance is detected and rejected at template load time.
 
-### Communication Database Tables
+## Communication Model
 
-```sql
--- Channel definitions
-CREATE TABLE channels (team_name, name, description);
-CREATE TABLE channel_signals (channel_id, signal);
+Three layers, all defined as structural metadata:
 
--- Subscriptions (role → channel, optional signal filter)
-CREATE TABLE subscriptions (team_name, role, channel, signal);
+1. **Signal channels** — Topic-based pub/sub with per-role subscription filtering
+2. **Peer routes** — Direct role-to-role routing (`direct`, `topic`, or `scope`)
+3. **Enforcement modes** — `permissive`, `audit`, `strict` — guidelines for the consuming agent system
 
--- Emission permissions
-CREATE TABLE emissions (team_name, role, signal);
+Signals are emitted through channels. Roles subscribe to channels with optional signal-level filtering. Emission permissions restrict which signals a role can emit.
 
--- Peer routing rules
-CREATE TABLE peer_routes (team_name, from_role, to_role, via, signals);
+## Generators
 
--- Signal event log
-CREATE TABLE signal_events (team_name, channel, signal, sender, payload, created_at);
+All generators take a `ResolvedTemplate` and produce artifacts:
 
--- Spawn rules
-CREATE TABLE spawn_rules (team_name, from_role, to_role);
+| Generator | Output |
+|-----------|--------|
+| `generateSkillMd()` | SKILL.md content (team overview, roles, capabilities) |
+| `generateCatalog()` | Lightweight role catalog |
+| `generateAgentPrompts()` | Per-role prompt files |
+| `generateRoleSkillMd()` | Standalone SKILL.md for a single role |
+| `generatePackage()` | Deployable directory with all artifacts |
+
+## Template Installation
+
+`TemplateInstallService` handles installing templates from git repositories:
+
+1. Shallow-clone the repo
+2. Discover templates (directories containing `team.yaml`)
+3. If multiple templates found, prompt for selection
+4. Copy to `.openteams/templates/` (local or global)
+5. Validate the installed template
+6. Write provenance metadata
+
+## CLI Commands
+
 ```
+openteams template validate <dir>              # Validate template
+openteams template install <repo-url> [name]   # Install from git
 
-### Bootstrap Flow
+openteams generate skill <dir>                 # Generate SKILL.md
+openteams generate catalog <dir>               # Generate role catalog
+openteams generate agents <dir>                # Generate agent prompts
+openteams generate all <dir>                   # Generate all artifacts
+openteams generate package <dir>               # Generate deployable package
+openteams generate role-package <dir> -r <role> # Generate single-role SKILL.md
 
-```
-template load <dir>
-  → TemplateLoader.load(dir)              # Parse YAML, validate, resolve roles/prompts
-    → resolveInheritance()                # Resolve extends chains, merge capabilities
-  → TemplateService.bootstrap()
-    → TeamService.create()                # Create team with template_name/template_path
-    → Register root + companions as members  # Auto-populate initial members
-    → CommunicationService.applyConfig()  # Wire channels, subs, emissions, peers, enforcement
-    → Store spawn rules
+openteams editor                               # Launch visual editor
 ```
 
 ## Testing Strategy
 
-- **Unit tests** for each service (team, task, message, agent, template, communication) using in-memory SQLite
-- **Template loader tests** with temporary filesystem fixtures
-- **Agent spawner tests** using a mock/stub spawner implementation
+- **Template loader tests** with temporary filesystem fixtures and inline manifests
+- **Generator tests** using `TemplateLoader.loadFromManifest()` for isolated test templates
+- **Install service tests** for git operations and template discovery
 - Framework: vitest
+- No database or external services required
 
 ## Dependencies
 
 | Package | Purpose |
 |---------|---------|
 | `commander` | CLI argument parsing |
-| `better-sqlite3` | SQLite database |
 | `js-yaml` | YAML template parsing |
-| `acp-factory` | Default agent spawner (optional) |
-| `vitest` | Testing |
+| `vitest` | Testing (dev) |
 
 ## File Structure
 
@@ -381,31 +234,17 @@ template load <dir>
 src/
 ├── index.ts              # Public API exports
 ├── cli.ts                # CLI entry point (bin)
-├── types.ts              # Shared type definitions
 ├── cli/
-│   ├── team.ts           # team subcommands (create, list, info, add-member, delete)
-│   ├── task.ts           # task subcommands (create, list, get, update) [--json]
-│   ├── message.ts        # message subcommands (send, broadcast, shutdown, shutdown-response, plan-response, list, poll, ack) [--json]
-│   ├── agent.ts          # agent subcommands (spawn, list, info, shutdown) [--json]
-│   └── template.ts       # template subcommands (load, info, emit, events)
-├── db/
-│   └── database.ts       # Database connection, schema, and migration framework
-├── services/
-│   ├── team-service.ts           # Team CRUD + member management
-│   ├── task-service.ts           # Task CRUD + dependency management + cycle detection
-│   ├── message-service.ts        # Message routing, delivery tracking, member validation
-│   ├── agent-service.ts          # Agent lifecycle management
-│   ├── template-service.ts       # Template bootstrap + spawn rules + member auto-registration
-│   └── communication-service.ts  # Channels, signals, subscriptions, enforcement
+│   ├── template.ts       # template subcommands (validate, install)
+│   ├── generate.ts       # generate subcommands (skill, catalog, agents, all, package, role-package)
+│   ├── editor.ts         # visual editor launcher
+│   └── prompt-utils.ts   # Interactive prompts for CLI
 ├── template/
-│   ├── types.ts          # Template schema types (manifest, roles, communication, signals)
-│   └── loader.ts         # YAML parsing, validation, role inheritance resolution
-├── generators/
-│   ├── skill-generator.ts        # SKILL.md and catalog generation
-│   ├── agent-prompt-generator.ts # Agent prompt and role skill generation
-│   └── package-generator.ts      # Package artifact generation
-└── spawner/
-    ├── interface.ts      # Global spawner registry (deprecated, use DI)
-    ├── acp-factory.ts    # ACP factory spawner (optional dependency)
-    └── mock.ts           # Mock spawner for testing
+│   ├── types.ts          # All type definitions
+│   ├── loader.ts         # YAML parsing, validation, role inheritance resolution
+│   └── install-service.ts # Git-based template installation
+└── generators/
+    ├── skill-generator.ts        # SKILL.md and catalog generation
+    ├── agent-prompt-generator.ts # Agent prompt and role skill generation
+    └── package-generator.ts      # Package artifact generation
 ```
