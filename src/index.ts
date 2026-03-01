@@ -1,30 +1,4 @@
-export const VERSION = "0.1.0";
-
-// Types
-export type {
-  Team,
-  CreateTeamOptions,
-  Member,
-  MemberStatus,
-  Task,
-  TaskRow,
-  TaskSummary,
-  CreateTaskOptions,
-  UpdateTaskOptions,
-  TaskStatus,
-  Message,
-  MessageRow,
-  MessageType,
-  SendMessageOptions,
-  BroadcastMessageOptions,
-  ShutdownRequestOptions,
-  ShutdownResponseOptions,
-  PlanApprovalResponseOptions,
-  AgentSpawner,
-  AgentInstance,
-  AgentUpdate,
-  SpawnAgentOptions,
-} from "./types";
+export const VERSION = "0.2.0";
 
 // Template types
 export type {
@@ -48,30 +22,19 @@ export type {
   ResolvedPrompts,
   ResolvedTemplate,
   ResolvedRole,
-  SignalEvent,
-  EmitSignalOptions,
 } from "./template/types";
 
-// Database
-export { createDatabase, createInMemoryDatabase } from "./db/database";
+// Template loader
+export { TemplateLoader, spawnRuleTarget, isCapabilityMap } from "./template/loader";
 
-// Services
-export { TeamService } from "./services/team-service";
-export { TaskService } from "./services/task-service";
-export { MessageService } from "./services/message-service";
-export { AgentService } from "./services/agent-service";
-export { TemplateService } from "./services/template-service";
-export { TemplateInstallService } from "./services/template-install-service";
+// Template install
+export { TemplateInstallService } from "./template/install-service";
 export type {
   InstallOptions,
   InstallResult,
   DiscoveredTemplate,
   InstallCallbacks,
-} from "./services/template-install-service";
-export { CommunicationService } from "./services/communication-service";
-
-// Template
-export { TemplateLoader, spawnRuleTarget, isCapabilityMap } from "./template/loader";
+} from "./template/install-service";
 
 // Generators
 export { generateSkillMd, generateCatalog } from "./generators/skill-generator";
@@ -96,18 +59,3 @@ export type {
   PackageGeneratorOptions,
   PackageResult,
 } from "./generators/package-generator";
-
-// Spawner
-export { setSpawner, getSpawner, hasSpawner } from "./spawner/interface";
-export { MockSpawner } from "./spawner/mock";
-
-/**
- * Create an ACPFactorySpawner instance. Requires the optional `acp-factory` package.
- * @throws If `acp-factory` is not installed.
- */
-export async function createACPFactorySpawner(): Promise<
-  import("./types").AgentSpawner
-> {
-  const { ACPFactorySpawner } = await import("./spawner/acp-factory");
-  return new ACPFactorySpawner();
-}
