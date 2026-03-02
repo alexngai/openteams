@@ -46,7 +46,7 @@ Agent systems read the resolved template and implement runtime behavior (task ma
 
 ---
 
-![openteams editor](media/editor.png)
+![openteams editor](https://raw.githubusercontent.com/alexngai/openteams/main/media/editor.png)
 
 NEW! [openteams frontend-only config editor](https://team-config.swarmkit.ai/)
 
