@@ -1,0 +1,7 @@
+name: code-reviewer
+display_name: Code Reviewer
+description: "Reviews PR code changes for correctness, style, maintainability, and adherence to project conventions."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - pr.review

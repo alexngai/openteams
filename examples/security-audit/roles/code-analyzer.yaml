@@ -1,0 +1,6 @@
+name: code-analyzer
+display_name: Code Analyzer
+description: "Static analysis for security anti-patterns: injection vulnerabilities, insecure defaults, hardcoded secrets, and unsafe API usage."
+capabilities:
+  - codebase.read
+  - codebase.search

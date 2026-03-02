@@ -1,0 +1,88 @@
+name: bug-fix-pipeline
+description: "Linear pipeline for autonomous bug fixing — triage, investigate, fix, verify, and create PR. Each phase is handled by a specialized agent with peer verification before PR creation."
+version: 1
+roles:
+  - triager
+  - investigator
+  - fixer
+  - verifier
+  - pr-creator
+
+topology:
+  root:
+    role: triager
+    prompt: prompts/triage.md
+  spawn_rules:
+    triager: [investigator]
+    investigator: [fixer]
+    fixer: [verifier]
+    verifier: [pr-creator]
+    pr-creator: []
+
+communication:
+  enforcement: strict
+
+  channels:
+    triage_events:
+      description: "Bug classification and severity assessment"
+      signals: [BUG_TRIAGED, BUG_REJECTED]
+    investigation_events:
+      description: "Root cause analysis results"
+      signals: [BUG_INVESTIGATED, INVESTIGATION_BLOCKED]
+    fix_events:
+      description: "Code fix lifecycle"
+      signals: [FIX_APPLIED, FIX_FAILED]
+    verification_events:
+      description: "Post-fix verification results"
+      signals: [FIX_VERIFIED, FIX_NEEDS_REWORK]
+    pr_events:
+      description: "Pull request creation"
+      signals: [PR_CREATED]
+
+  subscriptions:
+    triager:
+      - channel: verification_events
+        signals: [FIX_NEEDS_REWORK]
+    investigator:
+      - channel: triage_events
+        signals: [BUG_TRIAGED]
+    fixer:
+      - channel: investigation_events
+        signals: [BUG_INVESTIGATED]
+    verifier:
+      - channel: fix_events
+        signals: [FIX_APPLIED]
+    pr-creator:
+      - channel: verification_events
+        signals: [FIX_VERIFIED]
+
+  emissions:
+    triager: [BUG_TRIAGED, BUG_REJECTED]
+    investigator: [BUG_INVESTIGATED, INVESTIGATION_BLOCKED]
+    fixer: [FIX_APPLIED, FIX_FAILED]
+    verifier: [FIX_VERIFIED, FIX_NEEDS_REWORK]
+    pr-creator: [PR_CREATED]
+
+  routing:
+    peers:
+      - from: triager
+        to: investigator
+        via: direct
+        signals: [BUG_TRIAGED]
+      - from: investigator
+        to: fixer
+        via: direct
+        signals: [BUG_INVESTIGATED]
+      - from: fixer
+        to: verifier
+        via: direct
+        signals: [FIX_APPLIED]
+      - from: verifier
+        to: pr-creator
+        via: direct
+        signals: [FIX_VERIFIED]
+      # Rework loop
+      - from: verifier
+        to: triager
+        via: direct
+        signals: [FIX_NEEDS_REWORK]

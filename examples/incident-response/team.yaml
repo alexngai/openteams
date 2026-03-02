@@ -1,0 +1,68 @@
+name: incident-response
+description: "Linear incident response pipeline — triage severity, investigate root cause, propose fix, and communicate status. Designed for rapid response with clear handoffs between specialized agents."
+version: 1
+roles:
+  - incident-triager
+  - investigator
+  - fix-proposer
+  - communicator
+
+topology:
+  root:
+    role: incident-triager
+    prompt: prompts/triage.md
+  spawn_rules:
+    incident-triager: [investigator]
+    investigator: [fix-proposer]
+    fix-proposer: [communicator]
+    communicator: []
+
+communication:
+  enforcement: strict
+
+  channels:
+    triage_events:
+      description: "Incident severity classification and initial assessment"
+      signals: [INCIDENT_TRIAGED, INCIDENT_DISMISSED]
+    investigation_events:
+      description: "Root cause analysis and correlation results"
+      signals: [INCIDENT_INVESTIGATED, INVESTIGATION_ESCALATED]
+    fix_events:
+      description: "Fix proposal and remediation planning"
+      signals: [FIX_PROPOSED, NO_FIX_AVAILABLE]
+    communication_events:
+      description: "Stakeholder communication and status updates"
+      signals: [STATUS_COMMUNICATED, POSTMORTEM_DRAFTED]
+
+  subscriptions:
+    incident-triager: []
+    investigator:
+      - channel: triage_events
+        signals: [INCIDENT_TRIAGED]
+    fix-proposer:
+      - channel: investigation_events
+        signals: [INCIDENT_INVESTIGATED]
+    communicator:
+      - channel: fix_events
+        signals: [FIX_PROPOSED, NO_FIX_AVAILABLE]
+
+  emissions:
+    incident-triager: [INCIDENT_TRIAGED, INCIDENT_DISMISSED]
+    investigator: [INCIDENT_INVESTIGATED, INVESTIGATION_ESCALATED]
+    fix-proposer: [FIX_PROPOSED, NO_FIX_AVAILABLE]
+    communicator: [STATUS_COMMUNICATED, POSTMORTEM_DRAFTED]
+
+  routing:
+    peers:
+      - from: incident-triager
+        to: investigator
+        via: direct
+        signals: [INCIDENT_TRIAGED]
+      - from: investigator
+        to: fix-proposer
+        via: direct
+        signals: [INCIDENT_INVESTIGATED]
+      - from: fix-proposer
+        to: communicator
+        via: direct
+        signals: [FIX_PROPOSED, NO_FIX_AVAILABLE]

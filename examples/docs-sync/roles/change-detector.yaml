@@ -1,0 +1,7 @@
+name: change-detector
+display_name: Change Detector
+description: "Analyzes merged code changes to classify what documentation needs updating — API surface changes, behavior changes, and architectural changes."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - exec.run

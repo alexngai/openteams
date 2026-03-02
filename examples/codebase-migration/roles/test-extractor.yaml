@@ -1,0 +1,9 @@
+name: test-extractor
+display_name: Test Extractor
+description: "Writes characterization tests that capture current behavior before migration. These tests serve as a safety net to detect behavioral regressions."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - file.write
+  - exec.run
+  - exec.test

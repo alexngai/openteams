@@ -1,0 +1,7 @@
+name: fix-proposer
+display_name: Fix Proposer
+description: "Proposes a remediation plan based on investigation findings. Evaluates rollback vs. forward-fix options and recommends the safest path."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - issue.create

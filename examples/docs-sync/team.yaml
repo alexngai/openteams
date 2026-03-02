@@ -1,0 +1,84 @@
+name: docs-sync
+description: "Fan-out/fan-in documentation pipeline — detects code changes, then dispatches parallel doc writers (API docs, guides, and conditionally ADRs for architectural changes). A reviewer consolidates the results."
+version: 1
+roles:
+  - change-detector
+  - api-doc-writer
+  - guide-writer
+  - adr-writer
+  - doc-reviewer
+
+topology:
+  root:
+    role: change-detector
+    prompt: prompts/detect.md
+  companions:
+    - role: doc-reviewer
+      prompt: prompts/review.md
+  spawn_rules:
+    change-detector: [api-doc-writer, guide-writer, adr-writer]
+    api-doc-writer: []
+    guide-writer: []
+    adr-writer: []
+    doc-reviewer: []
+
+communication:
+  enforcement: audit
+
+  channels:
+    detection_events:
+      description: "Change detection and classification"
+      signals: [CHANGES_DETECTED, NO_DOC_CHANGES_NEEDED]
+    doc_updates:
+      description: "Individual doc writer completions — reviewer waits for API and guide updates"
+      signals: [API_DOCS_UPDATED, GUIDES_UPDATED, ADR_DRAFTED]
+    review_events:
+      description: "Documentation review outcome"
+      signals: [DOCS_APPROVED, DOCS_NEED_REVISION]
+
+  subscriptions:
+    change-detector: []
+    api-doc-writer:
+      - channel: detection_events
+        signals: [CHANGES_DETECTED]
+    guide-writer:
+      - channel: detection_events
+        signals: [CHANGES_DETECTED]
+    adr-writer:
+      - channel: detection_events
+        signals: [CHANGES_DETECTED]
+    doc-reviewer:
+      - channel: doc_updates
+        signals: [API_DOCS_UPDATED, GUIDES_UPDATED]
+
+  emissions:
+    change-detector: [CHANGES_DETECTED, NO_DOC_CHANGES_NEEDED]
+    api-doc-writer: [API_DOCS_UPDATED]
+    guide-writer: [GUIDES_UPDATED]
+    adr-writer: [ADR_DRAFTED]
+    doc-reviewer: [DOCS_APPROVED, DOCS_NEED_REVISION]
+
+  routing:
+    peers:
+      # Fan-out: detector → doc writers
+      - from: change-detector
+        to: api-doc-writer
+        via: direct
+        signals: [CHANGES_DETECTED]
+      - from: change-detector
+        to: guide-writer
+        via: direct
+        signals: [CHANGES_DETECTED]
+      - from: change-detector
+        to: adr-writer
+        via: direct
+        signals: [CHANGES_DETECTED]
+      # Fan-in: doc writers → reviewer
+      - from: api-doc-writer
+        to: doc-reviewer
+        via: direct
+        signals: [API_DOCS_UPDATED]
+      - from: guide-writer
+        to: doc-reviewer
+        via: direct
+        signals: [GUIDES_UPDATED]

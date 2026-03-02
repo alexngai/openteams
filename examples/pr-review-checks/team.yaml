@@ -1,0 +1,64 @@
+name: pr-review-checks
+description: "Fan-out/fan-in PR review — three parallel checks (code review, test validation, security scan) run simultaneously, then a summarizer consolidates results into a single status."
+version: 1
+roles:
+  - summarizer
+  - code-reviewer
+  - test-checker
+  - security-scanner
+
+topology:
+  root:
+    role: summarizer
+    prompt: prompts/summary.md
+  companions:
+    - role: code-reviewer
+      prompt: prompts/code-review.md
+    - role: test-checker
+      prompt: prompts/test-validation.md
+    - role: security-scanner
+      prompt: prompts/security-scan.md
+  spawn_rules:
+    summarizer: []
+    code-reviewer: []
+    test-checker: []
+    security-scanner: []
+
+communication:
+  enforcement: strict
+
+  channels:
+    review_results:
+      description: "Individual check completions — summarizer waits for all three"
+      signals: [CODE_REVIEW_COMPLETE, TEST_VALIDATION_COMPLETE, SECURITY_SCAN_COMPLETE]
+    summary_events:
+      description: "Consolidated review outcome"
+      signals: [CHECKS_PASSED, CHECKS_NEED_ATTENTION]
+
+  subscriptions:
+    summarizer:
+      - channel: review_results
+    code-reviewer: []
+    test-checker: []
+    security-scanner: []
+
+  emissions:
+    code-reviewer: [CODE_REVIEW_COMPLETE]
+    test-checker: [TEST_VALIDATION_COMPLETE]
+    security-scanner: [SECURITY_SCAN_COMPLETE]
+    summarizer: [CHECKS_PASSED, CHECKS_NEED_ATTENTION]
+
+  routing:
+    peers:
+      - from: code-reviewer
+        to: summarizer
+        via: direct
+        signals: [CODE_REVIEW_COMPLETE]
+      - from: test-checker
+        to: summarizer
+        via: direct
+        signals: [TEST_VALIDATION_COMPLETE]
+      - from: security-scanner
+        to: summarizer
+        via: direct
+        signals: [SECURITY_SCAN_COMPLETE]

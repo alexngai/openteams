@@ -1,0 +1,7 @@
+name: doc-reviewer
+display_name: Doc Reviewer
+description: "Reviews documentation updates for accuracy, completeness, and consistency with the codebase."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - pr.review

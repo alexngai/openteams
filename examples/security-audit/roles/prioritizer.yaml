@@ -1,0 +1,6 @@
+name: prioritizer
+display_name: Finding Prioritizer
+description: "Consolidates results from all parallel scanners, deduplicates findings, and prioritizes by severity and exploitability."
+capabilities:
+  - issue.classify
+  - issue.comment

@@ -1,0 +1,8 @@
+name: investigator
+display_name: Incident Investigator
+description: "Performs deep root cause analysis, correlates with recent deployments and changes, and identifies the specific commit or configuration change that caused the incident."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - exec.run
+  - root.cause.analysis

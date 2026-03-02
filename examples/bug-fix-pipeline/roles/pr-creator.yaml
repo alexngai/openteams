@@ -1,0 +1,6 @@
+name: pr-creator
+display_name: PR Creator
+description: "Creates a pull request with a structured summary of the bug, root cause, fix applied, and verification results."
+capabilities:
+  - pr.create
+  - issue.comment

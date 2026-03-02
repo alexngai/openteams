@@ -1,0 +1,8 @@
+name: test-checker
+display_name: Test Checker
+description: "Validates that PR changes have adequate test coverage and that existing tests still pass."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - exec.run
+  - exec.test

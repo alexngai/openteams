@@ -1,0 +1,7 @@
+name: dep-scanner
+display_name: Dependency Scanner
+description: "Audits project dependencies for known vulnerabilities, outdated packages, and license compliance issues."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - exec.run

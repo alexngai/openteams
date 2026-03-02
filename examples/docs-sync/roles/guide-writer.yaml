@@ -1,0 +1,7 @@
+name: guide-writer
+display_name: Guide Writer
+description: "Updates user guides, tutorials, and README files to reflect behavioral changes in the codebase."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - file.write

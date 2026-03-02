@@ -1,0 +1,9 @@
+name: fixer
+display_name: Security Fixer
+description: "Applies targeted security remediations based on prioritized findings. Updates dependencies, patches vulnerable code, and rotates exposed secrets."
+capabilities:
+  - codebase.read
+  - codebase.search
+  - file.write
+  - exec.run
+  - exec.test
