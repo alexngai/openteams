@@ -24,6 +24,7 @@ A definition layer for multi-agent team structures. Define roles, topology, comm
 - [CLI Command Reference](#cli-command-reference)
 - [Library Usage](#library-usage)
 - [Examples](#examples)
+- [Visual Editor](#visual-editor)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -42,6 +43,12 @@ OpenTeams is **not** a runtime coordination system. It does not manage state, sp
 - **Visual editor.** Interactive browser-based UI for editing team configurations.
 
 Agent systems read the resolved template and implement runtime behavior (task management, messaging, agent spawning, enforcement) using their own primitives.
+
+---
+
+![openteams editor](media/editor.png)
+
+NEW! [openteams frontend-only config editor](https://team-config.swarmkit.ai/)
 
 ---
 
@@ -445,6 +452,33 @@ The orchestrator runs a research phase, produces a roadmap, validates a plan, th
 ```bash
 openteams template validate ./examples/get-shit-done
 openteams generate all ./examples/get-shit-done -o ./output/gsd
+```
+
+---
+
+## Visual Editor
+
+OpenTeams includes a browser-based visual editor for designing and editing team configurations. Load any bundled example template or start from a blank canvas, then visually arrange roles, channels, communication topology, and spawn rules.
+
+**Features:**
+
+- **Canvas-based editing.** Drag and connect role and channel nodes. Auto-layout for quick organization.
+- **Template library.** Load any example template from a dropdown, or clear the canvas to start fresh.
+- **Inspector panel.** Edit role identity, communication subscriptions, emissions, peer routes, spawn rules, capabilities, and prompts.
+- **Layer toggles.** Show or hide peer routes, signal flow edges, spawn rules, and inheritance edges independently.
+- **Import/Export.** Paste raw YAML to import, or export the current configuration as a downloadable template directory (zip).
+- **Validation.** Real-time error and warning indicators for missing references, orphaned signals, and schema issues.
+- **Light/dark theme.** Toggle between dark, light, and system themes.
+
+### Running the editor
+
+```bash
+# Via CLI (serves the built editor)
+openteams editor
+
+# For development
+cd editor
+npm run dev
 ```
 
 ---
