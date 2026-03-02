@@ -21,7 +21,7 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
         padding: '0',
         minWidth: '200px',
         maxWidth: '240px',
-        fontSize: '12px',
+        fontSize: '13px',
         boxShadow: selected ? '0 0 0 2px var(--color-accent)' : '0 1px 3px rgba(0,0,0,0.1)',
         cursor: 'pointer',
       }}
@@ -41,13 +41,13 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
           alignItems: 'center',
           gap: '4px',
         }}>
-          <span style={{ color: colors.badge, fontSize: '13px' }}>{'\u25C6'}</span>
+          <span style={{ color: colors.badge, fontSize: '14px' }}>{'\u25C6'}</span>
           {data.channelName}
         </div>
         {data.description && (
           <div style={{
             color: 'var(--color-text-muted)',
-            fontSize: '10px',
+            fontSize: '11px',
             marginTop: '2px',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -66,7 +66,7 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
         {displaySignals.map(signal => (
           <div key={signal} style={{
             color: 'var(--color-text-secondary)',
-            fontSize: '10px',
+            fontSize: '11px',
             fontFamily: 'monospace',
             padding: '1px 0',
           }}>
@@ -76,7 +76,7 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
         {extraCount > 0 && (
           <div style={{
             color: 'var(--color-text-muted)',
-            fontSize: '10px',
+            fontSize: '11px',
             fontStyle: 'italic',
           }}>
             +{extraCount} more
@@ -90,7 +90,7 @@ function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNod
         display: 'flex',
         gap: '8px',
         color: 'var(--color-text-muted)',
-        fontSize: '10px',
+        fontSize: '11px',
       }}>
         <span>{data.emitterCount} emitter{data.emitterCount !== 1 ? 's' : ''}</span>
         <span>{'\u00B7'}</span>

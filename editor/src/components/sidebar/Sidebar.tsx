@@ -11,7 +11,6 @@ export function Sidebar() {
   const topologyRoot = useConfigStore(s => s.topologyRoot);
   const topologyCompanions = useConfigStore(s => s.topologyCompanions);
   const setSelection = useCanvasStore(s => s.setSelection);
-
   const handleLoadTemplate = (key: string) => {
     const template = BUNDLED_TEMPLATES[key];
     if (template) {
@@ -109,7 +108,7 @@ export function Sidebar() {
     }}>
       {/* Block Palette */}
       <div style={{ padding: '12px', borderBottom: '1px solid var(--color-border)' }}>
-        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Add Blocks
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
@@ -124,7 +123,7 @@ export function Sidebar() {
 
       {/* Config Tree */}
       <div style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
-        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Roles ({roles.size})
         </div>
         {Array.from(roles.keys()).map(name => {
@@ -138,7 +137,7 @@ export function Sidebar() {
               style={{
                 padding: '4px 8px',
                 cursor: 'pointer',
-                fontSize: '12px',
+                fontSize: '13px',
                 color: 'var(--color-text)',
                 borderRadius: '4px',
                 display: 'flex',
@@ -148,7 +147,7 @@ export function Sidebar() {
               onMouseOver={e => (e.currentTarget.style.background = 'var(--color-border)')}
               onMouseOut={e => (e.currentTarget.style.background = 'none')}
             >
-              <span style={{ color: isRoot ? '#3b82f6' : isCompanion ? '#14b8a6' : '#6b7280', fontSize: '10px' }}>
+              <span style={{ color: isRoot ? '#3b82f6' : isCompanion ? '#14b8a6' : '#6b7280', fontSize: '11px' }}>
                 {isRoot ? '\u2605' : isCompanion ? '\u25C6' : '\u25CB'}
               </span>
               {name}
@@ -177,41 +176,37 @@ export function Sidebar() {
             onMouseOver={e => (e.currentTarget.style.background = 'var(--color-border)')}
             onMouseOut={e => (e.currentTarget.style.background = 'none')}
           >
-            <span style={{ color: '#8b5cf6', fontSize: '10px' }}>{'\u25C6'}</span>
+            <span style={{ color: '#8b5cf6', fontSize: '11px' }}>{'\u25C6'}</span>
             {name}
           </div>
         ))}
       </div>
 
-      {/* Template Gallery */}
+      {/* Template Selector */}
       <div style={{ padding: '12px', borderTop: '1px solid var(--color-border)' }}>
-        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Templates
         </div>
-        {Object.entries(BUNDLED_TEMPLATES).map(([key, tmpl]) => (
-          <button
-            key={key}
-            onClick={() => handleLoadTemplate(key)}
-            data-testid={`template-${key}`}
-            style={{
-              display: 'block',
-              width: '100%',
-              textAlign: 'left',
-              background: 'var(--color-elevated)',
-              border: '1px solid var(--color-border)',
-              borderRadius: '6px',
-              padding: '8px',
-              marginBottom: '6px',
-              cursor: 'pointer',
-              fontSize: '11px',
-            }}
-          >
-            <div style={{ fontWeight: 600, color: 'var(--color-text)' }}>{key}</div>
-            <div style={{ color: 'var(--color-text-muted)', marginTop: '2px' }}>
-              {tmpl.manifest.roles.length} roles {'\u00B7'} {Object.keys(tmpl.manifest.communication?.channels || {}).length} channels
-            </div>
-          </button>
-        ))}
+        <select
+          value=""
+          onChange={e => { if (e.target.value) handleLoadTemplate(e.target.value); }}
+          data-testid="template-select"
+          style={{
+            width: '100%',
+            padding: '6px 8px',
+            fontSize: '13px',
+            border: '1px solid var(--color-border)',
+            borderRadius: '4px',
+            background: 'var(--color-elevated)',
+            color: 'var(--color-text)',
+            boxSizing: 'border-box',
+          }}
+        >
+          <option value="" disabled>Select a template...</option>
+          {Object.keys(BUNDLED_TEMPLATES).sort().map(key => (
+            <option key={key} value={key}>{key}</option>
+          ))}
+        </select>
       </div>
     </div>
   );
@@ -227,6 +222,6 @@ function blockBtnStyle(color: string): React.CSSProperties {
     padding: '8px',
     cursor: 'pointer',
     fontWeight: 600,
-    fontSize: '12px',
+    fontSize: '13px',
   };
 }

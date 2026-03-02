@@ -12,6 +12,12 @@ export default defineConfig({
     alias: {
       '@openteams': path.resolve(__dirname, '../src'),
     },
+    dedupe: ['react', 'react-dom'],
+  },
+  server: {
+    fs: {
+      allow: [path.resolve(__dirname, '..')],
+    },
   },
   test: {
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],

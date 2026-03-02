@@ -41,7 +41,7 @@ export function RoleInspector({ nodeId, data }: Props) {
         padding: '12px',
         borderBottom: '1px solid var(--color-border)',
         fontWeight: 600,
-        fontSize: '13px',
+        fontSize: '14px',
         color: 'var(--color-text)',
       }}>
         Role: {data.roleName}
@@ -60,7 +60,7 @@ export function RoleInspector({ nodeId, data }: Props) {
             style={{
               flex: 1,
               padding: '8px 4px',
-              fontSize: '11px',
+              fontSize: '13px',
               background: 'none',
               border: 'none',
               borderBottom: activeTab === tab ? '2px solid var(--color-accent)' : '2px solid transparent',
@@ -271,7 +271,7 @@ function CommunicationTab({ data }: { data: RoleNodeData }) {
       <div>
         <div style={sectionLabel}>Subscribes to</div>
         {subscriptions.map((sub, i) => (
-          <div key={i} style={{ fontSize: '11px', padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div key={i} style={{ fontSize: '13px', padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>
               <strong>{sub.channel}</strong>
               {sub.signals ? ` (${sub.signals.join(', ')})` : ' (all)'}
@@ -287,7 +287,7 @@ function CommunicationTab({ data }: { data: RoleNodeData }) {
         <div style={sectionLabel}>Peer Routes (outgoing)</div>
         {outRoutes.length === 0 && <div style={emptyStyle}>None</div>}
         {outRoutes.map((r, i) => (
-          <div key={i} style={{ fontSize: '11px', padding: '2px 0', color: 'var(--color-text-secondary)' }}>
+          <div key={i} style={{ fontSize: '13px', padding: '2px 0', color: 'var(--color-text-secondary)' }}>
             {'\u2192'} {r.to} via {r.via} {r.signals?.length ? `[${r.signals.join(', ')}]` : ''}
           </div>
         ))}
@@ -323,7 +323,7 @@ function CommunicationTab({ data }: { data: RoleNodeData }) {
         <div style={sectionLabel}>Peer Routes (incoming)</div>
         {inRoutes.length === 0 && <div style={emptyStyle}>None</div>}
         {inRoutes.map((r, i) => (
-          <div key={i} style={{ fontSize: '11px', padding: '2px 0', color: 'var(--color-text-secondary)' }}>
+          <div key={i} style={{ fontSize: '13px', padding: '2px 0', color: 'var(--color-text-secondary)' }}>
             {'\u2190'} {r.from} via {r.via} {r.signals?.length ? `[${r.signals.join(', ')}]` : ''}
           </div>
         ))}
@@ -382,7 +382,7 @@ function CapabilitiesTab({ role, data, updateRole }: {
       <div>
         <div style={sectionLabel}>Spawn Rules (can spawn)</div>
         {allRoles.filter(r => r !== data.roleName).map(r => (
-          <label key={r} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', padding: '2px 0', cursor: 'pointer' }}>
+          <label key={r} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '2px 0', cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={spawnRules.includes(r)}
@@ -408,7 +408,7 @@ function PromptsTab({ role, updateRole }: {
             ...inputStyle,
             minHeight: '200px',
             fontFamily: 'monospace',
-            fontSize: '11px',
+            fontSize: '13px',
             resize: 'vertical',
             lineHeight: '1.5',
           }}
@@ -425,7 +425,7 @@ function PromptsTab({ role, updateRole }: {
               ...inputStyle,
               minHeight: '120px',
               fontFamily: 'monospace',
-              fontSize: '11px',
+              fontSize: '13px',
               resize: 'vertical',
               lineHeight: '1.5',
             }}
@@ -457,7 +457,7 @@ function PromptsTab({ role, updateRole }: {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
+      <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
         {label}
       </label>
       {children}
@@ -469,14 +469,14 @@ const panelStyle: React.CSSProperties = { padding: '12px', color: 'var(--color-t
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '6px 8px',
-  fontSize: '12px',
+  fontSize: '13px',
   border: '1px solid var(--color-border)',
   borderRadius: '4px',
   background: 'var(--color-bg)',
   color: 'var(--color-text)',
   boxSizing: 'border-box',
 };
-const sectionLabel: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '6px' };
+const sectionLabel: React.CSSProperties = { fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '6px' };
 const tagStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -485,7 +485,7 @@ const tagStyle: React.CSSProperties = {
   color: 'var(--color-text-secondary)',
   padding: '2px 6px',
   borderRadius: '4px',
-  fontSize: '10px',
+  fontSize: '11px',
   fontFamily: 'monospace',
 };
 const tagRemoveBtn: React.CSSProperties = {
@@ -494,7 +494,7 @@ const tagRemoveBtn: React.CSSProperties = {
   cursor: 'pointer',
   color: 'var(--color-text-muted)',
   padding: '0 2px',
-  fontSize: '12px',
+  fontSize: '13px',
 };
 const addBtnStyle: React.CSSProperties = {
   background: 'none',
@@ -502,7 +502,7 @@ const addBtnStyle: React.CSSProperties = {
   borderRadius: '4px',
   padding: '2px 8px',
   cursor: 'pointer',
-  fontSize: '11px',
+  fontSize: '13px',
   color: 'var(--color-text-muted)',
 };
-const emptyStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--color-text-muted)', fontStyle: 'italic' };
+const emptyStyle: React.CSSProperties = { fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic' };

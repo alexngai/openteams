@@ -128,7 +128,7 @@ const menuItemStyle: React.CSSProperties = {
   border: 'none',
   borderBottom: '1px solid var(--color-border-subtle)',
   cursor: 'pointer',
-  fontSize: '12px',
+  fontSize: '13px',
   color: 'var(--color-text)',
   textAlign: 'left' as const,
 };

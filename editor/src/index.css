@@ -168,7 +168,7 @@
   }
 
   .ot-label {
-    @apply text-[11px] font-medium uppercase tracking-wide;
+    @apply text-xs font-medium uppercase tracking-wide;
     color: var(--color-text-muted);
   }
 }

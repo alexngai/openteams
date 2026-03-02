@@ -6,6 +6,25 @@ import { useHistoryStore } from '../stores/history-store';
 import { useValidationStore } from '../stores/validation-store';
 import { configToCanvas } from './serializer';
 
+export function loadEmpty() {
+  const team: EditorTeamConfig = {
+    name: 'untitled',
+    description: '',
+    version: 1,
+    enforcement: 'permissive',
+    extensions: {},
+  };
+
+  useConfigStore.getState().loadFromManifest(
+    team, new Map(), {}, {}, {}, [], {}, {}, '', [],
+  );
+  useCanvasStore.getState().setNodes([]);
+  useCanvasStore.getState().setEdges([]);
+  useHistoryStore.getState().clear();
+  useHistoryStore.getState().pushSnapshot();
+  useValidationStore.getState().clear();
+}
+
 export function loadTemplate(manifest: TeamManifest, roleDefinitions: Map<string, RoleDefinition>) {
   const comm = manifest.communication || {};
   const channels = comm.channels || {};

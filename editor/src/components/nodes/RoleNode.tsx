@@ -29,7 +29,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
         padding: '0',
         minWidth: '240px',
         maxWidth: '280px',
-        fontSize: '12px',
+        fontSize: '13px',
         boxShadow: selected ? '0 0 0 2px var(--color-accent)' : '0 1px 3px rgba(0,0,0,0.1)',
         cursor: 'pointer',
       }}
@@ -48,7 +48,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             {badge && (
-              <span style={{ color: colors.badge, fontSize: '13px' }}>{badge}</span>
+              <span style={{ color: colors.badge, fontSize: '14px' }}>{badge}</span>
             )}
             <span style={{
               fontWeight: 600,
@@ -63,7 +63,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
           {data.displayName && data.displayName !== data.roleName && (
             <div style={{
               color: 'var(--color-text-muted)',
-              fontSize: '11px',
+              fontSize: '12px',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -80,7 +80,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
               color: '#fff',
               padding: '1px 6px',
               borderRadius: '4px',
-              fontSize: '10px',
+              fontSize: '11px',
               fontWeight: 500,
             }}>
               {data.model}
@@ -92,7 +92,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
               color: '#fff',
               padding: '1px 5px',
               borderRadius: '4px',
-              fontSize: '10px',
+              fontSize: '11px',
               fontWeight: 600,
             }}>
               {data.errors.length}
@@ -104,7 +104,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
               color: '#000',
               padding: '1px 5px',
               borderRadius: '4px',
-              fontSize: '10px',
+              fontSize: '11px',
               fontWeight: 600,
             }}>
               {data.warnings.length}
@@ -119,7 +119,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
           padding: '6px 10px',
           borderBottom: '1px solid var(--color-border-subtle)',
           color: 'var(--color-text-muted)',
-          fontSize: '11px',
+          fontSize: '12px',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
@@ -135,7 +135,7 @@ function RoleNodeComponent({ data, selected }: NodeProps & { data: RoleNodeData 
         display: 'flex',
         gap: '8px',
         color: 'var(--color-text-muted)',
-        fontSize: '11px',
+        fontSize: '12px',
       }}>
         {emitsCount > 0 && (
           <span title="Signals emitted">{'\u25B2'} emits {emitsCount}</span>

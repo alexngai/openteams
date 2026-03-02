@@ -36,7 +36,7 @@ export function ExportModal({ onClose }: Props) {
     <div style={overlayStyle} onClick={onClose} data-testid="export-modal-overlay">
       <div style={modalStyle} onClick={e => e.stopPropagation()} data-testid="export-modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--color-text)' }}>Export Template</h3>
+          <h3 style={{ margin: 0, fontSize: '17px', color: 'var(--color-text)' }}>Export Template</h3>
           <button onClick={onClose} style={closeBtnStyle} data-testid="export-close">{'\u00D7'}</button>
         </div>
 
@@ -49,7 +49,7 @@ export function ExportModal({ onClose }: Props) {
               data-testid={`export-tab-${f.path}`}
               style={{
                 padding: '4px 10px',
-                fontSize: '11px',
+                fontSize: '12px',
                 border: '1px solid var(--color-border)',
                 borderRadius: '4px',
                 background: i === activeFile ? 'var(--color-accent)' : 'var(--color-bg)',
@@ -100,11 +100,11 @@ const closeBtnStyle: React.CSSProperties = {
   background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--color-text-muted)',
 };
 const preStyle: React.CSSProperties = {
-  background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px', fontSize: '11px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '400px', whiteSpace: 'pre-wrap', margin: 0, color: 'var(--color-text)',
+  background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px', fontSize: '12px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '400px', whiteSpace: 'pre-wrap', margin: 0, color: 'var(--color-text)',
 };
 const copyBtnStyle: React.CSSProperties = {
-  background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
+  background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer',
 };
 const actionBtnStyle: React.CSSProperties = {
-  background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer', fontWeight: 600,
+  background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 16px', fontSize: '14px', cursor: 'pointer', fontWeight: 600,
 };

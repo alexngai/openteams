@@ -62,7 +62,7 @@ function PeerRouteEdgeComponent({
               border: `1px solid ${isActive ? '#f59e0b' : 'var(--color-border)'}`,
               borderRadius: '4px',
               padding: '2px 6px',
-              fontSize: '9px',
+              fontSize: '10px',
               fontFamily: 'monospace',
               color: 'var(--color-text-secondary)',
               whiteSpace: 'nowrap',

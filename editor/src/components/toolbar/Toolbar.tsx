@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { useUIStore } from '../../stores/ui-store';
 import { useHistoryStore } from '../../stores/history-store';
 import { useCanvasStore } from '../../stores/canvas-store';
@@ -5,6 +6,7 @@ import { useConfigStore } from '../../stores/config-store';
 import { useValidationStore } from '../../stores/validation-store';
 import { useThemeStore } from '../../stores/theme-store';
 import { computeLayout } from '../../lib/auto-layout';
+import { loadEmpty } from '../../lib/load-template';
 
 export function Toolbar() {
   const { sidebarOpen, toggleSidebar, inspectorOpen, toggleInspector, layers, toggleLayer, setExportModalOpen, setImportModalOpen } = useUIStore();
@@ -41,87 +43,122 @@ export function Toolbar() {
       alignItems: 'center',
       padding: '0 12px',
       gap: '8px',
-      fontSize: '13px',
+      fontSize: '14px',
       flexShrink: 0,
     }}>
       {/* Left section */}
-      <button
+      <ToolbarBtn
         onClick={toggleSidebar}
-        style={btnStyle}
         title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
         data-testid="toggle-sidebar"
       >
         {'\u2630'}
-      </button>
+      </ToolbarBtn>
 
-      <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>OpenTeams Editor</span>
-
-      <div style={dividerStyle} />
-
-      <button onClick={() => setImportModalOpen(true)} style={btnStyle} data-testid="btn-import">Import</button>
-      <button onClick={() => setExportModalOpen(true)} style={btnStyle} data-testid="btn-export">Export</button>
+      <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>openteams editor</span>
 
       <div style={dividerStyle} />
 
-      <button onClick={handleAutoLayout} style={btnStyle} title="Auto Layout" data-testid="btn-layout">Layout</button>
-      <button
+      <ToolbarBtn onClick={() => loadEmpty()} title="Clear canvas" data-testid="btn-clear" icon={'\u2715'}>Clear</ToolbarBtn>
+      <ToolbarBtn onClick={() => setImportModalOpen(true)} title="Import template" data-testid="btn-import" icon={'\u2191'}>Import</ToolbarBtn>
+      <ToolbarBtn onClick={() => setExportModalOpen(true)} title="Export template" data-testid="btn-export" icon={'\u2193'}>Export</ToolbarBtn>
+
+      <div style={dividerStyle} />
+
+      <ToolbarBtn onClick={handleAutoLayout} title="Auto Layout" data-testid="btn-layout" icon={'\u2B1A'}>Layout</ToolbarBtn>
+      <ToolbarBtn
         onClick={() => historyStore.undo()}
         disabled={!historyStore.canUndo()}
-        style={btnStyle}
         title="Undo (Ctrl+Z)"
         data-testid="btn-undo"
+        icon={'\u21A9'}
       >
         Undo
-      </button>
-      <button
+      </ToolbarBtn>
+      <ToolbarBtn
         onClick={() => historyStore.redo()}
         disabled={!historyStore.canRedo()}
-        style={btnStyle}
         title="Redo (Ctrl+Y)"
         data-testid="btn-redo"
+        iconAfter={'\u21AA'}
       >
         Redo
-      </button>
+      </ToolbarBtn>
 
       <div style={dividerStyle} />
 
       {/* Layer toggles */}
-      <span style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Layers:</span>
+      <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>Layers:</span>
       {(['peerRoutes', 'channels', 'spawnRules', 'inheritance'] as const).map(layer => (
-        <button
+        <ToolbarBtn
           key={layer}
           onClick={() => toggleLayer(layer)}
-          style={{
-            ...btnStyle,
-            background: layers[layer] ? 'var(--color-accent)' : undefined,
-            color: layers[layer] ? '#fff' : undefined,
-          }}
           title={`Toggle ${layer}`}
           data-testid={`layer-${layer}`}
+          active={layers[layer]}
         >
           {LAYER_LABELS[layer]}
-        </button>
+        </ToolbarBtn>
       ))}
 
       {/* Spacer */}
       <div style={{ flex: 1 }} />
 
       {/* Status */}
-      <span data-testid="toolbar-status" style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
+      <span data-testid="toolbar-status" style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>
         {roleCount} roles {'\u00B7'} {channelCount} ch
         {errors.length > 0 && <span data-testid="status-errors" style={{ color: 'var(--color-danger)', marginLeft: 6 }}>{errors.length} err</span>}
         {warnings.length > 0 && <span data-testid="status-warnings" style={{ color: 'var(--color-warning)', marginLeft: 6 }}>{warnings.length} warn</span>}
         {errors.length === 0 && warnings.length === 0 && <span data-testid="status-valid" style={{ color: 'var(--color-success)', marginLeft: 6 }}>{'\u2713'} valid</span>}
       </span>
 
-      <button onClick={cycleTheme} style={btnStyle} title={`Theme: ${themeLabel}`} data-testid="btn-theme">
+      <ToolbarBtn onClick={cycleTheme} title={`Theme: ${themeLabel}`} data-testid="btn-theme">
         {themeIcon}
-      </button>
+      </ToolbarBtn>
 
-      <button onClick={toggleInspector} style={btnStyle} title={inspectorOpen ? 'Hide inspector' : 'Show inspector'} data-testid="toggle-inspector">
+      <ToolbarBtn onClick={toggleInspector} title={inspectorOpen ? 'Hide inspector' : 'Show inspector'} data-testid="toggle-inspector">
         {inspectorOpen ? '\u00BB' : '\u00AB'}
-      </button>
+      </ToolbarBtn>
     </div>
+  );
+}
+
+function ToolbarBtn({ children, icon, iconAfter, active, disabled, ...rest }: {
+  children: React.ReactNode;
+  icon?: string;
+  iconAfter?: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
+  title?: string;
+  'data-testid'?: string;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  const style: React.CSSProperties = {
+    ...btnBase,
+    background: active
+      ? 'var(--color-accent-bg)'
+      : hovered ? 'var(--color-hover)' : 'none',
+    borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
+    color: active
+      ? 'var(--color-accent)'
+      : hovered ? 'var(--color-text)' : 'var(--color-text-secondary)',
+    opacity: disabled ? 0.4 : 1,
+  };
+
+  return (
+    <button
+      {...rest}
+      disabled={disabled}
+      style={style}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {icon && <span style={{ fontSize: '11px' }}>{icon}</span>}
+      {children}
+      {iconAfter && <span style={{ fontSize: '11px' }}>{iconAfter}</span>}
+    </button>
   );
 }
 
@@ -132,14 +169,18 @@ const LAYER_LABELS: Record<string, string> = {
   inheritance: 'Inherit',
 };
 
-const btnStyle: React.CSSProperties = {
+const btnBase: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '5px',
   background: 'none',
   border: '1px solid var(--color-border)',
   borderRadius: '4px',
   padding: '3px 8px',
   cursor: 'pointer',
-  fontSize: '12px',
+  fontSize: '13px',
   color: 'var(--color-text-secondary)',
+  transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
 };
 
 const dividerStyle: React.CSSProperties = {

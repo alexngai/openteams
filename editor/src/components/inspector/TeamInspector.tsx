@@ -29,7 +29,7 @@ export function TeamInspector() {
         padding: '12px',
         borderBottom: '1px solid var(--color-border)',
         fontWeight: 600,
-        fontSize: '13px',
+        fontSize: '14px',
         color: 'var(--color-text)',
       }}>
         Team Settings
@@ -78,7 +78,7 @@ export function TeamInspector() {
                 ...inputStyle,
                 minHeight: '150px',
                 fontFamily: 'monospace',
-                fontSize: '11px',
+                fontSize: '13px',
                 resize: 'vertical',
                 lineHeight: '1.5',
               }}
@@ -93,7 +93,7 @@ export function TeamInspector() {
           padding: '8px',
           background: 'var(--color-bg)',
           borderRadius: '6px',
-          fontSize: '11px',
+          fontSize: '13px',
           color: 'var(--color-text-muted)',
         }}>
           Select a role or channel on the canvas to edit its properties. Click the canvas background to return here.
@@ -106,7 +106,7 @@ export function TeamInspector() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
+      <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
         {label}
       </label>
       {children}
@@ -117,7 +117,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '6px 8px',
-  fontSize: '12px',
+  fontSize: '13px',
   border: '1px solid var(--color-border)',
   borderRadius: '4px',
   background: 'var(--color-bg)',

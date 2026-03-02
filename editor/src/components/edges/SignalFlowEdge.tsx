@@ -60,7 +60,7 @@ function SignalFlowEdgeComponent({
               border: '1px solid var(--color-border)',
               borderRadius: '4px',
               padding: '2px 6px',
-              fontSize: '9px',
+              fontSize: '10px',
               fontFamily: 'monospace',
               color: 'var(--color-text-muted)',
               whiteSpace: 'nowrap',
