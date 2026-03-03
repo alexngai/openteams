@@ -2,10 +2,10 @@
   "name": "openteams",
   "version": "0.2.0",
   "description": "OpenTeams - Team structure definition and template toolkit for multi-agent systems",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/cjs/index.js",
+  "types": "dist/cjs/index.d.ts",
   "bin": {
-    "openteams": "dist/cli.js"
+    "openteams": "dist/cjs/cli.js"
   },
   "workspaces": [
     "editor"
