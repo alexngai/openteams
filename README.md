@@ -63,11 +63,11 @@ npm install -g openteams
 ### Validate a template
 
 ```bash
-openteams template validate ./examples/get-shit-done
+openteams template validate ./examples/gsd
 ```
 
 ```
-Template "get-shit-done" is valid.
+Template "gsd" is valid.
   Version: 1
   Roles: orchestrator, roadmapper, planner, plan-checker, executor, verifier ...
   Root: orchestrator
@@ -78,7 +78,7 @@ Template "get-shit-done" is valid.
 
 ```bash
 # Generate SKILL.md + agent prompt files
-openteams generate all ./examples/get-shit-done -o ./output/gsd
+openteams generate all ./examples/gsd -o ./output/gsd
 ```
 
 ```
@@ -87,7 +87,7 @@ Generated ./output/gsd/SKILL.md
   planner -> ./output/gsd/agents/planner.md
   ...
 
-Generated SKILL.md + 12 agent prompt(s) for team "get-shit-done"
+Generated SKILL.md + 12 agent prompt(s) for team "gsd"
 ```
 
 ### Install a template from git
@@ -117,7 +117,7 @@ schema/
   team.schema.json       # JSON Schema for team.yaml
   role.schema.json       # JSON Schema for role YAML
 examples/
-  get-shit-done/         # 12-role team with wave-based execution
+  gsd/                   # 12-role team with wave-based execution
   bmad-method/           # 10-role agile development team
 ```
 
@@ -336,9 +336,9 @@ npm install openteams
 import { TemplateLoader } from "openteams";
 
 // Load from a directory
-const template = TemplateLoader.load("./examples/get-shit-done");
+const template = TemplateLoader.load("./examples/gsd");
 
-console.log(template.manifest.name);        // "get-shit-done"
+console.log(template.manifest.name);        // "gsd"
 console.log(template.manifest.roles);        // ["orchestrator", "roadmapper", ...]
 console.log(template.manifest.topology);     // { root, companions, spawn_rules }
 console.log(template.manifest.communication); // { channels, subscriptions, emissions, routing }
@@ -427,7 +427,7 @@ A 10-role agile development team structured around four phases: analysis, planni
 
 **Enforcement:** `audit`
 
-### Get Shit Done (`examples/get-shit-done/`)
+### GSD (`examples/gsd/`)
 
 A 12-role autonomous development system with wave-based parallel execution.
 
@@ -450,8 +450,8 @@ The orchestrator runs a research phase, produces a roadmap, validates a plan, th
 **Enforcement:** `permissive`
 
 ```bash
-openteams template validate ./examples/get-shit-done
-openteams generate all ./examples/get-shit-done -o ./output/gsd
+openteams template validate ./examples/gsd
+openteams generate all ./examples/gsd -o ./output/gsd
 ```
 
 ---

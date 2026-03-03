@@ -14,7 +14,7 @@ function buildTemplates(): Record<string, BundledTemplate> {
   const templates: Record<string, BundledTemplate> = {};
 
   for (const [path, content] of Object.entries(teamYamls)) {
-    // path is like ../../../examples/get-shit-done/team.yaml
+    // path is like ../../../examples/gsd/team.yaml
     const match = path.match(/examples\/([^/]+)\/team\.yaml$/);
     if (!match) continue;
     const dirName = match[1];

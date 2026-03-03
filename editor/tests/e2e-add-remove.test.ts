@@ -268,7 +268,7 @@ describe('E2E: Add and remove roles/channels', () => {
 
   describe('Add roles to a loaded template', () => {
     it('adds a new role to an existing template', () => {
-      const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+      const tmpl = BUNDLED_TEMPLATES['gsd'];
       loadTemplate(tmpl.manifest, tmpl.roles);
 
       const initialRoleCount = useConfigStore.getState().roles.size;
@@ -281,7 +281,7 @@ describe('E2E: Add and remove roles/channels', () => {
     });
 
     it('new role gets added to spawn rules of existing role', () => {
-      const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+      const tmpl = BUNDLED_TEMPLATES['gsd'];
       loadTemplate(tmpl.manifest, tmpl.roles);
 
       addRole('helper');

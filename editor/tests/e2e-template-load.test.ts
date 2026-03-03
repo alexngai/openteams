@@ -21,17 +21,17 @@ function resetStores() {
 describe('E2E: Template loading flow', () => {
   beforeEach(resetStores);
 
-  it('loads get-shit-done template with correct role count', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+  it('loads gsd template with correct role count', () => {
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const config = useConfigStore.getState();
     expect(config.roles.size).toBe(12);
-    expect(config.team.name).toBe('get-shit-done');
+    expect(config.team.name).toBe('gsd');
   });
 
   it('creates canvas nodes for each role and channel', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const canvas = useCanvasStore.getState();
@@ -43,7 +43,7 @@ describe('E2E: Template loading flow', () => {
   });
 
   it('sets topology root and companions correctly', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const config = useConfigStore.getState();
@@ -53,7 +53,7 @@ describe('E2E: Template loading flow', () => {
   });
 
   it('creates peer route edges from routing config', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const canvas = useCanvasStore.getState();
@@ -64,7 +64,7 @@ describe('E2E: Template loading flow', () => {
   });
 
   it('creates signal flow edges for emissions and subscriptions', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const canvas = useCanvasStore.getState();
@@ -78,7 +78,7 @@ describe('E2E: Template loading flow', () => {
   });
 
   it('creates spawn edges from spawn_rules', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const canvas = useCanvasStore.getState();
@@ -96,7 +96,7 @@ describe('E2E: Template loading flow', () => {
   });
 
   it('sets correct topology position on role nodes', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const canvas = useCanvasStore.getState();
@@ -112,7 +112,7 @@ describe('E2E: Template loading flow', () => {
   });
 
   it('populates channels in config store', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const config = useConfigStore.getState();
@@ -130,7 +130,7 @@ describe('E2E: Template loading flow', () => {
 
   it('resets history on template load', () => {
     // Load once
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     // Should have exactly one snapshot (the initial push)
@@ -150,7 +150,7 @@ describe('E2E: Template loading flow', () => {
   });
 
   it('switching templates replaces all state', () => {
-    const gsd = BUNDLED_TEMPLATES['get-shit-done'];
+    const gsd = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(gsd.manifest, gsd.roles);
 
     const gsdRoleCount = useConfigStore.getState().roles.size;
@@ -166,7 +166,7 @@ describe('E2E: Template loading flow', () => {
   });
 
   it('populates emission and subscription mappings', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const config = useConfigStore.getState();
@@ -181,7 +181,7 @@ describe('E2E: Template loading flow', () => {
   });
 
   it('extracts extensions from manifest', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const config = useConfigStore.getState();
@@ -193,7 +193,7 @@ describe('E2E: Template loading flow', () => {
   });
 
   it('auto-layouts nodes with non-zero positions', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const canvas = useCanvasStore.getState();

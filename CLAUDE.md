@@ -32,7 +32,7 @@ src/
     agent-prompt-generator.ts  # generateAgentPrompts(), generateRoleSkillMd().
     package-generator.ts # generatePackage() — bundle template for distribution.
 examples/
-  get-shit-done/         # 12-role team template with wave-based execution.
+  gsd/                   # 12-role team template with wave-based execution.
   bmad-method/           # Alternative team topology example.
 schema/
   team.schema.json       # JSON Schema for team.yaml validation.
@@ -44,7 +44,7 @@ schema/
 **Template loading**: `TemplateLoader` methods are static. `load()` is synchronous, `loadAsync()` supports async hooks.
 
 ```typescript
-const template = TemplateLoader.load("./examples/get-shit-done");
+const template = TemplateLoader.load("./examples/gsd");
 const template = await TemplateLoader.loadAsync(dir, {
   resolveExternalRole: (name) => /* resolve roles not in local map */,
   postProcessRole: (role, manifest) => /* enrich after inheritance */,

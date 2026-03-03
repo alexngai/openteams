@@ -1,5 +1,5 @@
-name: get-shit-done
-description: "GSD — prompt-native multi-agent system for autonomous codebase development with wave-based parallel execution, goal-backward verification, and checkpoint-based context management"
+name: gsd
+description: "GSD (Get Shit Done) — prompt-native multi-agent system for autonomous codebase development with wave-based parallel execution, goal-backward verification, and checkpoint-based context management"
 version: 1
 roles:
   - orchestrator

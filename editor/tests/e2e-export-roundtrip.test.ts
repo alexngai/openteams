@@ -27,7 +27,7 @@ describe('E2E: Export/Import roundtrip', () => {
   beforeEach(resetStores);
 
   it('GSD template export produces valid team.yaml', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const files = compileToYaml();
@@ -35,13 +35,13 @@ describe('E2E: Export/Import roundtrip', () => {
     expect(teamFile).toBeDefined();
 
     const parsed = yaml.load(teamFile!.content) as TeamManifest;
-    expect(parsed.name).toBe('get-shit-done');
+    expect(parsed.name).toBe('gsd');
     expect(parsed.roles).toHaveLength(12);
     expect(parsed.topology.root.role).toBe('orchestrator');
   });
 
   it('export produces role files for each role', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const files = compileToYaml();
@@ -59,7 +59,7 @@ describe('E2E: Export/Import roundtrip', () => {
   });
 
   it('roundtrip: load → export → re-import preserves roles', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     // Capture state after load
@@ -85,11 +85,11 @@ describe('E2E: Export/Import roundtrip', () => {
     // Verify state matches
     expect(useConfigStore.getState().roles.size).toBe(originalRoleCount);
     expect(Object.keys(useConfigStore.getState().channels).length).toBe(originalChannelCount);
-    expect(useConfigStore.getState().team.name).toBe('get-shit-done');
+    expect(useConfigStore.getState().team.name).toBe('gsd');
   });
 
   it('roundtrip preserves topology structure', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const files = compileToYaml();
@@ -101,7 +101,7 @@ describe('E2E: Export/Import roundtrip', () => {
   });
 
   it('roundtrip preserves communication channels', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const files = compileToYaml();
@@ -113,7 +113,7 @@ describe('E2E: Export/Import roundtrip', () => {
   });
 
   it('roundtrip preserves peer routes', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const originalRouteCount = useConfigStore.getState().peerRoutes.length;
@@ -126,7 +126,7 @@ describe('E2E: Export/Import roundtrip', () => {
   });
 
   it('roundtrip preserves spawn rules', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const files = compileToYaml();
@@ -137,7 +137,7 @@ describe('E2E: Export/Import roundtrip', () => {
   });
 
   it('export after adding a role includes the new role', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     // Add a new role
@@ -184,7 +184,7 @@ describe('E2E: Export/Import roundtrip', () => {
   });
 
   it('export preserves model assignments', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     // Set a model
@@ -197,7 +197,7 @@ describe('E2E: Export/Import roundtrip', () => {
   });
 
   it('export preserves enforcement mode', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     // Change enforcement
@@ -210,7 +210,7 @@ describe('E2E: Export/Import roundtrip', () => {
   });
 
   it('export produces prompt files when content exists', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     // Add prompt content to a role
@@ -228,7 +228,7 @@ describe('E2E: Export/Import roundtrip', () => {
   });
 
   it('configToCanvas and canvasToManifest are inverses', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
 
     // Forward: manifest → canvas
     const canvasState = configToCanvas(tmpl.manifest, tmpl.roles);
@@ -258,7 +258,7 @@ describe('E2E: Export/Import roundtrip', () => {
   });
 
   it('rolesToDefinitions converts config roles to YAML-ready format', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const config = useConfigStore.getState();

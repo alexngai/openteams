@@ -3,8 +3,8 @@ import { configToCanvas, canvasToManifest, rolesToDefinitions } from '../src/lib
 import { BUNDLED_TEMPLATES } from '../src/lib/bundled-templates';
 
 describe('configToCanvas', () => {
-  it('converts get-shit-done template to canvas state', () => {
-    const { manifest, roles } = BUNDLED_TEMPLATES['get-shit-done'];
+  it('converts gsd template to canvas state', () => {
+    const { manifest, roles } = BUNDLED_TEMPLATES['gsd'];
     const state = configToCanvas(manifest, roles);
 
     // 12 role nodes + 4 channel nodes = 16
@@ -67,8 +67,8 @@ describe('configToCanvas', () => {
 });
 
 describe('canvasToManifest round-trip', () => {
-  it('round-trips get-shit-done through canvas and back', () => {
-    const { manifest: original, roles: originalRoles } = BUNDLED_TEMPLATES['get-shit-done'];
+  it('round-trips gsd through canvas and back', () => {
+    const { manifest: original, roles: originalRoles } = BUNDLED_TEMPLATES['gsd'];
     const state = configToCanvas(original, originalRoles);
 
     // Extract config from canvas state (simulate what the editor stores would hold)

@@ -187,7 +187,7 @@ describe('E2E: Undo/redo', () => {
   });
 
   it('undo on loaded template restores initial state', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const initialRoleCount = useConfigStore.getState().roles.size;
@@ -197,7 +197,7 @@ describe('E2E: Undo/redo', () => {
     useConfigStore.getState().setTeam({ name: 'modified' });
 
     useHistoryStore.getState().undo();
-    expect(useConfigStore.getState().team.name).toBe('get-shit-done');
+    expect(useConfigStore.getState().team.name).toBe('gsd');
     expect(useConfigStore.getState().roles.size).toBe(initialRoleCount);
   });
 });

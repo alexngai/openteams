@@ -7,7 +7,7 @@ import { configToCanvas } from '../src/lib/serializer';
 import * as yaml from 'js-yaml';
 
 function loadGSD() {
-  const { manifest, roles: roleDefinitions } = BUNDLED_TEMPLATES['get-shit-done'];
+  const { manifest, roles: roleDefinitions } = BUNDLED_TEMPLATES['gsd'];
   const comm = manifest.communication || {};
 
   const roles = new Map<string, any>();
@@ -72,7 +72,7 @@ describe('compileToYaml', () => {
     expect(teamFile).toBeDefined();
 
     const parsed = yaml.load(teamFile!.content) as any;
-    expect(parsed.name).toBe('get-shit-done');
+    expect(parsed.name).toBe('gsd');
     expect(parsed.roles).toHaveLength(12);
     expect(parsed.topology.root.role).toBe('orchestrator');
     expect(parsed.topology.companions).toHaveLength(2);

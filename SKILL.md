@@ -13,22 +13,22 @@ npm run build
 
 ```bash
 # Validate a template
-openteams template validate ./examples/get-shit-done
+openteams template validate ./examples/gsd
 
 # Generate SKILL.md + agent prompt files
-openteams generate all ./examples/get-shit-done -o ./output/gsd
+openteams generate all ./examples/gsd -o ./output/gsd
 
 # Generate just the SKILL.md
-openteams generate skill ./examples/get-shit-done
+openteams generate skill ./examples/gsd
 
 # Generate a deployable package
-openteams generate package ./examples/get-shit-done -o ./output/gsd-package
+openteams generate package ./examples/gsd -o ./output/gsd-package
 
 # Install a template from a git repo
 openteams template install owner/repo
 
 # Launch the visual editor
-openteams editor -d ./examples/get-shit-done
+openteams editor -d ./examples/gsd
 ```
 
 ## Commands

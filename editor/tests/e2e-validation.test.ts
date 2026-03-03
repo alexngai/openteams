@@ -38,7 +38,7 @@ describe('E2E: Validation pipeline', () => {
   beforeEach(resetStores);
 
   it('loaded GSD template passes validation', () => {
-    const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+    const tmpl = BUNDLED_TEMPLATES['gsd'];
     loadTemplate(tmpl.manifest, tmpl.roles);
 
     const { errors } = runValidation();

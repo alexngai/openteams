@@ -27,7 +27,7 @@ function resetStores() {
 }
 
 function loadGSD() {
-  const tmpl = BUNDLED_TEMPLATES['get-shit-done'];
+  const tmpl = BUNDLED_TEMPLATES['gsd'];
   loadTemplate(tmpl.manifest, tmpl.roles);
 }
 
@@ -142,10 +142,13 @@ describe('E2E: Component rendering', () => {
       expect(screen.getByTestId('sidebar-channel-planning_events')).toBeInTheDocument();
     });
 
-    it('shows template gallery buttons', () => {
+    it('shows template selector with gsd option', () => {
       renderWithProviders(<Sidebar />);
 
-      expect(screen.getByTestId('template-get-shit-done')).toBeInTheDocument();
+      const select = screen.getByTestId('template-select') as HTMLSelectElement;
+      expect(select).toBeInTheDocument();
+      const options = Array.from(select.options).map(o => o.value);
+      expect(options).toContain('gsd');
     });
 
     it('clicking add role creates a new role', () => {
@@ -183,12 +186,12 @@ describe('E2E: Component rendering', () => {
       expect(useCanvasStore.getState().selectedNodeId).toBe('channel-project_lifecycle');
     });
 
-    it('clicking template button loads that template', () => {
+    it('selecting template from dropdown loads that template', () => {
       renderWithProviders(<Sidebar />);
 
-      fireEvent.click(screen.getByTestId('template-get-shit-done'));
+      fireEvent.change(screen.getByTestId('template-select'), { target: { value: 'gsd' } });
 
-      expect(useConfigStore.getState().team.name).toBe('get-shit-done');
+      expect(useConfigStore.getState().team.name).toBe('gsd');
       expect(useConfigStore.getState().roles.size).toBe(12);
     });
 
@@ -238,7 +241,7 @@ describe('E2E: Component rendering', () => {
       renderWithProviders(<TeamInspector />);
 
       const nameInput = screen.getByTestId('team-name') as HTMLInputElement;
-      expect(nameInput.value).toBe('get-shit-done');
+      expect(nameInput.value).toBe('gsd');
 
       const enforcementSelect = screen.getByTestId('team-enforcement') as HTMLSelectElement;
       expect(enforcementSelect.value).toBe('permissive');
@@ -351,7 +354,7 @@ describe('E2E: Component rendering', () => {
     it('load template → select role → edit → verify export', async () => {
       // Step 1: Load template via sidebar
       renderWithProviders(<Sidebar />);
-      fireEvent.click(screen.getByTestId('template-get-shit-done'));
+      fireEvent.change(screen.getByTestId('template-select'), { target: { value: 'gsd' } });
       cleanup();
 
       expect(useConfigStore.getState().roles.size).toBe(12);
@@ -401,7 +404,7 @@ describe('E2E: Component rendering', () => {
 
       // Find the new role name
       const newRoleName = Array.from(useConfigStore.getState().roles.keys()).find(
-        name => !BUNDLED_TEMPLATES['get-shit-done'].manifest.roles.includes(name)
+        name => !BUNDLED_TEMPLATES['gsd'].manifest.roles.includes(name)
       );
       expect(newRoleName).toBeDefined();
 

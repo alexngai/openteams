@@ -11,7 +11,7 @@ A standalone browser-based visual editor for designing, visualizing, and exporti
 - Visualize complex inter-role relationships that are hard to reason about in raw YAML
 - Provide a bidirectional editor: import existing templates, modify visually, export valid YAML
 - Real-time validation with actionable error/warning feedback
-- Support all existing templates (get-shit-done, bmad-method) as proof of generalization
+- Support all existing templates (gsd, bmad-method) as proof of generalization
 - Inline markdown editing for role prompts
 
 ### Non-Goals (v1)
@@ -747,7 +747,7 @@ Subscribers (derived, read-only):
 ### 8.3 TeamInspector (nothing selected)
 
 ```
-Team Name:      [get-shit-done      ]
+Team Name:      [gsd      ]
 Description:    [GSD — prompt-native multi-agent...]
                 [                                  ]
 Version:        1 (read-only)
@@ -847,7 +847,7 @@ Signal: PLAN_READY
 1. User clicks "Import" in toolbar → ImportModal opens
 2. Two input methods:
    - **Paste YAML**: textarea for team.yaml content + separate textareas for role YAMLs
-   - **Load Template**: dropdown of bundled example templates (get-shit-done, bmad-method)
+   - **Load Template**: dropdown of bundled example templates (gsd, bmad-method)
 3. On confirm:
    - Parse YAML with js-yaml
    - Call `configToCanvas()` to build nodes + edges
@@ -936,7 +936,7 @@ The editor bundles the existing example templates for quick loading:
 ```typescript
 // Bundled as static JSON (compiled from YAML at build time)
 const BUNDLED_TEMPLATES = {
-  'get-shit-done': { manifest: {...}, roles: {...} },
+  'gsd': { manifest: {...}, roles: {...} },
   'bmad-method': { manifest: {...}, roles: {...} },
 };
 ```
@@ -945,7 +945,7 @@ The TemplateGallery component in the sidebar shows these as cards:
 
 ```
 ┌────────────────────────────────┐
-│  get-shit-done                 │
+│  gsd                 │
 │  12 roles · 4 channels         │
 │  Wave-based parallel execution  │
 │  [Load]                        │
@@ -1042,11 +1042,11 @@ CSS custom properties for dark/light mode, following the SDR editor pattern:
 6. Implement `serializer.ts: configToCanvas()` — full import pipeline (roles → nodes, communication → edges)
 7. Implement `auto-layout.ts: computeLayout()` — dagre LR layout with role/channel sizing
 8. Wire up canvas store to use serializer + layout for `loadFromConfig()`
-9. Bundle example templates (get-shit-done, bmad-method) as static JSON
-10. Load get-shit-done on startup as default, verify all nodes + edges render correctly
+9. Bundle example templates (gsd, bmad-method) as static JSON
+10. Load gsd on startup as default, verify all nodes + edges render correctly
 11. Write round-trip tests for serializer: `configToCanvas` → `canvasToConfig` → assert structural equality
 
-**Verification:** Both get-shit-done (12 roles, 4 channels) and bmad-method (10 roles, 4 channels) render correctly with auto-layout. All node types, edge types, and topology positions display properly.
+**Verification:** Both gsd (12 roles, 4 channels) and bmad-method (10 roles, 4 channels) render correctly with auto-layout. All node types, edge types, and topology positions display properly.
 
 ### Phase 3: Edge Types + Layer System
 
@@ -1127,7 +1127,7 @@ CSS custom properties for dark/light mode, following the SDR editor pattern:
 8. Implement `ThemeToggle.tsx` — dark/light mode
 9. Write compiler tests: build config → compile → parse output → assert matches input
 
-**Verification:** Import get-shit-done template → edit roles → export → resulting YAML is valid and matches expected structure. Auto-save persists across browser refresh.
+**Verification:** Import gsd template → edit roles → export → resulting YAML is valid and matches expected structure. Auto-save persists across browser refresh.
 
 ### Phase 8: Polish + Testing
 
@@ -1149,7 +1149,7 @@ CSS custom properties for dark/light mode, following the SDR editor pattern:
 
 ## Appendix A: Example Visualizations
 
-### A.1 get-shit-done (Peer Routes + Channels ON)
+### A.1 gsd (Peer Routes + Channels ON)
 
 ```
                                                 ┌──────────────────┐

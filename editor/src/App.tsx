@@ -24,7 +24,7 @@ export default function App() {
 
   // Load default template on mount
   useEffect(() => {
-    const template = BUNDLED_TEMPLATES['get-shit-done'];
+    const template = BUNDLED_TEMPLATES['gsd'];
     if (template) {
       loadTemplate(template.manifest, template.roles);
     }
