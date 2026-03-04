@@ -12,14 +12,36 @@ import type {
 const CONFIG_FILENAME = "config.json";
 
 /**
- * Find the .openteams/ directory by walking up from startDir.
+ * Find the openteams config directory by walking up from startDir.
+ * Priority: OPENTEAMS_PROJECT_DIR env var > .swarm/openteams exists > .openteams exists.
  * Returns null if not found.
  */
 export function findOpenTeamsDir(startDir?: string): string | null {
-  let dir = startDir ?? process.cwd();
+  const cwd = startDir ?? process.cwd();
+
+  // Check env var override first
+  const envDir = process.env.OPENTEAMS_PROJECT_DIR;
+  if (envDir) {
+    const resolved = path.resolve(cwd, envDir);
+    if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
+      return resolved;
+    }
+  }
+
+  // Walk up looking for .swarm/openteams or .openteams
+  let dir = cwd;
   const root = path.parse(dir).root;
 
   while (dir !== root) {
+    // Check .swarm/openteams first (prefixed layout)
+    const swarmCandidate = path.join(dir, ".swarm", "openteams");
+    if (
+      fs.existsSync(swarmCandidate) &&
+      fs.statSync(swarmCandidate).isDirectory()
+    ) {
+      return swarmCandidate;
+    }
+    // Then check .openteams (flat layout)
     const candidate = path.join(dir, ".openteams");
     if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
       return candidate;
@@ -212,15 +234,16 @@ export function resolveTemplateName(
 }
 
 /**
- * Write .openteams/config.json.
- * Creates .openteams/ directory if it doesn't exist.
+ * Write config.json to the openteams directory.
+ * Uses existing resolved dir if found, otherwise creates .openteams/ (flat default).
  * Returns the path to the written config file.
  */
 export function writeConfig(
   config: OpenTeamsConfig,
   targetDir: string
 ): string {
-  const openteamsDir = path.join(targetDir, ".openteams");
+  const existing = findOpenTeamsDir(targetDir);
+  const openteamsDir = existing ?? path.join(targetDir, ".openteams");
   fs.mkdirSync(openteamsDir, { recursive: true });
   const configPath = path.join(openteamsDir, CONFIG_FILENAME);
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
