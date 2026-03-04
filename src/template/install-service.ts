@@ -153,7 +153,8 @@ export class TemplateInstallService {
 
   /**
    * Resolve where a template should be installed.
-   * Walks up from cwd looking for .openteams/, falls back to global.
+   * Priority: explicit output > OPENTEAMS_PROJECT_DIR env var >
+   *   walk up for .swarm/openteams or .openteams > global ~/.openteams
    */
   resolveInstallPath(
     templateName: string,
@@ -163,9 +164,31 @@ export class TemplateInstallService {
       return { path: path.resolve(explicitOutput), isGlobal: false };
     }
 
-    // Walk up from cwd looking for .openteams/
+    // Check env var override
+    const envDir = process.env.OPENTEAMS_PROJECT_DIR;
+    if (envDir) {
+      const resolved = path.resolve(envDir);
+      return {
+        path: path.join(resolved, "templates", templateName),
+        isGlobal: false,
+      };
+    }
+
+    // Walk up from cwd looking for .swarm/openteams or .openteams
     let dir = process.cwd();
     while (true) {
+      // Check .swarm/openteams first (prefixed layout)
+      const swarmCandidate = path.join(dir, ".swarm", "openteams");
+      if (
+        fs.existsSync(swarmCandidate) &&
+        fs.statSync(swarmCandidate).isDirectory()
+      ) {
+        return {
+          path: path.join(swarmCandidate, "templates", templateName),
+          isGlobal: false,
+        };
+      }
+      // Then check .openteams (flat layout)
       const candidate = path.join(dir, ".openteams");
       if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
         return {
