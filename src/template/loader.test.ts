@@ -1618,4 +1618,79 @@ topology:
       expect(template.sourcePath).toBe("");
     });
   });
+
+  describe("built-in template loading by name", () => {
+    it("loads a built-in template by name", () => {
+      const template = TemplateLoader.load("gsd");
+      expect(template.manifest.name).toBe("gsd");
+      expect(template.roles.size).toBeGreaterThan(0);
+      expect(template.sourcePath).toContain("examples");
+    });
+
+    it("loads another built-in template by name", () => {
+      const template = TemplateLoader.load("bug-fix-pipeline");
+      expect(template.manifest.name).toBe("bug-fix-pipeline");
+    });
+
+    it("prefers filesystem path over built-in when both exist", () => {
+      writeYaml(
+        "gsd/team.yaml",
+        `
+name: local-gsd
+version: 1
+roles:
+  - worker
+topology:
+  root:
+    role: worker
+`
+      );
+
+      const template = TemplateLoader.load(path.join(tmpDir, "gsd"));
+      expect(template.manifest.name).toBe("local-gsd");
+    });
+
+    it("throws with helpful hint for unknown template name", () => {
+      expect(() => TemplateLoader.load("nonexistent-template-xyz")).toThrow(
+        /not found as an installed or built-in template/
+      );
+    });
+
+    it("listBuiltins returns template info", () => {
+      const builtins = TemplateLoader.listBuiltins();
+      expect(builtins.length).toBeGreaterThanOrEqual(8);
+      expect(builtins.some((t) => t.name === "gsd")).toBe(true);
+    });
+
+    it("listAll returns templates from all sources", () => {
+      const all = TemplateLoader.listAll();
+      expect(all.length).toBeGreaterThanOrEqual(8);
+      expect(all.every((t) => t.source !== undefined)).toBe(true);
+    });
+
+    it("resolves installed template by name over built-in", () => {
+      // Create a local .openteams/templates/gsd that shadows the built-in
+      writeYaml(
+        ".openteams/templates/gsd/team.yaml",
+        `
+name: installed-gsd
+version: 1
+roles:
+  - worker
+topology:
+  root:
+    role: worker
+`
+      );
+
+      const origCwd = process.cwd();
+      process.chdir(tmpDir);
+      try {
+        const template = TemplateLoader.load("gsd");
+        expect(template.manifest.name).toBe("installed-gsd");
+      } finally {
+        process.chdir(origCwd);
+      }
+    });
+  });
 });

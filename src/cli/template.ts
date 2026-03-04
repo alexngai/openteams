@@ -1,11 +1,14 @@
 import { Command } from "commander";
 import { TemplateInstallService } from "../template/install-service";
 import { TemplateLoader } from "../template/loader";
+import { listBuiltinTemplates } from "../template/builtins";
+import { listAllTemplates, writeConfig, loadConfig } from "../template/resolver";
+import type { OpenTeamsConfig } from "../template/types";
 import { askYesNo, selectFromList } from "./prompt-utils";
 
 export function createTemplateCommands(): Command {
   const template = new Command("template").description(
-    "Validate and install team templates"
+    "Validate, install, and manage team templates"
   );
 
   template
@@ -36,6 +39,116 @@ export function createTemplateCommands(): Command {
         }
       } catch (err: any) {
         console.error(`Invalid template: ${err.message}`);
+        process.exitCode = 1;
+      }
+    });
+
+  template
+    .command("list")
+    .description("List all available templates (built-in, installed, global)")
+    .option("--source <source>", "Filter by source: built-in, installed, global")
+    .action((opts) => {
+      const templates = listAllTemplates();
+
+      if (templates.length === 0) {
+        console.log("No templates found.");
+        return;
+      }
+
+      let filtered = templates;
+      if (opts.source) {
+        const sourceMap: Record<string, string> = {
+          "built-in": "built-in",
+          installed: "installed",
+          global: "installed (global)",
+        };
+        const filterSource = sourceMap[opts.source];
+        if (filterSource) {
+          filtered = templates.filter((t) => t.source === filterSource);
+        }
+      }
+
+      if (filtered.length === 0) {
+        console.log("No templates found matching the filter.");
+        return;
+      }
+
+      console.log("Available templates:\n");
+      for (const t of filtered) {
+        const sourceLabel = `[${t.source}]`;
+        const shadowLabel = t.shadows ? ` (shadowed by ${t.shadows})` : "";
+        console.log(`  ${t.name}  ${sourceLabel}${shadowLabel}`);
+        if (t.description) {
+          const desc =
+            t.description.length > 72
+              ? t.description.substring(0, 69) + "..."
+              : t.description;
+          console.log(`    ${desc}`);
+        }
+        console.log();
+      }
+
+      console.log(
+        `Use "openteams template validate <name>" or "openteams generate all <name>" with any template name above.`
+      );
+    });
+
+  template
+    .command("init")
+    .description(
+      "Initialize .openteams/config.json with default template configuration"
+    )
+    .option("--include <names...>", "Only include these built-in templates")
+    .option("--exclude <names...>", "Exclude these built-in templates")
+    .option("-d, --dir <path>", "Target directory", process.cwd())
+    .action((opts) => {
+      try {
+        const builtins = listBuiltinTemplates();
+        const builtinNames = builtins.map((b) => b.name);
+
+        if (opts.include && opts.exclude) {
+          console.error("Cannot use both --include and --exclude.");
+          process.exitCode = 1;
+          return;
+        }
+
+        // Validate names
+        const namesToCheck = opts.include ?? opts.exclude ?? [];
+        const invalid = namesToCheck.filter(
+          (n: string) => !builtinNames.includes(n)
+        );
+        if (invalid.length > 0) {
+          console.error(
+            `Unknown built-in template(s): ${invalid.join(", ")}`
+          );
+          console.error(`Available: ${builtinNames.join(", ")}`);
+          process.exitCode = 1;
+          return;
+        }
+
+        const config: OpenTeamsConfig = {};
+        if (opts.include) {
+          config.defaults = { include: opts.include };
+        } else if (opts.exclude) {
+          config.defaults = { exclude: opts.exclude };
+        }
+
+        const configPath = writeConfig(config, opts.dir);
+        console.log(`Created ${configPath}`);
+
+        if (config.defaults?.include) {
+          console.log(
+            `  Active built-ins: ${config.defaults.include.join(", ")}`
+          );
+        } else if (config.defaults?.exclude) {
+          console.log(
+            `  Excluded built-ins: ${config.defaults.exclude.join(", ")}`
+          );
+        } else {
+          console.log(`  All built-in templates are active (default).`);
+        }
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
         process.exitCode = 1;
       }
     });

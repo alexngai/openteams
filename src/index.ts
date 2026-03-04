@@ -22,6 +22,10 @@ export type {
   ResolvedPrompts,
   ResolvedTemplate,
   ResolvedRole,
+  TemplateSource,
+  TemplateInfo,
+  OpenTeamsConfig,
+  DefaultsConfig,
 } from "./template/types";
 
 // Template loader
@@ -35,6 +39,25 @@ export type {
   DiscoveredTemplate,
   InstallCallbacks,
 } from "./template/install-service";
+
+// Built-in templates
+export {
+  isTemplateName,
+  getBuiltinTemplateDir,
+  listBuiltinTemplates,
+} from "./template/builtins";
+export type { BuiltinTemplateInfo } from "./template/builtins";
+
+// Template resolver (unified resolution)
+export {
+  resolveTemplateName,
+  listAllTemplates,
+  loadConfig,
+  findConfigPath,
+  findOpenTeamsDir,
+  isBuiltinEnabled,
+  writeConfig,
+} from "./template/resolver";
 
 // Generators
 export { generateSkillMd, generateCatalog } from "./generators/skill-generator";

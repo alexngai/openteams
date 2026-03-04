@@ -15,6 +15,10 @@ import type {
   LoadOptions,
   AsyncLoadOptions,
 } from "./types";
+import { isTemplateName, listBuiltinTemplates } from "./builtins";
+import type { BuiltinTemplateInfo } from "./builtins";
+import { resolveTemplateName, listAllTemplates } from "./resolver";
+import type { TemplateInfo } from "./types";
 
 /**
  * Extract the role name from a SpawnRuleEntry (string or { role, max_instances? }).
@@ -163,10 +167,22 @@ export class TemplateLoader {
     mcpServers: Map<string, McpServerEntry[]>;
     absDir: string;
   } {
-    const absDir = path.resolve(templateDir);
+    let absDir = path.resolve(templateDir);
+
+    // If the resolved path doesn't exist and the input looks like a
+    // template name (not a path), try unified resolution (installed > built-in)
+    if (!fs.existsSync(absDir) && isTemplateName(templateDir)) {
+      const resolved = resolveTemplateName(templateDir);
+      if (resolved) {
+        absDir = resolved;
+      }
+    }
 
     if (!fs.existsSync(absDir)) {
-      throw new Error(`Template directory not found: ${absDir}`);
+      const hint = isTemplateName(templateDir)
+        ? ` (not found as an installed or built-in template; use "openteams template list" to see available templates)`
+        : "";
+      throw new Error(`Template directory not found: ${absDir}${hint}`);
     }
 
     const manifestPath = path.join(absDir, "team.yaml");
@@ -232,6 +248,20 @@ export class TemplateLoader {
       mcpServers: new Map(),
       sourcePath: "",
     };
+  }
+
+  /**
+   * List all available built-in templates that ship with the package.
+   */
+  static listBuiltins(): BuiltinTemplateInfo[] {
+    return listBuiltinTemplates();
+  }
+
+  /**
+   * List all available templates from all sources (installed, built-in).
+   */
+  static listAll(): TemplateInfo[] {
+    return listAllTemplates();
   }
 
   private static validateManifest(manifest: TeamManifest): void {

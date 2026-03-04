@@ -187,3 +187,43 @@ export interface AsyncLoadOptions {
   postProcess?: (template: ResolvedTemplate) => Promise<ResolvedTemplate> | ResolvedTemplate;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Template Resolution & Configuration
+// ─────────────────────────────────────────────────────────────
+
+/** Source origin of a template. */
+export type TemplateSource = "built-in" | "installed" | "installed (global)";
+
+/** Unified info about any available template, regardless of source. */
+export interface TemplateInfo {
+  /** Directory name / logical template name */
+  name: string;
+  /** The manifest name from team.yaml */
+  manifestName: string;
+  /** Short description from team.yaml */
+  description: string;
+  /** Absolute path to the template directory */
+  path: string;
+  /** Where this template comes from */
+  source: TemplateSource;
+  /** If this template is shadowed by a higher-priority source */
+  shadows?: TemplateSource;
+}
+
+/** Project-level OpenTeams configuration (.openteams/config.json). */
+export interface OpenTeamsConfig {
+  defaults?: DefaultsConfig;
+}
+
+/**
+ * Controls which built-in templates are active.
+ * - If absent: all built-ins available.
+ * - If `include` is set: only those built-ins are active.
+ * - If `exclude` is set: all built-ins except those are active.
+ * - `include` and `exclude` are mutually exclusive.
+ */
+export interface DefaultsConfig {
+  include?: string[];
+  exclude?: string[];
+}
+
