@@ -16,6 +16,10 @@ export interface AgentPromptGeneratorOptions {
   teamName?: string;
   /** Additional context to prepend to every agent prompt */
   preamble?: string;
+  /** Whether to include the "Spawn Permissions" section. Defaults to true. */
+  includeSpawnSection?: boolean;
+  /** Whether to include the "CLI Quick Reference" section. Defaults to true. */
+  includeCliSection?: boolean;
 }
 
 export interface RoleSkillMd {
@@ -26,6 +30,10 @@ export interface RoleSkillMd {
 export interface RoleSkillMdOptions {
   /** Team name override */
   teamName?: string;
+  /** Whether to include the "Spawn Permissions" section. Defaults to true. */
+  includeSpawnSection?: boolean;
+  /** Whether to include the "CLI Quick Reference" section. Defaults to true. */
+  includeCliSection?: boolean;
 }
 
 /**
@@ -46,8 +54,10 @@ export function generateAgentPrompts(
   options: AgentPromptGeneratorOptions = {}
 ): AgentPrompt[] {
   const teamName = options.teamName ?? template.manifest.name;
+  const includeSpawn = options.includeSpawnSection ?? true;
+  const includeCli = options.includeCliSection ?? true;
   return template.manifest.roles.map((roleName) =>
-    generateSingleAgentPrompt(template, roleName, teamName, options.preamble)
+    generateSingleAgentPrompt(template, roleName, teamName, options.preamble, includeSpawn, includeCli)
   );
 }
 
@@ -60,11 +70,15 @@ export function generateAgentPrompt(
   options: AgentPromptGeneratorOptions = {}
 ): AgentPrompt {
   const teamName = options.teamName ?? template.manifest.name;
+  const includeSpawn = options.includeSpawnSection ?? true;
+  const includeCli = options.includeCliSection ?? true;
   return generateSingleAgentPrompt(
     template,
     roleName,
     teamName,
-    options.preamble
+    options.preamble,
+    includeSpawn,
+    includeCli,
   );
 }
 
@@ -81,6 +95,8 @@ export function generateRoleSkillMd(
   options: RoleSkillMdOptions = {}
 ): RoleSkillMd {
   const teamName = options.teamName ?? template.manifest.name;
+  const includeSpawn = options.includeSpawnSection ?? true;
+  const includeCli = options.includeCliSection ?? true;
   const m = template.manifest;
   const role = template.roles.get(roleName);
   const rolePrompts = template.prompts.get(roleName);
@@ -88,7 +104,7 @@ export function generateRoleSkillMd(
   const sections: string[] = [];
 
   // YAML frontmatter
-  sections.push(generateRoleFrontmatter(template, roleName, teamName));
+  sections.push(generateRoleFrontmatter(template, roleName, teamName, includeSpawn));
 
   // Identity header
   sections.push(`# Role: ${roleName}`);
@@ -133,10 +149,14 @@ export function generateRoleSkillMd(
   }
 
   // Spawn permissions
-  sections.push(generateRoleSpawnSection(template, roleName));
+  if (includeSpawn) {
+    sections.push(generateRoleSpawnSection(template, roleName));
+  }
 
   // CLI reference
-  sections.push(generateRoleCliSection(roleName, teamName, template));
+  if (includeCli) {
+    sections.push(generateRoleCliSection(roleName, teamName, template));
+  }
 
   return {
     role: roleName,
@@ -159,7 +179,8 @@ export function generateAllRoleSkillMds(
 function generateRoleFrontmatter(
   template: ResolvedTemplate,
   roleName: string,
-  teamName: string
+  teamName: string,
+  includeSpawn: boolean = true,
 ): string {
   const m = template.manifest;
   const role = template.roles.get(roleName);
@@ -198,10 +219,12 @@ function generateRoleFrontmatter(
     lines.push(`emits: [${emissions.join(", ")}]`);
   }
 
-  const spawnRules = m.topology.spawn_rules?.[roleName];
-  if (spawnRules && spawnRules.length > 0) {
-    const names = spawnRules.map((e) => typeof e === "string" ? e : e.role);
-    lines.push(`can_spawn: [${names.join(", ")}]`);
+  if (includeSpawn) {
+    const spawnRules = m.topology.spawn_rules?.[roleName];
+    if (spawnRules && spawnRules.length > 0) {
+      const names = spawnRules.map((e) => typeof e === "string" ? e : e.role);
+      lines.push(`can_spawn: [${names.join(", ")}]`);
+    }
   }
 
   lines.push("---");
@@ -275,7 +298,9 @@ function generateSingleAgentPrompt(
   template: ResolvedTemplate,
   roleName: string,
   teamName: string,
-  preamble?: string
+  preamble?: string,
+  includeSpawn: boolean = true,
+  includeCli: boolean = true,
 ): AgentPrompt {
   const m = template.manifest;
   const role = template.roles.get(roleName);
@@ -318,10 +343,14 @@ function generateSingleAgentPrompt(
   }
 
   // Spawn permissions
-  sections.push(generateRoleSpawnSection(template, roleName));
+  if (includeSpawn) {
+    sections.push(generateRoleSpawnSection(template, roleName));
+  }
 
   // CLI reference
-  sections.push(generateRoleCliSection(roleName, teamName, template));
+  if (includeCli) {
+    sections.push(generateRoleCliSection(roleName, teamName, template));
+  }
 
   return {
     role: roleName,

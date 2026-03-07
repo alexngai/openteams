@@ -200,6 +200,34 @@ describe("generateSkillMd", () => {
     const md = generateSkillMd(makeFullTemplate());
     expect(md).not.toMatch(/^---\n/);
   });
+
+  it("includes spawn rules by default", () => {
+    const md = generateSkillMd(makeFullTemplate());
+    expect(md).toContain("## Spawn Rules");
+    expect(md).toContain("Respect spawn rules");
+  });
+
+  it("omits spawn rules section when includeSpawnRules is false", () => {
+    const md = generateSkillMd(makeFullTemplate(), {
+      includeSpawnRules: false,
+    });
+    expect(md).not.toContain("## Spawn Rules");
+  });
+
+  it("omits spawn rules guideline when includeSpawnRules is false", () => {
+    const md = generateSkillMd(makeFullTemplate(), {
+      includeSpawnRules: false,
+    });
+    expect(md).not.toContain("Respect spawn rules");
+  });
+
+  it("still includes other guidelines when spawn rules disabled", () => {
+    const md = generateSkillMd(makeFullTemplate(), {
+      includeSpawnRules: false,
+    });
+    expect(md).toContain("## Agent Interaction Guidelines");
+    expect(md).toContain("Check the task board regularly");
+  });
 });
 
 describe("generateCatalog", () => {

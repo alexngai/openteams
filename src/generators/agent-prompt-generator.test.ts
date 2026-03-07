@@ -311,6 +311,100 @@ describe("generateRoleSkillMd", () => {
   });
 });
 
+describe("section exclusion options (generateAgentPrompts)", () => {
+  it("includes spawn and CLI sections by default", () => {
+    const prompts = generateAgentPrompts(makeFullTemplate());
+    const planner = prompts.find((p) => p.role === "planner")!;
+    expect(planner.prompt).toContain("## Spawn Permissions");
+    expect(planner.prompt).toContain("## CLI Quick Reference");
+  });
+
+  it("excludes spawn section when includeSpawnSection is false", () => {
+    const prompts = generateAgentPrompts(makeFullTemplate(), {
+      includeSpawnSection: false,
+    });
+    for (const prompt of prompts) {
+      expect(prompt.prompt).not.toContain("## Spawn Permissions");
+    }
+  });
+
+  it("excludes CLI section when includeCliSection is false", () => {
+    const prompts = generateAgentPrompts(makeFullTemplate(), {
+      includeCliSection: false,
+    });
+    for (const prompt of prompts) {
+      expect(prompt.prompt).not.toContain("## CLI Quick Reference");
+    }
+  });
+
+  it("excludes both sections when both are false", () => {
+    const prompts = generateAgentPrompts(makeFullTemplate(), {
+      includeSpawnSection: false,
+      includeCliSection: false,
+    });
+    for (const prompt of prompts) {
+      expect(prompt.prompt).not.toContain("## Spawn Permissions");
+      expect(prompt.prompt).not.toContain("## CLI Quick Reference");
+    }
+  });
+});
+
+describe("section exclusion options (generateAgentPrompt single)", () => {
+  it("excludes spawn section when includeSpawnSection is false", () => {
+    const prompt = generateAgentPrompt(makeFullTemplate(), "planner", {
+      includeSpawnSection: false,
+    });
+    expect(prompt.prompt).not.toContain("## Spawn Permissions");
+    expect(prompt.prompt).toContain("## CLI Quick Reference");
+  });
+
+  it("excludes CLI section when includeCliSection is false", () => {
+    const prompt = generateAgentPrompt(makeFullTemplate(), "planner", {
+      includeCliSection: false,
+    });
+    expect(prompt.prompt).toContain("## Spawn Permissions");
+    expect(prompt.prompt).not.toContain("## CLI Quick Reference");
+  });
+});
+
+describe("section exclusion options (generateRoleSkillMd)", () => {
+  it("includes spawn and CLI sections by default", () => {
+    const result = generateRoleSkillMd(makeFullTemplate(), "planner");
+    expect(result.content).toContain("## Spawn Permissions");
+    expect(result.content).toContain("## CLI Quick Reference");
+    expect(result.content).toContain("can_spawn: [grinder, planner]");
+  });
+
+  it("excludes spawn section and can_spawn frontmatter when includeSpawnSection is false", () => {
+    const result = generateRoleSkillMd(makeFullTemplate(), "planner", {
+      includeSpawnSection: false,
+    });
+    expect(result.content).not.toContain("## Spawn Permissions");
+    expect(result.content).not.toContain("can_spawn:");
+    // CLI should still be included
+    expect(result.content).toContain("## CLI Quick Reference");
+  });
+
+  it("excludes CLI section when includeCliSection is false", () => {
+    const result = generateRoleSkillMd(makeFullTemplate(), "planner", {
+      includeCliSection: false,
+    });
+    expect(result.content).not.toContain("## CLI Quick Reference");
+    // Spawn should still be included
+    expect(result.content).toContain("## Spawn Permissions");
+  });
+
+  it("excludes both sections when both are false", () => {
+    const result = generateRoleSkillMd(makeFullTemplate(), "planner", {
+      includeSpawnSection: false,
+      includeCliSection: false,
+    });
+    expect(result.content).not.toContain("## Spawn Permissions");
+    expect(result.content).not.toContain("## CLI Quick Reference");
+    expect(result.content).not.toContain("can_spawn:");
+  });
+});
+
 describe("generateAllRoleSkillMds", () => {
   it("generates a skill md for each role", () => {
     const results = generateAllRoleSkillMds(makeFullTemplate());

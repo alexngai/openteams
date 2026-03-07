@@ -10,6 +10,10 @@ export interface PackageGeneratorOptions {
   teamName?: string;
   /** Output directory for the package */
   outputDir: string;
+  /** Whether to include spawn permissions in per-role SKILL.md. Defaults to true. */
+  includeSpawnSection?: boolean;
+  /** Whether to include CLI quick reference in per-role SKILL.md. Defaults to true. */
+  includeCliSection?: boolean;
 }
 
 export interface PackageResult {
@@ -51,7 +55,11 @@ export function generatePackage(
   fs.writeFileSync(catalogPath, catalogContent, "utf-8");
 
   // 2. Generate per-role SKILL.md files
-  const roleSkills = generateAllRoleSkillMds(template, { teamName });
+  const roleSkills = generateAllRoleSkillMds(template, {
+    teamName,
+    includeSpawnSection: options.includeSpawnSection,
+    includeCliSection: options.includeCliSection,
+  });
   const rolePaths: { role: string; path: string }[] = [];
 
   for (const roleSkill of roleSkills) {

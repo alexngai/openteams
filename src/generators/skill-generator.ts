@@ -7,6 +7,8 @@ export interface SkillGeneratorOptions {
   includeCliExamples?: boolean;
   /** Whether to include YAML frontmatter */
   includeFrontmatter?: boolean;
+  /** Whether to include the "Spawn Rules" section. Defaults to true. */
+  includeSpawnRules?: boolean;
 }
 
 export interface CatalogOptions {
@@ -91,6 +93,7 @@ export function generateSkillMd(
   const teamName = options.teamName ?? template.manifest.name;
   const includeCliExamples = options.includeCliExamples ?? true;
   const includeFrontmatter = options.includeFrontmatter ?? false;
+  const includeSpawnRules = options.includeSpawnRules ?? true;
   const m = template.manifest;
 
   const sections: string[] = [];
@@ -118,12 +121,12 @@ export function generateSkillMd(
   }
 
   // Spawn rules
-  if (m.topology.spawn_rules) {
+  if (includeSpawnRules && m.topology.spawn_rules) {
     sections.push(generateSpawnRulesSection(template));
   }
 
   // Interaction guidelines
-  sections.push(generateGuidelinesSection(teamName, template, includeCliExamples));
+  sections.push(generateGuidelinesSection(teamName, template, includeCliExamples, includeSpawnRules));
 
   return sections.join("\n\n") + "\n";
 }
@@ -293,7 +296,8 @@ function generateSpawnRulesSection(template: ResolvedTemplate): string {
 function generateGuidelinesSection(
   teamName: string,
   template: ResolvedTemplate,
-  includeCliExamples: boolean
+  includeCliExamples: boolean,
+  includeSpawnRules: boolean = true,
 ): string {
   const m = template.manifest;
   const lines: string[] = ["## Agent Interaction Guidelines"];
@@ -306,7 +310,9 @@ function generateGuidelinesSection(
   lines.push("### General Principles");
   lines.push("- Check the task board regularly for new or updated tasks");
   lines.push("- Communicate status changes through the appropriate channels");
-  lines.push("- Respect spawn rules — only spawn roles you are permitted to");
+  if (includeSpawnRules) {
+    lines.push("- Respect spawn rules — only spawn roles you are permitted to");
+  }
   lines.push(
     "- When emitting signals, use the correct channel for the signal type"
   );

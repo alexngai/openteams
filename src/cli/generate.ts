@@ -26,6 +26,7 @@ export function createGenerateCommands(): Command {
       "Output path (default: <dir>/SKILL.md)"
     )
     .option("--no-cli-examples", "Omit CLI usage examples")
+    .option("--no-spawn-rules", "Omit spawn rules section")
     .action((dir: string, opts) => {
       try {
         const template = TemplateLoader.load(dir);
@@ -33,6 +34,7 @@ export function createGenerateCommands(): Command {
         const content = generateSkillMd(template, {
           teamName,
           includeCliExamples: opts.cliExamples !== false,
+          includeSpawnRules: opts.spawnRules !== false,
         });
 
         const outputPath = opts.output ?? path.join(dir, "SKILL.md");
@@ -55,6 +57,8 @@ export function createGenerateCommands(): Command {
       "Output directory for prompt files (default: <dir>/agents/)"
     )
     .option("--preamble <text>", "Additional context to prepend to every prompt")
+    .option("--no-spawn-section", "Omit spawn permissions from agent prompts")
+    .option("--no-cli-section", "Omit CLI quick reference from agent prompts")
     .action((dir: string, opts) => {
       try {
         const template = TemplateLoader.load(dir);
@@ -62,6 +66,8 @@ export function createGenerateCommands(): Command {
         const prompts = generateAgentPrompts(template, {
           teamName,
           preamble: opts.preamble,
+          includeSpawnSection: opts.spawnSection !== false,
+          includeCliSection: opts.cliSection !== false,
         });
 
         const outputDir = opts.output ?? path.join(dir, "agents");
@@ -92,6 +98,9 @@ export function createGenerateCommands(): Command {
       "Output base directory (default: <dir>)"
     )
     .option("--preamble <text>", "Additional context for agent prompts")
+    .option("--no-spawn-rules", "Omit spawn rules from SKILL.md")
+    .option("--no-spawn-section", "Omit spawn permissions from agent prompts")
+    .option("--no-cli-section", "Omit CLI quick reference from agent prompts")
     .action((dir: string, opts) => {
       try {
         const template = TemplateLoader.load(dir);
@@ -99,7 +108,10 @@ export function createGenerateCommands(): Command {
         const baseDir = opts.output ?? dir;
 
         // Generate SKILL.md
-        const skillContent = generateSkillMd(template, { teamName });
+        const skillContent = generateSkillMd(template, {
+          teamName,
+          includeSpawnRules: opts.spawnRules !== false,
+        });
         const skillPath = path.join(baseDir, "SKILL.md");
         fs.writeFileSync(skillPath, skillContent, "utf-8");
         console.log(`Generated ${skillPath}`);
@@ -108,6 +120,8 @@ export function createGenerateCommands(): Command {
         const prompts = generateAgentPrompts(template, {
           teamName,
           preamble: opts.preamble,
+          includeSpawnSection: opts.spawnSection !== false,
+          includeCliSection: opts.cliSection !== false,
         });
         const agentsDir = path.join(baseDir, "agents");
         fs.mkdirSync(agentsDir, { recursive: true });
@@ -136,6 +150,8 @@ export function createGenerateCommands(): Command {
       "-o, --output <path>",
       "Output directory (default: <dir>/package/)"
     )
+    .option("--no-spawn-section", "Omit spawn permissions from role SKILL.md files")
+    .option("--no-cli-section", "Omit CLI quick reference from role SKILL.md files")
     .action((dir: string, opts) => {
       try {
         const template = TemplateLoader.load(dir);
@@ -145,6 +161,8 @@ export function createGenerateCommands(): Command {
         const result = generatePackage(template, {
           teamName,
           outputDir,
+          includeSpawnSection: opts.spawnSection !== false,
+          includeCliSection: opts.cliSection !== false,
         });
 
         console.log(`Generated skill package in ${outputDir}`);
@@ -194,12 +212,16 @@ export function createGenerateCommands(): Command {
     .requiredOption("-r, --role <role>", "Role name")
     .option("-n, --name <name>", "Override the team name")
     .option("-o, --output <path>", "Output path (default: stdout)")
+    .option("--no-spawn-section", "Omit spawn permissions section")
+    .option("--no-cli-section", "Omit CLI quick reference section")
     .action((dir: string, opts) => {
       try {
         const template = TemplateLoader.load(dir);
         const teamName = opts.name ?? template.manifest.name;
         const result = generateRoleSkillMd(template, opts.role, {
           teamName,
+          includeSpawnSection: opts.spawnSection !== false,
+          includeCliSection: opts.cliSection !== false,
         });
 
         if (opts.output) {
