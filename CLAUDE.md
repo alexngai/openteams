@@ -27,6 +27,12 @@ src/
     types.ts             # All types: TeamManifest, ResolvedTemplate, ResolvedRole,
                          #   CommunicationConfig, LoadOptions, AsyncLoadOptions.
     install-service.ts   # TemplateInstallService — git clone, discover, install templates.
+  runtime/
+    types.ts             # Runtime types: MemberIdentity, MemberStatus, TeamEvent,
+                         #   StateChangeEvent, TeamStateSnapshot, ValidationResult.
+    member-registry.ts   # MemberRegistry — bidirectional role/label/agentId resolution.
+    validation.ts        # validateMessage() — stateless topology communication checks.
+    team-state.ts        # TeamState — event-driven state machine, snapshots, listeners.
   generators/
     skill-generator.ts   # generateSkillMd(), generateCatalog() from templates.
     agent-prompt-generator.ts  # generateAgentPrompts(), generateRoleSkillMd().
@@ -67,6 +73,17 @@ const installer = new TemplateInstallService();
 const result = await installer.install({ repoUrl: "owner/repo" }, callbacks);
 ```
 
+**Runtime state observation**: `TeamState` tracks member identity, status, and communication validity at runtime. Accepts MAP-aligned events, validates against template topology.
+
+```typescript
+const template = TemplateLoader.load("./examples/gsd");
+const team = new TeamState("gsd", template);
+team.applyEvent({ type: "agent_registered", role: "architect", label: "architect", agentId: "gsd-architect" });
+team.applyEvent({ type: "agent_state_changed", agentId: "gsd-architect", status: "idle" });
+team.onStateChange((e) => console.log(e.member.identity.label, e.member.status));
+const snap = team.snapshot(); // serializable
+```
+
 **Communication topology**: Defined in `team.yaml` under `communication:`. Describes channels, signals, subscriptions, emissions, and routing. Agent systems read this and implement enforcement.
 
 **Enforcement modes**: `permissive`, `audit`, `strict` — defined as configuration in the template. Interpretation and enforcement is left to the consuming agent system.
@@ -93,6 +110,6 @@ Vitest config: `vitest.config.ts`. Globals enabled, watch off by default.
 ## Conventions
 
 - TypeScript strict mode. Target ES2022, CommonJS output.
-- All types in `src/template/types.ts`.
+- Template types in `src/template/types.ts`. Runtime types in `src/runtime/types.ts`.
 - CLI is a thin layer. No business logic in CLI files.
 - Role inheritance cycle detection uses chain-following in `TemplateLoader.resolveInheritance()`.
