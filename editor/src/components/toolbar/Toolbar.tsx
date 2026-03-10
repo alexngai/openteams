@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useUIStore } from '../../stores/ui-store';
 import { useHistoryStore } from '../../stores/history-store';
 import { useCanvasStore } from '../../stores/canvas-store';
@@ -6,6 +6,7 @@ import { useConfigStore } from '../../stores/config-store';
 import { useValidationStore } from '../../stores/validation-store';
 import { useThemeStore } from '../../stores/theme-store';
 import { useFederationStore } from '../../stores/federation-store';
+import { validateFederation } from '../../lib/federation-validator';
 import { computeLayout } from '../../lib/auto-layout';
 import { loadEmpty } from '../../lib/load-template';
 
@@ -18,8 +19,14 @@ export function Toolbar() {
   const roleCount = useConfigStore(s => s.roles.size);
   const channelCount = Object.keys(useConfigStore(s => s.channels)).length;
   const { theme, setTheme } = useThemeStore();
-  const federationTeamCount = useFederationStore(s => s.teams.size);
-  const federationBridgeCount = useFederationStore(s => s.bridges.length);
+  const federationTeams = useFederationStore(s => s.teams);
+  const federationBridges = useFederationStore(s => s.bridges);
+  const federationTeamCount = federationTeams.size;
+  const federationBridgeCount = federationBridges.length;
+  const fedValidation = useMemo(
+    () => editorMode === 'federation' ? validateFederation(federationTeams, federationBridges) : { errors: [], warnings: [] },
+    [editorMode, federationTeams, federationBridges],
+  );
 
   const cycleTheme = () => {
     const next = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark';
@@ -156,6 +163,9 @@ export function Toolbar() {
         ) : (
           <>
             {federationTeamCount} team{federationTeamCount !== 1 ? 's' : ''} {'\u00B7'} {federationBridgeCount} bridge{federationBridgeCount !== 1 ? 's' : ''}
+            {fedValidation.errors.length > 0 && <span style={{ color: 'var(--color-danger)', marginLeft: 6 }}>{fedValidation.errors.length} err</span>}
+            {fedValidation.warnings.length > 0 && <span style={{ color: 'var(--color-warning)', marginLeft: 6 }}>{fedValidation.warnings.length} warn</span>}
+            {fedValidation.errors.length === 0 && fedValidation.warnings.length === 0 && federationBridgeCount > 0 && <span style={{ color: 'var(--color-success)', marginLeft: 6 }}>{'\u2713'}</span>}
           </>
         )}
       </span>

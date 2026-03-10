@@ -160,10 +160,12 @@ export function FederationSidebar() {
         <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', marginTop: '16px', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Bridges ({bridges.length})
         </div>
-        {bridges.map((b, i) => (
+        {bridges.map((b, i) => {
+          const bId = `bridge-${b.from.team}-${b.from.signal}-${b.to.team}-${b.to.channel}-${b.to.signal}`;
+          return (
           <div
-            key={i}
-            onClick={() => setSelection(null, `bridge-${i}`)}
+            key={bId}
+            onClick={() => setSelection(null, bId)}
             style={{
               padding: '4px 8px',
               cursor: 'pointer',
@@ -176,7 +178,8 @@ export function FederationSidebar() {
           >
             {b.from.team}:{b.from.signal} {'\u2192'} {b.to.team}:{b.to.channel}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

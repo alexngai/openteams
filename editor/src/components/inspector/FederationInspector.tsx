@@ -19,9 +19,8 @@ export function FederationInspector() {
     }
   } else if (selectedEdgeId) {
     const edge = edges.find(e => e.id === selectedEdgeId);
-    if (edge) {
-      const idx = parseInt(edge.id.replace('bridge-', ''), 10);
-      content = <FederationBridgeInspector bridgeIndex={idx} />;
+    if (edge?.data) {
+      content = <FederationBridgeInspector bridgeId={selectedEdgeId} />;
     }
   }
 

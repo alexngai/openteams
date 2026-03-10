@@ -1,7 +1,14 @@
+import { useMemo } from 'react';
 import { useFederationStore } from '../../stores/federation-store';
+import { validateFederation } from '../../lib/federation-validator';
 
 export function FederationSettingsInspector() {
   const { name, version, enforcement, teams, bridges, setFederationMeta } = useFederationStore();
+
+  const validation = useMemo(
+    () => validateFederation(teams, bridges),
+    [teams, bridges],
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -55,6 +62,25 @@ export function FederationSettingsInspector() {
             {teams.size} team{teams.size !== 1 ? 's' : ''} {'\u00B7'} {bridges.length} bridge{bridges.length !== 1 ? 's' : ''}
           </div>
         </div>
+
+        {/* Validation issues */}
+        {(validation.errors.length > 0 || validation.warnings.length > 0) && (
+          <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '12px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Validation
+            </div>
+            {validation.errors.map((issue, i) => (
+              <div key={`err-${i}`} style={{ fontSize: '12px', color: 'var(--color-danger)', padding: '2px 0' }}>
+                {issue.message}
+              </div>
+            ))}
+            {validation.warnings.map((issue, i) => (
+              <div key={`warn-${i}`} style={{ fontSize: '12px', color: 'var(--color-warning)', padding: '2px 0' }}>
+                {issue.message}
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={{
           marginTop: '8px',

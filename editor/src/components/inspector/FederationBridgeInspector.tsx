@@ -1,15 +1,16 @@
 import { useFederationStore } from '../../stores/federation-store';
 
 interface Props {
-  bridgeIndex: number;
+  bridgeId: string;
 }
 
-export function FederationBridgeInspector({ bridgeIndex }: Props) {
-  const bridges = useFederationStore(s => s.bridges);
+export function FederationBridgeInspector({ bridgeId }: Props) {
+  const edges = useFederationStore(s => s.edges);
   const removeBridge = useFederationStore(s => s.removeBridge);
-  const bridge = bridges[bridgeIndex];
 
-  if (!bridge) return <div style={{ padding: '12px', color: 'var(--color-text-muted)' }}>Bridge not found</div>;
+  const edge = edges.find(e => e.id === bridgeId);
+  const data = edge?.data;
+  if (!data) return <div style={{ padding: '12px', color: 'var(--color-text-muted)' }}>Bridge not found</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -20,7 +21,7 @@ export function FederationBridgeInspector({ bridgeIndex }: Props) {
         fontSize: '14px',
         color: 'var(--color-text)',
       }}>
-        Bridge #{bridgeIndex + 1}
+        Bridge
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -30,11 +31,11 @@ export function FederationBridgeInspector({ bridgeIndex }: Props) {
           <div style={detailBox}>
             <div style={detailRow}>
               <span style={detailLabel}>Team</span>
-              <span style={detailValue}>{bridge.from.team}</span>
+              <span style={detailValue}>{data.fromTeam}</span>
             </div>
             <div style={detailRow}>
               <span style={detailLabel}>Signal</span>
-              <span style={{ ...tagStyle, color: '#22c55e' }}>{bridge.from.signal}</span>
+              <span style={{ ...tagStyle, color: '#22c55e' }}>{data.fromSignal}</span>
             </div>
           </div>
         </div>
@@ -50,15 +51,15 @@ export function FederationBridgeInspector({ bridgeIndex }: Props) {
           <div style={detailBox}>
             <div style={detailRow}>
               <span style={detailLabel}>Team</span>
-              <span style={detailValue}>{bridge.to.team}</span>
+              <span style={detailValue}>{data.toTeam}</span>
             </div>
             <div style={detailRow}>
               <span style={detailLabel}>Channel</span>
-              <span style={detailValue}>{bridge.to.channel}</span>
+              <span style={detailValue}>{data.toChannel}</span>
             </div>
             <div style={detailRow}>
               <span style={detailLabel}>Signal</span>
-              <span style={{ ...tagStyle, color: '#3b82f6' }}>{bridge.to.signal}</span>
+              <span style={{ ...tagStyle, color: '#3b82f6' }}>{data.toSignal}</span>
             </div>
           </div>
         </div>
@@ -66,7 +67,7 @@ export function FederationBridgeInspector({ bridgeIndex }: Props) {
         {/* Actions */}
         <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '12px' }}>
           <button
-            onClick={() => { if (confirm('Remove this bridge?')) removeBridge(bridgeIndex); }}
+            onClick={() => { if (confirm('Remove this bridge?')) removeBridge(bridgeId); }}
             style={{
               background: 'var(--color-danger)',
               color: '#fff',

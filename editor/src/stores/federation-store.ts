@@ -41,7 +41,7 @@ interface FederationStore {
   removeTeam: (teamKey: string) => void;
   updateTeam: (teamKey: string, updates: Partial<FederationTeamEntry>) => void;
   addBridge: (bridge: FederationBridge) => void;
-  removeBridge: (index: number) => void;
+  removeBridge: (bridgeId: string) => void;
   setNodes: (nodes: Node<TeamNodeData>[]) => void;
   setEdges: (edges: Edge<BridgeEdgeData>[]) => void;
   setSelection: (nodeId: string | null, edgeId: string | null) => void;
@@ -49,6 +49,11 @@ interface FederationStore {
   clear: () => void;
   loadFromManifest: (manifest: FederationManifest, teamDetails: Map<string, FederationTeamEntry>) => void;
   toManifest: () => FederationManifest;
+}
+
+/** Stable content-based ID for a bridge. */
+function bridgeKey(b: FederationBridge): string {
+  return `bridge-${b.from.team}-${b.from.signal}-${b.to.team}-${b.to.channel}-${b.to.signal}`;
 }
 
 export const useFederationStore = create<FederationStore>((set, get) => ({
@@ -68,7 +73,13 @@ export const useFederationStore = create<FederationStore>((set, get) => ({
 
   addTeam: (entry) => {
     const teams = new Map(get().teams);
-    teams.set(entry.teamKey, entry);
+    // Auto-sync export/import counts from arrays
+    const synced = {
+      ...entry,
+      exportCount: entry.exports.length,
+      importCount: entry.imports.length,
+    };
+    teams.set(synced.teamKey, synced);
     set({ teams });
     get().rebuildCanvas();
   },
@@ -88,7 +99,11 @@ export const useFederationStore = create<FederationStore>((set, get) => ({
     const teams = new Map(get().teams);
     const existing = teams.get(teamKey);
     if (existing) {
-      teams.set(teamKey, { ...existing, ...updates });
+      const merged = { ...existing, ...updates };
+      // Auto-sync counts from arrays
+      merged.exportCount = merged.exports.length;
+      merged.importCount = merged.imports.length;
+      teams.set(teamKey, merged);
       set({ teams });
       get().rebuildCanvas();
     }
@@ -99,8 +114,8 @@ export const useFederationStore = create<FederationStore>((set, get) => ({
     get().rebuildCanvas();
   },
 
-  removeBridge: (index) => {
-    set({ bridges: get().bridges.filter((_, i) => i !== index) });
+  removeBridge: (bridgeId) => {
+    set({ bridges: get().bridges.filter(b => bridgeKey(b) !== bridgeId) });
     get().rebuildCanvas();
   },
 
@@ -147,10 +162,10 @@ export const useFederationStore = create<FederationStore>((set, get) => ({
       i++;
     }
 
-    // Create bridge edges
-    bridges.forEach((bridge, idx) => {
+    // Create bridge edges with stable content-based IDs
+    for (const bridge of bridges) {
       edges.push({
-        id: `bridge-${idx}`,
+        id: bridgeKey(bridge),
         source: `team-${bridge.from.team}`,
         target: `team-${bridge.to.team}`,
         type: 'bridge',
@@ -163,7 +178,7 @@ export const useFederationStore = create<FederationStore>((set, get) => ({
           toSignal: bridge.to.signal,
         },
       });
-    });
+    }
 
     set({ nodes, edges });
   },
