@@ -1,14 +1,28 @@
 import { useState, useMemo } from 'react';
+import * as yamlLib from 'js-yaml';
 import JSZip from 'jszip';
 import { compileToYaml } from '../../lib/compiler';
 import type { CompiledFile } from '../../lib/compiler';
+import { useUIStore } from '../../stores/ui-store';
+import { useFederationStore } from '../../stores/federation-store';
 
 interface Props {
   onClose: () => void;
 }
 
 export function ExportModal({ onClose }: Props) {
-  const files = useMemo(() => compileToYaml(), []);
+  const editorMode = useUIStore(s => s.editorMode);
+  const federationStore = useFederationStore();
+
+  const files = useMemo(() => {
+    if (editorMode === 'federation') {
+      const manifest = federationStore.toManifest();
+      const content = yamlLib.dump(manifest, { lineWidth: -1, noRefs: true, quotingType: '"', forceQuotes: false, sortKeys: false });
+      return [{ path: 'federation.yaml', content }] as CompiledFile[];
+    }
+    return compileToYaml();
+  }, [editorMode]);
+
   const [activeFile, setActiveFile] = useState(0);
   const [copied, setCopied] = useState(false);
 
@@ -27,16 +41,18 @@ export function ExportModal({ onClose }: Props) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'template.zip';
+    a.download = editorMode === 'federation' ? 'federation.zip' : 'template.zip';
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const title = editorMode === 'federation' ? 'Export Federation' : 'Export Template';
 
   return (
     <div style={overlayStyle} onClick={onClose} data-testid="export-modal-overlay">
       <div style={modalStyle} onClick={e => e.stopPropagation()} data-testid="export-modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3 style={{ margin: 0, fontSize: '17px', color: 'var(--color-text)' }}>Export Template</h3>
+          <h3 style={{ margin: 0, fontSize: '17px', color: 'var(--color-text)' }}>{title}</h3>
           <button onClick={onClose} style={closeBtnStyle} data-testid="export-close">{'\u00D7'}</button>
         </div>
 
@@ -52,7 +68,7 @@ export function ExportModal({ onClose }: Props) {
                 fontSize: '12px',
                 border: '1px solid var(--color-border)',
                 borderRadius: '4px',
-                background: i === activeFile ? 'var(--color-accent)' : 'var(--color-bg)',
+                background: i === activeFile ? (editorMode === 'federation' ? '#f59e0b' : 'var(--color-accent)') : 'var(--color-bg)',
                 color: i === activeFile ? '#fff' : 'var(--color-text-muted)',
                 cursor: 'pointer',
                 fontFamily: 'monospace',

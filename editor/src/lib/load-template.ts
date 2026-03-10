@@ -13,6 +13,8 @@ export function loadEmpty() {
     version: 1,
     enforcement: 'permissive',
     extensions: {},
+    exports: [],
+    imports: [],
   };
 
   useConfigStore.getState().loadFromManifest(
@@ -39,6 +41,18 @@ export function loadTemplate(manifest: TeamManifest, roleDefinitions: Map<string
 
   // Build editor role configs
   const roles = new Map<string, EditorRoleConfig>();
+
+  // Build a placement lookup from topology nodes
+  const placementByRole: Record<string, import('@openteams/template/types').PlacementConfig> = {};
+  if (manifest.topology.root.config?.placement) {
+    placementByRole[manifest.topology.root.role] = manifest.topology.root.config.placement;
+  }
+  for (const companion of manifest.topology.companions || []) {
+    if (companion.config?.placement) {
+      placementByRole[companion.role] = companion.config.placement;
+    }
+  }
+
   for (const roleName of manifest.roles) {
     const roleDef = roleDefinitions.get(roleName);
     const capabilities = Array.isArray(roleDef?.capabilities)
@@ -51,6 +65,7 @@ export function loadTemplate(manifest: TeamManifest, roleDefinitions: Map<string
       description: roleDef?.description || '',
       extends: roleDef?.extends,
       capabilities,
+      placement: placementByRole[roleName],
     });
   }
 
@@ -79,6 +94,8 @@ export function loadTemplate(manifest: TeamManifest, roleDefinitions: Map<string
     version: 1,
     enforcement: comm.enforcement || 'permissive',
     extensions,
+    exports: comm.exports || [],
+    imports: comm.imports || [],
   };
 
   const topologyRoot = manifest.topology.root.role;
