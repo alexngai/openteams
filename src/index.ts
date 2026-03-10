@@ -82,3 +82,25 @@ export type {
   PackageGeneratorOptions,
   PackageResult,
 } from "./generators/package-generator";
+
+// Runtime state observation
+export { MemberRegistry } from "./runtime/member-registry";
+export { TeamState } from "./runtime/team-state";
+export { validateMessage } from "./runtime/validation";
+export type {
+  AgentIdentifier,
+  MemberIdentity,
+  MemberStatus,
+  ExecutionStatus,
+  MemberState,
+  TeamEvent,
+  AgentRegisteredEvent,
+  AgentUnregisteredEvent,
+  AgentStateChangedEvent,
+  StateChangeEvent,
+  StateChangeListener,
+  ValidationResult,
+  Violation,
+  ViolationSeverity,
+  TeamStateSnapshot,
+} from "./runtime/types";
