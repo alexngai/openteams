@@ -7,13 +7,17 @@ interface Layers {
   inheritance: boolean;
 }
 
+export type EditorMode = 'team' | 'federation';
+
 interface UIStore {
+  editorMode: EditorMode;
   sidebarOpen: boolean;
   inspectorOpen: boolean;
   importModalOpen: boolean;
   exportModalOpen: boolean;
   layers: Layers;
 
+  setEditorMode: (mode: EditorMode) => void;
   toggleSidebar: () => void;
   toggleInspector: () => void;
   setImportModalOpen: (open: boolean) => void;
@@ -22,6 +26,7 @@ interface UIStore {
 }
 
 export const useUIStore = create<UIStore>((set, get) => ({
+  editorMode: 'team' as EditorMode,
   sidebarOpen: true,
   inspectorOpen: true,
   importModalOpen: false,
@@ -33,6 +38,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
     inheritance: false,
   },
 
+  setEditorMode: (mode) => set({ editorMode: mode }),
   toggleSidebar: () => set({ sidebarOpen: !get().sidebarOpen }),
   toggleInspector: () => set({ inspectorOpen: !get().inspectorOpen }),
   setImportModalOpen: (open) => set({ importModalOpen: open }),

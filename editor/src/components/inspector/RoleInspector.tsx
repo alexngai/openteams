@@ -95,19 +95,19 @@ export function RoleInspector({ nodeId, data }: Props) {
 }
 
 function IdentityTab({ role, data, nodeId, updateRole }: {
-  role: { name: string; displayName: string; description: string; model?: string; extends?: string };
+  role: { name: string; displayName: string; description: string; model?: string; extends?: string; placement?: import('@openteams/template/types').PlacementConfig };
   data: RoleNodeData;
   nodeId: string;
   updateRole: (u: Record<string, unknown>) => void;
 }) {
   const configStore = useConfigStore();
   const pushSnapshot = useHistoryStore(s => s.pushSnapshot);
+  const placement = role.placement;
 
   const handlePositionChange = (pos: 'root' | 'companion' | 'spawned') => {
     pushSnapshot();
     if (pos === 'root') {
       configStore.setTopologyRoot(data.roleName);
-      // Remove from companions if it was there
       configStore.setTopologyCompanions(
         configStore.topologyCompanions.filter(c => c !== data.roleName)
       );
@@ -127,6 +127,26 @@ function IdentityTab({ role, data, nodeId, updateRole }: {
       );
     }
     useCanvasStore.getState().updateNodeData(nodeId, { topologyPosition: pos });
+  };
+
+  const handlePlacementChange = (field: string, value: string) => {
+    pushSnapshot();
+    const current = placement || {};
+    let updated: import('@openteams/template/types').PlacementConfig | undefined;
+    if (field === 'zone') {
+      updated = { ...current, zone: value || undefined };
+    } else if (field === 'affinity') {
+      const arr = value.split(',').map(s => s.trim()).filter(Boolean);
+      updated = { ...current, affinity: arr.length > 0 ? arr : undefined };
+    } else if (field === 'replicas') {
+      const n = parseInt(value, 10);
+      updated = { ...current, replicas: isNaN(n) ? undefined : n };
+    }
+    // Clean up empty placement
+    if (updated && !updated.zone && !updated.affinity?.length && !updated.replicas && !updated.constraints) {
+      updated = undefined;
+    }
+    useConfigStore.getState().setRolePlacement(data.roleName, updated);
   };
 
   return (
@@ -193,6 +213,44 @@ function IdentityTab({ role, data, nodeId, updateRole }: {
           }
         </select>
       </Field>
+
+      {/* Placement hints (federation) */}
+      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '8px', marginTop: '4px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          Placement
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <Field label="Zone">
+            <input
+              style={inputStyle}
+              value={placement?.zone || ''}
+              placeholder="e.g., us-east, gpu-cluster"
+              onChange={e => handlePlacementChange('zone', e.target.value)}
+              data-testid="role-placement-zone"
+            />
+          </Field>
+          <Field label="Affinity (comma-separated)">
+            <input
+              style={inputStyle}
+              value={placement?.affinity?.join(', ') || ''}
+              placeholder="e.g., high-memory, gpu"
+              onChange={e => handlePlacementChange('affinity', e.target.value)}
+              data-testid="role-placement-affinity"
+            />
+          </Field>
+          <Field label="Replicas">
+            <input
+              style={inputStyle}
+              type="number"
+              min="1"
+              value={placement?.replicas ?? ''}
+              placeholder="1"
+              onChange={e => handlePlacementChange('replicas', e.target.value)}
+              data-testid="role-placement-replicas"
+            />
+          </Field>
+        </div>
+      </div>
     </div>
   );
 }

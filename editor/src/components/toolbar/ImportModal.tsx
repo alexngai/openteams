@@ -1,17 +1,22 @@
 import { useState } from 'react';
 import * as yaml from 'js-yaml';
-import type { TeamManifest, RoleDefinition } from '@openteams/template/types';
+import type { TeamManifest, RoleDefinition, FederationManifest } from '@openteams/template/types';
 import { BUNDLED_TEMPLATES } from '../../lib/bundled-templates';
 import { loadTemplate } from '../../lib/load-template';
+import { useUIStore } from '../../stores/ui-store';
+import { useFederationStore } from '../../stores/federation-store';
+import type { FederationTeamEntry } from '../../stores/federation-store';
 
 interface Props {
   onClose: () => void;
 }
 
 export function ImportModal({ onClose }: Props) {
+  const editorMode = useUIStore(s => s.editorMode);
   const [mode, setMode] = useState<'paste' | 'template'>('template');
   const [teamYaml, setTeamYaml] = useState('');
   const [rolesYaml, setRolesYaml] = useState('');
+  const [federationYaml, setFederationYaml] = useState('');
   const [error, setError] = useState('');
 
   const handleImportPaste = () => {
@@ -24,7 +29,6 @@ export function ImportModal({ onClose }: Props) {
 
       const roleMap = new Map<string, RoleDefinition>();
       if (rolesYaml.trim()) {
-        // Parse multiple role YAMLs separated by ---
         const docs = rolesYaml.split(/^---$/m).filter(d => d.trim());
         for (const doc of docs) {
           const role = yaml.load(doc) as RoleDefinition;
@@ -41,6 +45,38 @@ export function ImportModal({ onClose }: Props) {
     }
   };
 
+  const handleImportFederation = () => {
+    try {
+      const manifest = yaml.load(federationYaml) as FederationManifest;
+      if (!manifest?.name || !manifest?.teams) {
+        setError('Invalid federation.yaml: missing required fields (name, teams)');
+        return;
+      }
+
+      const teamDetails = new Map<string, FederationTeamEntry>();
+      for (const [key, entry] of Object.entries(manifest.teams)) {
+        teamDetails.set(key, {
+          teamKey: key,
+          teamName: key,
+          description: '',
+          templatePath: entry.template,
+          roleCount: 0,
+          channelCount: 0,
+          exportCount: 0,
+          importCount: 0,
+          exports: [],
+          imports: [],
+          placement: entry.placement,
+        });
+      }
+
+      useFederationStore.getState().loadFromManifest(manifest, teamDetails);
+      onClose();
+    } catch (e) {
+      setError(`Parse error: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   const handleLoadTemplate = (key: string) => {
     const template = BUNDLED_TEMPLATES[key];
     if (template) {
@@ -49,6 +85,36 @@ export function ImportModal({ onClose }: Props) {
     }
   };
 
+  // Federation import mode
+  if (editorMode === 'federation') {
+    return (
+      <div style={overlayStyle} onClick={onClose} data-testid="import-modal-overlay">
+        <div style={modalStyle} onClick={e => e.stopPropagation()} data-testid="import-modal">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h3 style={{ margin: 0, fontSize: '17px', color: 'var(--color-text)' }}>Import Federation</h3>
+            <button onClick={onClose} style={closeBtnStyle} data-testid="import-close">{'\u00D7'}</button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <label style={labelStyle}>federation.yaml</label>
+              <textarea
+                style={textareaStyle}
+                value={federationYaml}
+                onChange={e => { setFederationYaml(e.target.value); setError(''); }}
+                placeholder="Paste your federation.yaml content here..."
+                data-testid="import-federation-yaml"
+              />
+            </div>
+            {error && <div data-testid="import-error" style={{ color: 'var(--color-danger)', fontSize: '12px' }}>{error}</div>}
+            <button onClick={handleImportFederation} style={actionBtnStyle} data-testid="import-submit">Import</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Team import mode
   return (
     <div style={overlayStyle} onClick={onClose} data-testid="import-modal-overlay">
       <div style={modalStyle} onClick={e => e.stopPropagation()} data-testid="import-modal">

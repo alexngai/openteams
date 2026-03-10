@@ -1,6 +1,6 @@
 import type { ValidationIssue } from '../stores/validation-store';
 import type { EditorTeamConfig, EditorRoleConfig } from '../stores/config-store';
-import type { ChannelDefinition, SubscriptionEntry, PeerRoute } from '@openteams/template/types';
+import type { ChannelDefinition, SubscriptionEntry, PeerRoute, ExportDeclaration, ImportDeclaration } from '@openteams/template/types';
 
 interface ValidationInput {
   team: EditorTeamConfig;
@@ -164,6 +164,35 @@ export function validate(input: ValidationInput): { errors: ValidationIssue[]; w
       const isEmitted = Object.values(input.emissions).some(sigs => sigs.includes(sig));
       if (!isEmitted) {
         warnings.push({ path: `channels.${chName}`, message: `Signal "${sig}" is never emitted`, severity: 'warning', nodeId: `channel-${chName}` });
+      }
+    }
+  }
+
+  // Layer 6: Federation exports/imports validation
+  const teamExports = input.team.exports || [];
+  const teamImports = input.team.imports || [];
+
+  // Exported signals must be emitted by some role
+  for (const exp of teamExports) {
+    if (!SIGNAL_NAME_RE.test(exp.signal)) {
+      warnings.push({ path: 'communication.exports', message: `Exported signal "${exp.signal}" should be UPPER_CASE`, severity: 'warning' });
+    }
+    const isEmitted = Object.values(input.emissions).some(sigs => sigs.includes(exp.signal));
+    if (!isEmitted) {
+      errors.push({ path: 'communication.exports', message: `Exported signal "${exp.signal}" is not emitted by any role`, severity: 'error' });
+    }
+  }
+
+  // Imported channels must exist in the team's channel definitions
+  for (const imp of teamImports) {
+    if (!input.channels[imp.channel]) {
+      errors.push({ path: 'communication.imports', message: `Imported channel "${imp.channel}" is not defined in channels`, severity: 'error' });
+    } else {
+      // Imported signals must be in the channel's signal list
+      for (const sig of imp.signals) {
+        if (!input.channels[imp.channel].signals.includes(sig)) {
+          errors.push({ path: 'communication.imports', message: `Imported signal "${sig}" is not defined in channel "${imp.channel}"`, severity: 'error' });
+        }
       }
     }
   }

@@ -12,6 +12,9 @@ export type {
   SubscriptionEntry,
   RoutingConfig,
   PeerRoute,
+  ExportDeclaration,
+  ImportDeclaration,
+  PlacementConfig,
   RoleDefinition,
   CapabilityComposition,
   CapabilityMap,
@@ -26,6 +29,10 @@ export type {
   TemplateInfo,
   OpenTeamsConfig,
   DefaultsConfig,
+  FederationManifest,
+  FederationTeamEntry,
+  FederationBridge,
+  ResolvedFederation,
 } from "./template/types";
 
 // Template loader
@@ -83,10 +90,21 @@ export type {
   PackageResult,
 } from "./generators/package-generator";
 
+// Federation
+export { loadFederation, composeFederation } from "./template/federation-loader";
+export { FederationState } from "./runtime/federation-state";
+export type {
+  FederationSnapshot,
+  FederationStateChangeEvent,
+  FederationStateChangeListener,
+} from "./runtime/federation-state";
+export { generateFederatedSkillMd, generateBridgeContext } from "./generators/federation-generator";
+export type { FederationSkillOptions } from "./generators/federation-generator";
+
 // Runtime state observation
 export { MemberRegistry } from "./runtime/member-registry";
 export { TeamState } from "./runtime/team-state";
-export { validateMessage } from "./runtime/validation";
+export { validateMessage, validateBridgeMessage } from "./runtime/validation";
 export type {
   AgentIdentifier,
   MemberIdentity,

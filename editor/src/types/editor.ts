@@ -65,6 +65,36 @@ export type EditorEdge =
   | Edge<SignalFlowEdgeData>
   | Edge<SpawnEdgeData>;
 
+// ── Federation Node/Edge Data ─────────────────────────
+
+export interface TeamNodeData extends Record<string, unknown> {
+  kind: 'team';
+  teamKey: string;
+  teamName: string;
+  description: string;
+  roleCount: number;
+  channelCount: number;
+  exportCount: number;
+  importCount: number;
+  templatePath: string;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface BridgeEdgeData extends Record<string, unknown> {
+  kind: 'bridge';
+  fromTeam: string;
+  fromSignal: string;
+  toTeam: string;
+  toChannel: string;
+  toSignal: string;
+}
+
+export type TeamNode = Node<TeamNodeData, 'team'>;
+
+export type FederationNode = TeamNode;
+export type FederationEdge = Edge<BridgeEdgeData>;
+
 // ── Canvas State ───────────────────────────────────────
 
 export interface CanvasState {

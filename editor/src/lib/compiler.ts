@@ -32,6 +32,8 @@ export function compileToYaml(): CompiledFile[] {
     config.topologyRoot,
     config.topologyCompanions,
     roleModels,
+    config.team.exports,
+    config.team.imports,
   );
 
   const files: CompiledFile[] = [];

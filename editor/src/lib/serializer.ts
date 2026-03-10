@@ -5,6 +5,8 @@ import type {
   SubscriptionEntry,
   PeerRoute,
   ChannelDefinition,
+  ExportDeclaration,
+  ImportDeclaration,
 } from '@openteams/template/types';
 import type {
   EditorNode,
@@ -304,6 +306,8 @@ export function canvasToManifest(
   topologyRoot: string,
   topologyCompanions: string[],
   roleModels: Map<string, string>,
+  exports?: ExportDeclaration[],
+  imports?: ImportDeclaration[],
 ): TeamManifest {
   const roleNames = Array.from(roles.keys());
 
@@ -315,16 +319,22 @@ export function canvasToManifest(
     topology: {
       root: {
         role: topologyRoot,
-        ...(roleModels.get(topologyRoot)
-          ? { config: { model: roleModels.get(topologyRoot) } }
+        ...((roleModels.get(topologyRoot) || roles.get(topologyRoot)?.placement)
+          ? { config: {
+              ...(roleModels.get(topologyRoot) ? { model: roleModels.get(topologyRoot) } : {}),
+              ...(roles.get(topologyRoot)?.placement ? { placement: roles.get(topologyRoot)!.placement } : {}),
+            } }
           : {}),
       },
       ...(topologyCompanions.length > 0
         ? {
             companions: topologyCompanions.map(role => ({
               role,
-              ...(roleModels.get(role)
-                ? { config: { model: roleModels.get(role) } }
+              ...((roleModels.get(role) || roles.get(role)?.placement)
+                ? { config: {
+                    ...(roleModels.get(role) ? { model: roleModels.get(role) } : {}),
+                    ...(roles.get(role)?.placement ? { placement: roles.get(role)!.placement } : {}),
+                  } }
                 : {}),
             })),
           }
@@ -338,7 +348,9 @@ export function canvasToManifest(
     Object.keys(channels).length > 0 ||
     Object.keys(subscriptions).length > 0 ||
     Object.keys(emissions).length > 0 ||
-    peerRoutes.length > 0;
+    peerRoutes.length > 0 ||
+    (exports && exports.length > 0) ||
+    (imports && imports.length > 0);
 
   if (hasComm) {
     const communication: CommunicationConfig = {};
@@ -373,6 +385,14 @@ export function canvasToManifest(
       communication.routing = { peers: peerRoutes };
     }
 
+    if (exports && exports.length > 0) {
+      communication.exports = exports;
+    }
+
+    if (imports && imports.length > 0) {
+      communication.imports = imports;
+    }
+
     manifest.communication = communication;
   }
 
@@ -402,6 +422,7 @@ export function rolesToDefinitions(roles: Map<string, EditorRoleConfig>): Map<st
     if (role.capabilities.length > 0) {
       def.capabilities = role.capabilities;
     }
+    // Note: placement is stored on topology nodes, not role definitions
     result.set(name, def);
   }
   return result;

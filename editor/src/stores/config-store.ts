@@ -3,6 +3,9 @@ import type {
   ChannelDefinition,
   SubscriptionEntry,
   PeerRoute,
+  ExportDeclaration,
+  ImportDeclaration,
+  PlacementConfig,
 } from '@openteams/template/types';
 
 export interface EditorRoleConfig {
@@ -13,6 +16,7 @@ export interface EditorRoleConfig {
   capabilities: string[];
   promptContent?: string;
   additionalPrompts?: { name: string; content: string }[];
+  placement?: PlacementConfig;
 }
 
 export interface EditorTeamConfig {
@@ -21,6 +25,8 @@ export interface EditorTeamConfig {
   version: 1;
   enforcement: 'strict' | 'permissive' | 'audit';
   extensions: Record<string, unknown>;
+  exports: ExportDeclaration[];
+  imports: ImportDeclaration[];
 }
 
 interface ConfigStore {
@@ -50,6 +56,9 @@ interface ConfigStore {
   setRoleModel: (role: string, model: string | undefined) => void;
   setTopologyRoot: (role: string) => void;
   setTopologyCompanions: (roles: string[]) => void;
+  setExports: (exports: ExportDeclaration[]) => void;
+  setImports: (imports: ImportDeclaration[]) => void;
+  setRolePlacement: (role: string, placement: PlacementConfig | undefined) => void;
   clear: () => void;
   loadFromManifest: (
     team: EditorTeamConfig,
@@ -71,6 +80,8 @@ const defaultTeam: EditorTeamConfig = {
   version: 1,
   enforcement: 'permissive',
   extensions: {},
+  exports: [],
+  imports: [],
 };
 
 export const useConfigStore = create<ConfigStore>((set, get) => ({
@@ -221,6 +232,23 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
   setTopologyRoot: (role) => set({ topologyRoot: role }),
   setTopologyCompanions: (roles) => set({ topologyCompanions: roles }),
+
+  setExports: (exports) => {
+    set({ team: { ...get().team, exports } });
+  },
+
+  setImports: (imports) => {
+    set({ team: { ...get().team, imports } });
+  },
+
+  setRolePlacement: (role, placement) => {
+    const roles = new Map(get().roles);
+    const existing = roles.get(role);
+    if (existing) {
+      roles.set(role, { ...existing, placement });
+      set({ roles });
+    }
+  },
 
   clear: () => {
     set({

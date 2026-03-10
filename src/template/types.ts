@@ -42,7 +42,16 @@ export interface TopologyNode {
 
 export interface TopologyNodeConfig {
   model?: string;
+  placement?: PlacementConfig;
   [key: string]: unknown;
+}
+
+/** Logical placement hints for agent systems. OpenTeams stores but does not interpret. */
+export interface PlacementConfig {
+  zone?: string;
+  affinity?: string[];
+  replicas?: number;
+  constraints?: Record<string, unknown>;
 }
 
 // --- Communication ---
@@ -53,6 +62,24 @@ export interface CommunicationConfig {
   subscriptions?: Record<string, SubscriptionEntry[]>;
   emissions?: Record<string, string[]>;
   routing?: RoutingConfig;
+
+  /** Signals this team makes available to other teams via federation bridges. */
+  exports?: ExportDeclaration[];
+  /** Channels that receive signals from external teams via federation bridges. */
+  imports?: ImportDeclaration[];
+}
+
+/** A signal this team exports for consumption by other federated teams. */
+export interface ExportDeclaration {
+  signal: string;
+  description?: string;
+}
+
+/** A channel that receives signals from external federated teams. */
+export interface ImportDeclaration {
+  channel: string;
+  signals: string[];
+  description?: string;
 }
 
 export interface ChannelDefinition {
@@ -225,5 +252,40 @@ export interface OpenTeamsConfig {
 export interface DefaultsConfig {
   include?: string[];
   exclude?: string[];
+}
+
+// ─────────────────────────────────────────────────────────────
+// Federation Types
+// ─────────────────────────────────────────────────────────────
+// Federation composes multiple standalone teams into a
+// coordinated system via bridges (cross-team signal routing).
+
+/** Raw federation manifest from federation.yaml. */
+export interface FederationManifest {
+  name: string;
+  version: number;
+  teams: Record<string, FederationTeamEntry>;
+  bridges?: FederationBridge[];
+  enforcement?: "strict" | "permissive" | "audit";
+}
+
+/** A team entry in a federation manifest. */
+export interface FederationTeamEntry {
+  /** Path to the team template directory, or an installed template name. */
+  template: string;
+  placement?: PlacementConfig;
+}
+
+/** A bridge routes signals from one team to another. */
+export interface FederationBridge {
+  from: { team: string; signal: string };
+  to: { team: string; channel: string; signal: string };
+}
+
+/** A fully resolved federation — all templates loaded, bridges validated. */
+export interface ResolvedFederation {
+  manifest: FederationManifest;
+  teams: Map<string, ResolvedTemplate>;
+  bridges: FederationBridge[];
 }
 
