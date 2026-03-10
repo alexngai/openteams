@@ -372,6 +372,42 @@ export class TemplateLoader {
           }
         }
       }
+
+      // Validate exports reference emitted signals
+      if (manifest.communication.exports) {
+        const allEmittedSignals = new Set(
+          Object.values(manifest.communication.emissions ?? {}).flat()
+        );
+        for (const exp of manifest.communication.exports) {
+          if (allEmittedSignals.size > 0 && !allEmittedSignals.has(exp.signal)) {
+            throw new Error(
+              `communication.exports signal "${exp.signal}" is not emitted by any role`
+            );
+          }
+        }
+      }
+
+      // Validate imports reference declared channels
+      if (manifest.communication.imports) {
+        for (const imp of manifest.communication.imports) {
+          if (channels.size > 0 && !channels.has(imp.channel)) {
+            throw new Error(
+              `communication.imports channel "${imp.channel}" is not defined in channels`
+            );
+          }
+          // Validate import signals exist in the channel definition
+          if (channels.has(imp.channel)) {
+            const channelDef = manifest.communication.channels![imp.channel];
+            for (const sig of imp.signals) {
+              if (!channelDef.signals.includes(sig)) {
+                throw new Error(
+                  `communication.imports signal "${sig}" is not defined in channel "${imp.channel}"`
+                );
+              }
+            }
+          }
+        }
+      }
     }
   }
 

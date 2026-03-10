@@ -1,4 +1,4 @@
-import type { ResolvedTemplate, CommunicationConfig } from "../template/types";
+import type { ResolvedTemplate, CommunicationConfig, FederationBridge, FederationManifest } from "../template/types";
 import type { ValidationResult, Violation, ViolationSeverity } from "./types";
 
 /**
@@ -134,10 +134,63 @@ function validateChannel(
   }
 }
 
+/**
+ * Validate a cross-team bridge message against the federation's bridge definitions.
+ *
+ * Stateless — checks whether a declared bridge exists for the given path.
+ */
+export function validateBridgeMessage(
+  bridges: FederationBridge[],
+  fromTeam: string,
+  signal: string,
+  toTeam: string,
+  channel: string,
+  enforcement?: FederationManifest["enforcement"]
+): ValidationResult {
+  const violations: Violation[] = [];
+  const severity = federationEnforcementSeverity(enforcement);
+
+  const bridge = bridges.find(
+    (b) =>
+      b.from.team === fromTeam &&
+      b.from.signal === signal &&
+      b.to.team === toTeam &&
+      b.to.channel === channel
+  );
+
+  if (!bridge) {
+    violations.push({
+      message: `No bridge from "${fromTeam}" signal "${signal}" to "${toTeam}" channel "${channel}"`,
+      severity,
+    });
+  } else if (bridge.to.signal !== signal) {
+    // Bridge exists but signal mapping — verify the mapped signal
+    // (this is informational, the bridge is valid)
+  }
+
+  return {
+    valid: violations.every((v) => v.severity !== "error"),
+    violations,
+  };
+}
+
 /** Map enforcement mode to violation severity. */
 function enforcementSeverity(comm?: CommunicationConfig): ViolationSeverity {
   if (!comm?.enforcement) return "warning";
   switch (comm.enforcement) {
+    case "strict":
+      return "error";
+    case "audit":
+    case "permissive":
+      return "warning";
+  }
+}
+
+function federationEnforcementSeverity(
+  enforcement?: FederationManifest["enforcement"]
+): ViolationSeverity {
+  if (!enforcement) return "warning";
+  switch (enforcement) {
     case "strict":
       return "error";
     case "audit":
