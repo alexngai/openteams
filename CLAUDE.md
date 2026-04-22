@@ -95,6 +95,12 @@ For consumers that need to override or inject loadouts from outside the template
 
 **MCP server refs**: Loadouts accept `{ ref: "@org/server-name" }` entries for symbolic references to MCP servers. OpenTeams stores refs verbatim — it does not ship a registry. Consuming systems (OpenHive against its DB, claude-code-swarm against a bundled list) are responsible for resolving refs at materialization time.
 
+**MCP install vs scope**: Install and scope are separate concerns.
+- `team.yaml:mcp_providers` declares *install specs* — advisory, consumer decides whether to install. Field shape matches the Claude Code / Cursor / Windsurf `mcpServers` format (with `ref`, `disabled`, `description` as openteams extensions).
+- `loadouts/*.yaml:mcp_servers` declares *scope* — which servers from the base set a role may call, optionally narrowed by `tools` allowlist or `exclude` denylist. Four accepted shapes: bare string (full scope), single-key map with array value (tool allowlist), single-key map with `{ tools?, exclude? }` (options), and the existing install/ref shapes (install + scope).
+- Omitting `mcp_servers` entirely = permissive (full base-set access). Declaring it restricts to the listed servers.
+- Consumers call `generateLoadoutArtifacts(loadout)` to get normalized `mcpScope: NormalizedMcpScope[]` and `findMissingMcpReferences(template, installedSet?)` to warn about scope references absent from the base set.
+
 **Runtime state observation**: `TeamState` tracks member identity, status, and communication validity at runtime. Accepts MAP-aligned events, validates against template topology.
 
 ```typescript

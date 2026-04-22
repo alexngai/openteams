@@ -20,6 +20,10 @@ export type {
   CapabilityMap,
   McpServerEntry,
   McpServerRef,
+  McpServerScopeEntry,
+  McpServerScopeOpts,
+  NormalizedMcpScope,
+  McpProviderSpec,
   LoadoutDefinition,
   ResolvedLoadout,
   SkillsConfig,
@@ -44,7 +48,7 @@ export type {
 export { TemplateLoader, spawnRuleTarget, isCapabilityMap } from "./template/loader";
 
 // Loadout merge utilities (for consumers implementing their own override layers)
-export { mergeLoadout, resolveStandaloneLoadout } from "./template/loadout-merge";
+export { mergeLoadout, resolveStandaloneLoadout, normalizeMcpEntries } from "./template/loadout-merge";
 
 // Template install
 export { TemplateInstallService } from "./template/install-service";
@@ -105,6 +109,8 @@ export {
   renderLoadoutYaml,
   listLoadoutConsumers,
   listInlineLoadoutRoles,
+  findMissingMcpReferences,
+  getMcpProviders,
 } from "./generators/loadout-generator";
 export type { LoadoutArtifacts } from "./generators/loadout-generator";
 

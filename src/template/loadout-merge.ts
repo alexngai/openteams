@@ -24,6 +24,8 @@ import type {
   LoadoutDefinition,
   McpServerEntry,
   McpServerRef,
+  McpServerScopeOpts,
+  NormalizedMcpScope,
   PermissionsConfig,
   ResolvedLoadout,
   SkillsConfig,
@@ -41,6 +43,7 @@ export function mergeLoadout(
   childDef: LoadoutDefinition
 ): ResolvedLoadout {
   const childCaps = normalizeCapabilities(childDef);
+  const childMcp = normalizeMcpEntries(childDef.mcp_servers ?? []);
 
   return {
     name: childDef.name,
@@ -52,7 +55,8 @@ export function mergeLoadout(
       parent.capabilityConfig,
       childDef.capabilities
     ),
-    mcpServers: mergeMcpServers(parent.mcpServers, childDef.mcp_servers ?? []),
+    mcpServers: mergeMcpInstalls(parent.mcpServers ?? [], childMcp.installs),
+    mcpScope: mergeMcpScope(parent.mcpScope ?? [], childMcp.scopes),
     permissions: mergePermissions(parent.permissions, childDef.permissions),
     promptAddendum: mergePromptAddendum(
       parent.promptAddendum,
@@ -69,6 +73,7 @@ export function mergeLoadout(
 export function resolveStandaloneLoadout(def: LoadoutDefinition): ResolvedLoadout {
   const caps = normalizeCapabilities(def);
   const capabilityConfig = extractCapabilityMap(def.capabilities);
+  const { installs, scopes } = normalizeMcpEntries(def.mcp_servers ?? []);
 
   return {
     name: def.name,
@@ -77,7 +82,8 @@ export function resolveStandaloneLoadout(def: LoadoutDefinition): ResolvedLoadou
     skills: def.skills ? { ...def.skills } : undefined,
     capabilities: caps.list,
     capabilityConfig,
-    mcpServers: [...(def.mcp_servers ?? [])],
+    mcpServers: installs,
+    mcpScope: scopes,
     permissions: {
       allow: def.permissions?.allow ? [...def.permissions.allow] : undefined,
       deny: def.permissions?.deny ? [...def.permissions.deny] : undefined,
@@ -194,22 +200,151 @@ function mergeSkills(
 }
 
 // ─────────────────────────────────────────────────────────────
-// MCP servers
+// MCP entry normalization + scope/install merge
 // ─────────────────────────────────────────────────────────────
 
-function mcpServerKey(entry: McpServerEntry | McpServerRef): string {
+/**
+ * Classify a raw entry from `mcp_servers` into one of four known shapes.
+ * Pure function — no side effects.
+ */
+type McpEntryKind = "string" | "scope-obj" | "install" | "ref" | "unknown";
+
+function classifyMcpEntry(raw: unknown): McpEntryKind {
+  if (typeof raw === "string") return "string";
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "unknown";
+  const obj = raw as Record<string, unknown>;
+  if ("ref" in obj && typeof obj.ref === "string") return "ref";
+  if ("name" in obj && "command" in obj) return "install";
+  const keys = Object.keys(obj);
+  if (keys.length === 1) {
+    const val = obj[keys[0]];
+    if (Array.isArray(val)) return "scope-obj";
+    if (val === null) return "scope-obj";
+    if (typeof val === "object") return "scope-obj";
+  }
+  return "unknown";
+}
+
+/**
+ * Normalize a raw `mcp_servers` list into two buckets:
+ *   - installs: McpServerEntry + McpServerRef entries preserved verbatim
+ *   - scopes:   NormalizedMcpScope for every referenced server
+ *
+ * String + scope-object entries produce scope-only output.
+ * Install entries produce BOTH an install spec AND a full-scope entry
+ * (install implies the role uses the server with no restrictions).
+ * Ref entries produce only an install entry; scope is deferred until
+ * the consumer resolves the ref.
+ */
+export function normalizeMcpEntries(raw: unknown[]): {
+  installs: (McpServerEntry | McpServerRef)[];
+  scopes: NormalizedMcpScope[];
+} {
+  const installs: (McpServerEntry | McpServerRef)[] = [];
+  const scopes: NormalizedMcpScope[] = [];
+
+  for (const entry of raw) {
+    switch (classifyMcpEntry(entry)) {
+      case "string": {
+        scopes.push({ server: entry as string });
+        break;
+      }
+      case "scope-obj": {
+        const obj = entry as Record<string, unknown>;
+        const server = Object.keys(obj)[0];
+        const val = obj[server];
+        if (Array.isArray(val)) {
+          scopes.push({ server, tools: [...(val as string[])] });
+        } else if (val && typeof val === "object") {
+          const opts = val as McpServerScopeOpts;
+          const out: NormalizedMcpScope = { server };
+          if (opts.tools) out.tools = [...opts.tools];
+          if (opts.exclude) out.exclude = [...opts.exclude];
+          scopes.push(out);
+        } else {
+          scopes.push({ server });
+        }
+        break;
+      }
+      case "install": {
+        const e = entry as McpServerEntry;
+        installs.push({ ...e });
+        scopes.push({ server: e.name });
+        break;
+      }
+      case "ref": {
+        const e = entry as McpServerRef;
+        installs.push({ ...e });
+        // Scope deferred — consumer resolves ref then infers server name.
+        break;
+      }
+      default:
+        throw new Error(
+          `Unrecognized mcp_servers entry shape: ${JSON.stringify(entry)}`
+        );
+    }
+  }
+
+  return { installs, scopes };
+}
+
+function mcpInstallKey(entry: McpServerEntry | McpServerRef): string {
   if ("ref" in entry) return `ref:${entry.ref}`;
   return `name:${entry.name}`;
 }
 
-function mergeMcpServers(
+/**
+ * Merge install specs: union by name/ref, child wins on conflict.
+ */
+function mergeMcpInstalls(
   parent: (McpServerEntry | McpServerRef)[],
   child: (McpServerEntry | McpServerRef)[]
 ): (McpServerEntry | McpServerRef)[] {
   const byKey = new Map<string, McpServerEntry | McpServerRef>();
-  for (const entry of parent) byKey.set(mcpServerKey(entry), entry);
-  for (const entry of child) byKey.set(mcpServerKey(entry), entry); // child overrides
+  for (const entry of parent) byKey.set(mcpInstallKey(entry), entry);
+  for (const entry of child) byKey.set(mcpInstallKey(entry), entry);
   return [...byKey.values()];
+}
+
+/**
+ * Merge scope declarations: union by server name.
+ *
+ * Per-server field semantics:
+ *   tools   — union (both sides' allowlists accumulate). A child whose
+ *             entry has no `tools` field does NOT unrestrict a parent's
+ *             restriction; to widen, the child must explicitly list tools.
+ *   exclude — union (deny-wins). Child cannot drop a parent exclude.
+ *
+ * Omitted fields on both sides → the merged entry has neither field
+ * (equivalent to "full access to this server").
+ */
+function mergeMcpScope(
+  parent: NormalizedMcpScope[],
+  child: NormalizedMcpScope[]
+): NormalizedMcpScope[] {
+  const byServer = new Map<string, NormalizedMcpScope>();
+  for (const s of parent) byServer.set(s.server, cloneScope(s));
+  for (const s of child) {
+    const existing = byServer.get(s.server);
+    if (!existing) {
+      byServer.set(s.server, cloneScope(s));
+      continue;
+    }
+    const merged: NormalizedMcpScope = { server: s.server };
+    const tools = unique([...(existing.tools ?? []), ...(s.tools ?? [])]);
+    if (tools) merged.tools = tools;
+    const exclude = unique([...(existing.exclude ?? []), ...(s.exclude ?? [])]);
+    if (exclude) merged.exclude = exclude;
+    byServer.set(s.server, merged);
+  }
+  return [...byServer.values()];
+}
+
+function cloneScope(s: NormalizedMcpScope): NormalizedMcpScope {
+  const out: NormalizedMcpScope = { server: s.server };
+  if (s.tools) out.tools = [...s.tools];
+  if (s.exclude) out.exclude = [...s.exclude];
+  return out;
 }
 
 // ─────────────────────────────────────────────────────────────

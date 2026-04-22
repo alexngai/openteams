@@ -62,13 +62,28 @@
     },
     "mcp_servers": {
       "type": "array",
-      "description": "MCP server entries — either inline (name + command + args + env) or symbolic refs resolved by the consuming system.",
+      "description": "MCP server entries. Four accepted forms: (1) string — scope-only, full access to the named server; (2) single-key object — scope-only, key is server name, value is tool allowlist (array) or options ({tools?, exclude?}); (3) inline install spec with name+command — install + full scope; (4) symbolic ref resolved by the consumer — install + scope deferred. Omitting the field entirely means permissive (role has access to the full base set).",
       "items": {
         "oneOf": [
+          {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$",
+            "description": "Shorthand: scope-only reference, full access to this server."
+          },
+          { "$ref": "#/$defs/McpServerScopeObject" },
           { "$ref": "#/$defs/McpServerEntry" },
           { "$ref": "#/$defs/McpServerRef" }
         ]
-      }
+      },
+      "examples": [
+        [
+          "opentasks",
+          { "chrome-devtools": ["navigate", "screenshot"] },
+          { "ast-grep": { "exclude": ["dangerous_replace"] } },
+          { "name": "bespoke-mcp", "command": "node", "args": ["./my-mcp.js"] },
+          { "ref": "@openhive/secrets-scanner" }
+        ]
+      ]
     },
     "permissions": {
       "$ref": "#/$defs/PermissionsConfig",
@@ -157,6 +172,44 @@
           "type": "object",
           "description": "Opaque config passed through to the resolved server.",
           "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "McpServerScopeObject": {
+      "type": "object",
+      "description": "Single-key object: key is the server name, value is either a tool allowlist (array) or a scope options object. Examples: `{ chrome-devtools: [navigate, screenshot] }` or `{ ast-grep: { exclude: [dangerous_replace] } }`.",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "patternProperties": {
+        "^[a-zA-Z0-9][a-zA-Z0-9_-]*$": {
+          "oneOf": [
+            {
+              "type": "array",
+              "description": "Tool allowlist — shorthand for { tools: [...] }.",
+              "items": { "type": "string" },
+              "uniqueItems": true
+            },
+            { "$ref": "#/$defs/McpServerScopeOpts" }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "McpServerScopeOpts": {
+      "type": "object",
+      "properties": {
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true,
+          "description": "Allowlist — if set, only these tools are in scope. Unions across inheritance."
+        },
+        "exclude": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true,
+          "description": "Denylist — these tools are denied. Always accumulates across inheritance (deny-wins)."
         }
       },
       "additionalProperties": false

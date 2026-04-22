@@ -213,10 +213,10 @@ skills:
   profile: code-reviewer
   include: [review-style-guide]
 capabilities: [file.read, git.diff, codebase.search]
+# MCP scope — which servers the role may call.
+# See "MCP install vs scope" below for the four entry shapes.
 mcp_servers:
-  - name: ast-grep
-    command: npx
-    args: [ast-grep-mcp]
+  - ast-grep                          # bare string: full access
 permissions:
   allow: ["Read(**)", "Bash(git diff:*)"]
   deny:  ["Bash(git push:*)"]
@@ -231,6 +231,9 @@ skills:
   profile: security-engineer
   include: [owasp-top-10]
 capabilities_add: [exec.test]
+mcp_servers:
+  - chrome-devtools: [navigate, screenshot]   # tool allowlist
+  - ref: "@openhive/secrets-scanner"          # consumer-resolved ref
 permissions:
   deny: ["Bash(curl *:*)"]
 prompt_addendum: |
@@ -238,7 +241,7 @@ prompt_addendum: |
   Prioritize authn gaps, injection, exposed secrets.
 ```
 
-Bind a loadout to a role three ways:
+### Binding a loadout to a role — three ways
 
 ```yaml
 # 1. No loadout — role uses only its own declared capabilities
@@ -258,9 +261,43 @@ loadout:
     Be direct but kind.
 ```
 
-Inheritance merges: capabilities/MCP/permissions.allow union, `permissions.deny` always wins (child can't drop a parent deny), `skills.profile`/`max_tokens` replace if set, `skills.include`/`exclude` union, `prompt_addendum` concatenates parent → child.
+### MCP install vs scope
 
-MCP servers accept either inline entries (`name` + `command`) or symbolic refs (`{ ref: "@org/server" }`) resolved by the consuming agent system — OpenTeams stores refs verbatim.
+**Install specs** live at the team level in `team.yaml:mcp_providers` (optional). Shape matches the Claude Code / Cursor / Windsurf `mcpServers` format.
+
+```yaml
+# team.yaml
+mcp_providers:
+  ast-grep:
+    command: npx
+    args: [ast-grep-mcp]
+  remote-api:
+    type: http
+    url: https://mcp.example.com/mcp
+    headers: { Authorization: "Bearer ${TOKEN}" }
+  secrets-scanner:
+    ref: "@openhive/secrets-scanner"   # consumer resolves
+```
+
+**Scope declarations** live on loadouts. Four accepted entry shapes:
+
+```yaml
+mcp_servers:
+  - opentasks                                  # (1) bare string — full scope
+  - chrome-devtools: [navigate, screenshot]    # (2) tool allowlist
+  - ast-grep:                                  # (3) options object
+      exclude: [dangerous_replace]
+  - name: bespoke                              # (4) inline install + full scope
+    command: node
+    args: [./mcp/bespoke.js]
+  - ref: "@openhive/secrets"                   # (5) symbolic ref + scope
+```
+
+Omitting `mcp_servers` entirely is **permissive** (role gets full base-set access). Declaring it narrows scope.
+
+### Inheritance merges
+
+Capabilities / MCP scope `tools` / permissions.allow / skills.include all **union**. Permissions.deny and MCP scope `exclude` **accumulate** (deny-wins — child cannot drop a parent deny). `skills.profile` and `skills.max_tokens` replace-if-set. `prompt_addendum` concatenates parent → child.
 
 See `examples/loadout-demo/` for a complete working example.
 

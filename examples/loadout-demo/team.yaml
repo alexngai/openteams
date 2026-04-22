@@ -15,6 +15,29 @@ topology:
     implementer: []
     reviewer: []
 
+# Optional team-level MCP install specs. Advisory — consumers decide whether
+# to install. Shape matches the Claude Code / Cursor / Windsurf `mcpServers`
+# format with openteams-specific extensions (`ref`, `description`, `disabled`).
+mcp_providers:
+  ast-grep:
+    command: npx
+    args: [ast-grep-mcp]
+    description: "Structural code search and rewriting"
+
+  chrome-devtools:
+    command: npx
+    args: [chrome-devtools-mcp]
+    description: "Browser automation via Chrome DevTools Protocol"
+
+  filesystem:
+    command: npx
+    args: [filesystem-mcp]
+    description: "File read/write with path scoping"
+
+  secrets-scanner:
+    ref: "@openhive/secrets-scanner"
+    description: "Consumer-resolved symbolic reference"
+
 communication:
   enforcement: permissive
   channels:

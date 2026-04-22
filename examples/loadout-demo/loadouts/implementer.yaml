@@ -8,10 +8,14 @@ capabilities:
   - codebase.search
   - exec.test
   - exec.run
+# Scope with an object-form entry showing both tools and exclude:
+#   ast-grep: full access
+#   filesystem: allow read + write + search, but deny destructive ops
 mcp_servers:
-  - name: filesystem
-    command: npx
-    args: [filesystem-mcp]
+  - ast-grep
+  - filesystem:
+      tools: [read_file, write_file, list_dir, search]
+      exclude: [shell_exec]
 permissions:
   allow:
     - "Read(**)"

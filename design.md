@@ -120,7 +120,7 @@ interface LoadoutDefinition {
   capabilities?: string[] | CapabilityComposition | CapabilityMap;
   capabilities_add?: string[];
   capabilities_remove?: string[];
-  mcp_servers?: (McpServerEntry | McpServerRef)[];
+  mcp_servers?: (McpServerScopeEntry | McpServerEntry | McpServerRef)[];
   permissions?: PermissionsConfig;
   prompt_addendum?: string;
   // Extension fields
@@ -140,11 +140,63 @@ interface PermissionsConfig {
   ask?: string[];
 }
 
+// Four accepted shapes for mcp_servers entries:
+
+// (1) string — scope-only, full access
+type McpServerScopeEntry =
+  | string
+  | { [server: string]: string[] | McpServerScopeOpts };
+
+interface McpServerScopeOpts {
+  tools?: string[];      // allowlist (union across inheritance)
+  exclude?: string[];    // denylist (union, deny-wins)
+}
+
+// (2) install spec — install + full scope
+interface McpServerEntry {
+  name: string;
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
+// (3) symbolic ref — install + scope deferred to consumer
 interface McpServerRef {
-  ref: string;       // Resolved by consuming system; OpenTeams stores verbatim
+  ref: string;
   config?: Record<string, unknown>;
 }
+
+// Post-normalization canonical form (on ResolvedLoadout.mcpScope)
+interface NormalizedMcpScope {
+  server: string;
+  tools?: string[];
+  exclude?: string[];
+}
 ```
+
+### McpProviderSpec (team.yaml:mcp_providers)
+
+Optional install specs declared at team level. Field shape matches the Claude Code / Cursor / Windsurf / Cline `mcpServers` entry format (the de-facto ecosystem standard).
+
+```typescript
+interface McpProviderSpec {
+  type?: "stdio" | "sse" | "http";   // default "stdio"
+  // stdio
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+  // sse / http
+  url?: string;
+  headers?: Record<string, string>;
+  // openteams extensions (strip before emitting .mcp.json)
+  ref?: string;
+  disabled?: boolean;
+  description?: string;
+}
+```
+
+Providers are **advisory** — consumers decide whether to install. The section is **fully optional**; omitting it means the template relies on whatever the consumer has installed via other means. Cross-template conflicts (two federated teams declaring the same provider name with different specs) are a consumer-layer policy decision; openteams does not reject them.
 
 ### ResolvedTemplate
 
@@ -156,6 +208,7 @@ interface ResolvedTemplate {
   roles: Map<string, ResolvedRole>;       // After inheritance resolution
   prompts: Map<string, ResolvedPrompts>;  // Role name → loaded prompts
   mcpServers: Map<string, McpServerEntry[]>;  // Legacy tools/mcp-servers.json path
+  mcpProviders: Map<string, McpProviderSpec>; // Team-level install specs (advisory)
   loadouts: Map<string, ResolvedLoadout>; // All resolved loadouts by name
   sourcePath: string;
 }
@@ -163,6 +216,12 @@ interface ResolvedTemplate {
 interface ResolvedRole {
   // ... identity + capabilities ...
   loadout?: ResolvedLoadout;              // Attached if role declared one
+}
+
+interface ResolvedLoadout {
+  // ... name, extends, description, skills, capabilities, permissions, promptAddendum ...
+  mcpServers: (McpServerEntry | McpServerRef)[];  // install-bearing entries only
+  mcpScope: NormalizedMcpScope[];                 // normalized scope declarations
 }
 ```
 
@@ -223,7 +282,9 @@ Loadouts use the same inheritance algorithm as roles (topological order, cycle d
 | `skills.profile`, `skills.max_tokens` | Replace-if-set |
 | `skills.include`, `skills.exclude` | Union |
 | `capabilities` | Same composition (`add`/`remove`) as roles |
-| `mcp_servers` | Union by `name`/`ref`; child wins on conflict |
+| `mcp_servers` install specs | Union by `name`/`ref`; child wins on conflict |
+| `mcp_servers` scope `tools` (per server) | Union across inheritance |
+| `mcp_servers` scope `exclude` (per server) | Union — **deny always wins** |
 | `permissions.allow`, `.ask` | Union |
 | `permissions.deny` | Union — **deny always wins** (child cannot drop parent denies) |
 | `prompt_addendum` | Concatenated parent → child with blank-line separator |

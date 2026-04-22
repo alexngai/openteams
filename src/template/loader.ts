@@ -12,6 +12,7 @@ import type {
   CapabilityMap,
   SpawnRuleEntry,
   McpServerEntry,
+  McpProviderSpec,
   LoadOptions,
   AsyncLoadOptions,
   LoadoutDefinition,
@@ -64,7 +65,7 @@ export class TemplateLoader {
    * @param options - Optional hooks for external role resolution and post-processing
    */
   static load(templateDir: string, options?: LoadOptions): ResolvedTemplate {
-    const { manifest, roles, prompts, mcpServers, loadoutDefs, absDir } =
+    const { manifest, roles, prompts, mcpServers, mcpProviders, loadoutDefs, absDir } =
       TemplateLoader.loadCore(templateDir);
 
     // Resolve role inheritance chains (with optional external resolution)
@@ -115,6 +116,7 @@ export class TemplateLoader {
       roles,
       prompts,
       mcpServers,
+      mcpProviders,
       loadouts,
       sourcePath: absDir,
     };
@@ -136,7 +138,7 @@ export class TemplateLoader {
     templateDir: string,
     options?: AsyncLoadOptions
   ): Promise<ResolvedTemplate> {
-    const { manifest, roles, prompts, mcpServers, loadoutDefs, absDir } =
+    const { manifest, roles, prompts, mcpServers, mcpProviders, loadoutDefs, absDir } =
       TemplateLoader.loadCore(templateDir);
 
     // Resolve role inheritance chains (with optional async external resolution)
@@ -190,6 +192,7 @@ export class TemplateLoader {
       roles,
       prompts,
       mcpServers,
+      mcpProviders,
       loadouts,
       sourcePath: absDir,
     };
@@ -210,6 +213,7 @@ export class TemplateLoader {
     roles: Map<string, ResolvedRole>;
     prompts: Map<string, ResolvedPrompts>;
     mcpServers: Map<string, McpServerEntry[]>;
+    mcpProviders: Map<string, McpProviderSpec>;
     loadoutDefs: Map<string, LoadoutDefinition>;
     absDir: string;
   } {
@@ -266,10 +270,34 @@ export class TemplateLoader {
     // Load MCP server configs
     const mcpServers = TemplateLoader.loadMcpServers(absDir);
 
+    // Extract team-level MCP providers (optional; empty map when omitted)
+    const mcpProviders = TemplateLoader.parseMcpProviders(manifest);
+
     // Load raw loadout definitions (inheritance resolved later in load()/loadAsync())
     const loadoutDefs = TemplateLoader.loadLoadoutDefinitions(absDir);
 
-    return { manifest, roles, prompts, mcpServers, loadoutDefs, absDir };
+    return { manifest, roles, prompts, mcpServers, mcpProviders, loadoutDefs, absDir };
+  }
+
+  /**
+   * Extract `mcp_providers` from the team manifest into a Map.
+   * Advisory install specs — optional, default empty.
+   */
+  private static parseMcpProviders(
+    manifest: TeamManifest
+  ): Map<string, McpProviderSpec> {
+    const result = new Map<string, McpProviderSpec>();
+    const raw = manifest.mcp_providers;
+    if (!raw || typeof raw !== "object") return result;
+    for (const [name, spec] of Object.entries(raw)) {
+      if (!spec || typeof spec !== "object") {
+        throw new Error(
+          `team.yaml:mcp_providers.${name} must be an object, got ${typeof spec}`
+        );
+      }
+      result.set(name, spec as McpProviderSpec);
+    }
+    return result;
   }
 
   /**
@@ -295,6 +323,7 @@ export class TemplateLoader {
       roles,
       prompts: new Map(),
       mcpServers: new Map(),
+      mcpProviders: TemplateLoader.parseMcpProviders(manifest),
       loadouts: new Map(),
       sourcePath: "",
     };

@@ -9,10 +9,11 @@ capabilities:
   - file.read
   - git.diff
   - codebase.search
+# Scope declaration — references servers from the team's base set
+# (team.yaml:mcp_providers or whatever the consumer has installed).
+# `ast-grep` as a bare string = full access to that server's tools.
 mcp_servers:
-  - name: ast-grep
-    command: npx
-    args: [ast-grep-mcp]
+  - ast-grep
 permissions:
   allow:
     - "Read(**)"

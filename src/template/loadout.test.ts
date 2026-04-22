@@ -3,7 +3,11 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { TemplateLoader } from "./loader";
-import { mergeLoadout, resolveStandaloneLoadout } from "./loadout-merge";
+import {
+  mergeLoadout,
+  normalizeMcpEntries,
+  resolveStandaloneLoadout,
+} from "./loadout-merge";
 import type { LoadoutDefinition, ResolvedLoadout } from "./types";
 
 describe("Loadouts", () => {
@@ -331,6 +335,7 @@ capabilities_add: [exec.test]
         description: "Fetched from DB",
         capabilities: ["file.read"],
         mcpServers: [],
+        mcpScope: [],
         permissions: {},
         raw: { name: "remote-base" },
       };
@@ -352,6 +357,7 @@ capabilities_add: [exec.test]
         description: "Stored in hive DB",
         capabilities: ["file.read"],
         mcpServers: [],
+        mcpScope: [],
         permissions: {},
         raw: { name: "db-loadout" },
       };
@@ -384,6 +390,207 @@ capabilities_add: [exec.test]
   // Async variant
   // ────────────────────────────────────────────────────────────
 
+  // ────────────────────────────────────────────────────────────
+  // MCP scope normalization
+  // ────────────────────────────────────────────────────────────
+
+  describe("MCP scope normalization", () => {
+    it("treats a bare string as full-scope reference", () => {
+      const { installs, scopes } = normalizeMcpEntries(["opentasks"]);
+      expect(installs).toEqual([]);
+      expect(scopes).toEqual([{ server: "opentasks" }]);
+    });
+
+    it("treats single-key object with array value as tool allowlist", () => {
+      const { installs, scopes } = normalizeMcpEntries([
+        { "chrome-devtools": ["navigate", "screenshot"] },
+      ]);
+      expect(installs).toEqual([]);
+      expect(scopes).toEqual([
+        { server: "chrome-devtools", tools: ["navigate", "screenshot"] },
+      ]);
+    });
+
+    it("treats single-key object with opts value as scope options", () => {
+      const { installs, scopes } = normalizeMcpEntries([
+        { "ast-grep": { tools: ["search"], exclude: ["dangerous_replace"] } },
+      ]);
+      expect(installs).toEqual([]);
+      expect(scopes).toEqual([
+        { server: "ast-grep", tools: ["search"], exclude: ["dangerous_replace"] },
+      ]);
+    });
+
+    it("treats install spec as install + full scope", () => {
+      const { installs, scopes } = normalizeMcpEntries([
+        { name: "bespoke", command: "node", args: ["./x.js"] },
+      ]);
+      expect(installs).toHaveLength(1);
+      expect(installs[0]).toMatchObject({ name: "bespoke", command: "node" });
+      expect(scopes).toEqual([{ server: "bespoke" }]);
+    });
+
+    it("treats ref entry as install-only (scope deferred to consumer)", () => {
+      const { installs, scopes } = normalizeMcpEntries([
+        { ref: "@openhive/secrets" },
+      ]);
+      expect(installs).toHaveLength(1);
+      expect("ref" in installs[0] ? installs[0].ref : undefined).toBe("@openhive/secrets");
+      expect(scopes).toEqual([]);
+    });
+
+    it("rejects malformed entries", () => {
+      expect(() => normalizeMcpEntries([42 as unknown])).toThrow(
+        /Unrecognized mcp_servers entry/
+      );
+      expect(() =>
+        normalizeMcpEntries([{ a: "x", b: "y" } as unknown])
+      ).toThrow(/Unrecognized mcp_servers entry/);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────
+  // MCP scope merge semantics
+  // ────────────────────────────────────────────────────────────
+
+  describe("MCP scope merge", () => {
+    it("unions tools across inheritance", () => {
+      const parent = resolveStandaloneLoadout({
+        name: "p",
+        mcp_servers: [{ "chrome-devtools": ["navigate"] }],
+      });
+      const merged = mergeLoadout(parent, {
+        name: "c",
+        mcp_servers: [{ "chrome-devtools": ["screenshot"] }],
+      });
+      const cd = merged.mcpScope.find((s) => s.server === "chrome-devtools")!;
+      expect(cd.tools?.sort()).toEqual(["navigate", "screenshot"]);
+    });
+
+    it("unions exclude across inheritance (deny always wins)", () => {
+      const parent = resolveStandaloneLoadout({
+        name: "p",
+        mcp_servers: [{ "ast-grep": { exclude: ["dangerous"] } }],
+      });
+      const merged = mergeLoadout(parent, {
+        name: "c",
+        mcp_servers: [{ "ast-grep": { exclude: ["reckless"] } }],
+      });
+      const ag = merged.mcpScope.find((s) => s.server === "ast-grep")!;
+      expect(ag.exclude?.sort()).toEqual(["dangerous", "reckless"]);
+    });
+
+    it("child's bare reference does not unrestrict parent's allowlist", () => {
+      const parent = resolveStandaloneLoadout({
+        name: "p",
+        mcp_servers: [{ "ast-grep": ["search"] }],
+      });
+      const merged = mergeLoadout(parent, {
+        name: "c",
+        mcp_servers: ["ast-grep"],
+      });
+      const ag = merged.mcpScope.find((s) => s.server === "ast-grep")!;
+      expect(ag.tools).toEqual(["search"]); // parent restriction stands
+    });
+
+    it("new server in child produces a new scope entry", () => {
+      const parent = resolveStandaloneLoadout({
+        name: "p",
+        mcp_servers: ["opentasks"],
+      });
+      const merged = mergeLoadout(parent, {
+        name: "c",
+        mcp_servers: ["filesystem"],
+      });
+      const names = merged.mcpScope.map((s) => s.server).sort();
+      expect(names).toEqual(["filesystem", "opentasks"]);
+    });
+
+    it("install specs merge by name with child wins", () => {
+      const parent = resolveStandaloneLoadout({
+        name: "p",
+        mcp_servers: [{ name: "ast-grep", command: "old" }],
+      });
+      const merged = mergeLoadout(parent, {
+        name: "c",
+        mcp_servers: [{ name: "ast-grep", command: "new" }],
+      });
+      expect(merged.mcpServers).toHaveLength(1);
+      expect(merged.mcpServers[0]).toMatchObject({ name: "ast-grep", command: "new" });
+      // Install also contributes a scope entry
+      expect(merged.mcpScope).toEqual([{ server: "ast-grep" }]);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────
+  // Team-level mcp_providers
+  // ────────────────────────────────────────────────────────────
+
+  describe("mcp_providers", () => {
+    it("defaults to empty map when omitted from team.yaml", () => {
+      writeMinimalTeam();
+      const tpl = TemplateLoader.load(tmpDir);
+      expect(tpl.mcpProviders.size).toBe(0);
+    });
+
+    it("parses stdio, http, and ref provider shapes", () => {
+      write(
+        "team.yaml",
+        `
+name: test
+version: 1
+roles: [worker]
+topology:
+  root: { role: worker }
+mcp_providers:
+  opentasks:
+    command: node
+    args: [./x.js]
+    env: { LEVEL: info }
+  remote-api:
+    type: http
+    url: https://mcp.example.com/mcp
+    headers: { Authorization: "Bearer xyz" }
+  secrets-scanner:
+    ref: "@openhive/secrets-scanner"
+    description: "Consumer-resolved"
+`
+      );
+      const tpl = TemplateLoader.load(tmpDir);
+      expect(tpl.mcpProviders.size).toBe(3);
+      expect(tpl.mcpProviders.get("opentasks")).toMatchObject({
+        command: "node",
+        args: ["./x.js"],
+        env: { LEVEL: "info" },
+      });
+      expect(tpl.mcpProviders.get("remote-api")).toMatchObject({
+        type: "http",
+        url: "https://mcp.example.com/mcp",
+      });
+      expect(tpl.mcpProviders.get("secrets-scanner")).toMatchObject({
+        ref: "@openhive/secrets-scanner",
+      });
+    });
+
+    it("rejects non-object provider entries with a clear error", () => {
+      write(
+        "team.yaml",
+        `
+name: test
+version: 1
+roles: [worker]
+topology:
+  root: { role: worker }
+mcp_providers:
+  bogus: "just-a-string"
+`
+      );
+      expect(() => TemplateLoader.load(tmpDir)).toThrow(
+        /mcp_providers.bogus must be an object/
+      );
+    });
+  });
+
   describe("async loader", () => {
     it("loadAsync resolves loadouts identically to load", async () => {
       writeMinimalTeam();
@@ -408,6 +615,7 @@ capabilities_add: [exec.test]
                 description: "async",
                 capabilities: ["file.read"],
                 mcpServers: [],
+                mcpScope: [],
                 permissions: {},
                 raw: { name },
               }

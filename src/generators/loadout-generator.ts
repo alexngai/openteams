@@ -9,8 +9,10 @@
 
 import yaml from "js-yaml";
 import type {
+  McpProviderSpec,
   McpServerEntry,
   McpServerRef,
+  NormalizedMcpScope,
   PermissionsConfig,
   ResolvedLoadout,
   ResolvedTemplate,
@@ -18,18 +20,28 @@ import type {
 } from "../template/types";
 
 /**
- * Runtime-agnostic view of a loadout. Inline MCP entries and symbolic
- * refs are split so consumers know which entries need resolution via
- * their own registry.
+ * Runtime-agnostic view of a loadout for consumer materialization.
+ *
+ * Three MCP-related fields cover the full surface:
+ *   - `mcpServers` — loadout-authored install specs (inline name+command).
+ *   - `mcpServerRefs` — symbolic refs; consumer resolves via its registry.
+ *   - `mcpScope` — normalized scope declarations: which servers (and which
+ *     tools within each server) the role may call. Drives AGENT.md tool
+ *     allowlist / permissions at the consumer layer.
+ *
+ * Install and scope are separate concerns: a server may be in `mcpScope`
+ * without ever appearing in `mcpServers` (already installed elsewhere).
  */
 export interface LoadoutArtifacts {
   name: string;
   description: string;
   capabilities: string[];
-  /** MCP servers with inline command/args/env. Write these directly. */
+  /** Loadout-authored install specs with inline command/args/env. */
   mcpServers: McpServerEntry[];
-  /** MCP server refs. Consumer must resolve each against its own registry. */
+  /** Symbolic MCP server refs. Consumer must resolve each against its own registry. */
   mcpServerRefs: McpServerRef[];
+  /** Normalized scope declarations — which servers and which tools are in scope. */
+  mcpScope: NormalizedMcpScope[];
   permissions: PermissionsConfig;
   skills?: SkillsConfig;
   promptAddendum?: string;
@@ -52,6 +64,11 @@ export function generateLoadoutArtifacts(lo: ResolvedLoadout): LoadoutArtifacts 
     capabilities: [...lo.capabilities],
     mcpServers,
     mcpServerRefs,
+    mcpScope: lo.mcpScope.map((s) => ({
+      server: s.server,
+      tools: s.tools ? [...s.tools] : undefined,
+      exclude: s.exclude ? [...s.exclude] : undefined,
+    })),
     permissions: {
       allow: lo.permissions.allow ? [...lo.permissions.allow] : undefined,
       deny: lo.permissions.deny ? [...lo.permissions.deny] : undefined,
@@ -60,6 +77,57 @@ export function generateLoadoutArtifacts(lo: ResolvedLoadout): LoadoutArtifacts 
     skills: lo.skills ? { ...lo.skills } : undefined,
     promptAddendum: lo.promptAddendum,
   };
+}
+
+/**
+ * Check loadout scope references against the declared provider set (and
+ * optionally a consumer-supplied installed-set). Returns a list of server
+ * names that are referenced in scope but absent from the provider map.
+ *
+ * Consumers (claude-code-swarm, OpenHive) typically call this at load
+ * time and log warnings for missing servers — they know the actual base
+ * set that openteams does not.
+ *
+ * @param template   ResolvedTemplate whose loadouts should be checked
+ * @param installed  Optional superset of server names known to be installed
+ *                   externally (plugin MCPs, user settings, hive DB). When
+ *                   provided, a referenced server in this set is NOT flagged.
+ */
+export function findMissingMcpReferences(
+  template: ResolvedTemplate,
+  installed?: Iterable<string>
+): { loadout: string; server: string }[] {
+  const available = new Set<string>([
+    ...template.mcpProviders.keys(),
+    ...(installed ?? []),
+  ]);
+  const missing: { loadout: string; server: string }[] = [];
+  for (const [name, lo] of template.loadouts) {
+    for (const scope of lo.mcpScope) {
+      if (!available.has(scope.server)) {
+        missing.push({ loadout: name, server: scope.server });
+      }
+    }
+    // Also flag loadout-authored install specs that claim a name not in
+    // providers — not strictly missing (the loadout ships the install), but
+    // useful for observability.
+    for (const entry of lo.mcpServers) {
+      if ("ref" in entry) continue;
+      available.add(entry.name);
+    }
+  }
+  return missing;
+}
+
+/**
+ * Return the team-level MCP provider map as a plain object keyed by name.
+ * Convenience for consumers that want to serialize to a Claude-compatible
+ * `.mcp.json` (strip `ref`, `description`, `disabled` before writing).
+ */
+export function getMcpProviders(
+  template: ResolvedTemplate
+): Record<string, McpProviderSpec> {
+  return Object.fromEntries(template.mcpProviders);
 }
 
 /**
@@ -95,6 +163,7 @@ export function renderLoadoutYaml(lo: ResolvedLoadout): string {
     doc.capability_config = lo.capabilityConfig;
   }
   if (lo.mcpServers.length > 0) doc.mcp_servers = lo.mcpServers;
+  if (lo.mcpScope.length > 0) doc.mcp_scope = lo.mcpScope;
 
   const perms: Record<string, unknown> = {};
   if (lo.permissions.allow?.length) perms.allow = lo.permissions.allow;

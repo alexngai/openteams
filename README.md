@@ -266,11 +266,17 @@ skills:
 capabilities: [file.read, git.diff, exec.test]   # flat list
 # or: capabilities_add / capabilities_remove relative to the parent
 
+# MCP scope declarations — which servers (and tools) this role may call.
+# Four accepted shapes in the list; mix freely.
 mcp_servers:
-  - name: ast-grep                             # inline entry
-    command: npx
-    args: [ast-grep-mcp]
-  - ref: "@openhive/secrets-scanner"           # symbolic ref — consumer resolves
+  - opentasks                                  # (1) shorthand: full access
+  - chrome-devtools: [navigate, screenshot]    # (2) tool allowlist
+  - ast-grep:                                  # (3) scope options
+      exclude: [dangerous_replace]
+  - name: bespoke                              # (4) inline install + full scope
+    command: node
+    args: [./mcp/bespoke.js]
+  - ref: "@openhive/secrets-scanner"           # (5) symbolic ref — consumer resolves
 
 permissions:
   allow: ["Read(**)", "Bash(npm audit:*)"]
@@ -281,6 +287,46 @@ prompt_addendum: |
   ## Security Focus
   Prioritize authn gaps, injection vectors, exposed secrets.
 ```
+
+Omitting `mcp_servers` entirely is valid and means **permissive** — the role has access to the full base set (whatever the consumer has installed). Declaring `mcp_servers` explicitly is the way to restrict.
+
+### Team-level MCP providers (optional)
+
+Loadout scope entries reference server names, but the actual install specs live at the team level in `team.yaml:mcp_providers`. This decouples *installation* (operational) from *scope* (role-definition).
+
+```yaml
+# team.yaml
+mcp_providers:
+  opentasks:
+    command: node
+    args: [./mcp/opentasks.js]
+    env: { LEVEL: info }
+
+  chrome-devtools:
+    command: npx
+    args: [chrome-devtools-mcp]
+
+  remote-api:
+    type: http                   # streamable-http transport
+    url: https://mcp.example.com/mcp
+    headers: { Authorization: "Bearer ${TOKEN}" }
+
+  secrets-scanner:
+    ref: "@openhive/secrets-scanner"     # consumer resolves against its registry
+    description: "Secret-detection MCP server"
+```
+
+The entry shape matches the Claude Code / Cursor / Windsurf / Cline `mcpServers` format (the de-facto MCP ecosystem standard), with three openteams-specific additions:
+
+| Field | Purpose |
+|---|---|
+| `ref` | Symbolic reference — consumer resolves against its own registry (hive DB, plugin bundled list, etc.). Strip before emitting a standard `.mcp.json`. |
+| `disabled` | Declared but inactive — consumer should not install. |
+| `description` | Human-readable text for UIs. |
+
+`mcp_providers` is **fully optional**. Omitting the section means the team relies on whatever the consumer already has installed (plugin MCP servers, project `.mcp.json`, user settings, hive DB registrations). Declared providers are **advisory** — consumers decide whether to install.
+
+Loadout scope entries that reference a server absent from both `mcp_providers` **and** the consumer's base set will trigger a warning via `findMissingMcpReferences(template, installedSet?)`.
 
 ### Binding loadouts to roles
 
@@ -316,7 +362,9 @@ When a child loadout `extends` a parent, each field has a canonical merge strate
 | `skills.include` / `exclude` | Union (deduplicated) |
 | `skills.max_tokens` | Child replaces parent if set |
 | `capabilities` | Same as role inheritance — composition (`add`/`remove`) or replacement |
-| `mcp_servers` | Union by `name` (or `ref`); child wins on conflict |
+| `mcp_servers` install specs | Union by `name` (or `ref`); child wins on conflict |
+| MCP scope `tools` | Union across inheritance — child adds tools but cannot unrestrict a parent's allowlist |
+| MCP scope `exclude` | Union across inheritance — **deny always wins**, child cannot drop a parent exclude |
 | `permissions.allow` / `ask` | Union |
 | `permissions.deny` | Union — **deny always wins**, child cannot drop a parent deny |
 | `prompt_addendum` | Concatenated parent → child, separated by a blank line |
@@ -481,16 +529,29 @@ console.log(prompts.additional);            // Additional prompt sections
 
 // Access loadouts (if the template defines any)
 for (const [name, lo] of template.loadouts) {
-  console.log(name, lo.capabilities, lo.mcpServers, lo.permissions);
+  console.log(name, lo.capabilities, lo.mcpScope, lo.permissions);
 }
 // Each role with a loadout binding has it attached post-resolution:
 const reviewer = template.roles.get("reviewer");
 if (reviewer?.loadout) {
   console.log(reviewer.loadout.capabilities);
-  console.log(reviewer.loadout.mcpServers);
+  console.log(reviewer.loadout.mcpServers);   // install specs authored by the loadout
+  console.log(reviewer.loadout.mcpScope);     // normalized { server, tools?, exclude? }
   console.log(reviewer.loadout.permissions);
   console.log(reviewer.loadout.skills);
   console.log(reviewer.loadout.promptAddendum);
+}
+
+// Team-level MCP provider install specs (advisory — consumer decides)
+for (const [name, provider] of template.mcpProviders) {
+  console.log(name, provider.command, provider.args, provider.url);
+}
+
+// Warn about scope references to servers not in providers or installed-set
+import { findMissingMcpReferences } from "openteams";
+const missing = findMissingMcpReferences(template, consumerInstalledServerNames);
+for (const m of missing) {
+  console.warn(`Loadout "${m.loadout}" references missing MCP server "${m.server}"`);
 }
 ```
 

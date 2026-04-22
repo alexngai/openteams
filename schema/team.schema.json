@@ -38,12 +38,94 @@
     },
     "communication": {
       "$ref": "#/$defs/CommunicationConfig"
+    },
+    "mcp_providers": {
+      "type": "object",
+      "description": "Optional install specs for MCP servers this team expects. Fully optional — templates may omit this entirely and rely on servers installed via other means (plugin.json, project .mcp.json, user settings, hive DB). Entry shape matches the Claude Code / Cursor / Windsurf / Cline `mcpServers` format with openteams-specific additions (`ref`, `description`, `disabled`).",
+      "patternProperties": {
+        "^[a-zA-Z0-9][a-zA-Z0-9_-]*$": {
+          "$ref": "#/$defs/McpProviderSpec"
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "opentasks": {
+            "command": "node",
+            "args": ["./mcp/opentasks.js"]
+          },
+          "chrome-devtools": {
+            "command": "npx",
+            "args": ["chrome-devtools-mcp"]
+          },
+          "remote-api": {
+            "type": "http",
+            "url": "https://mcp.example.com/mcp",
+            "headers": { "Authorization": "Bearer ${TOKEN}" }
+          },
+          "secrets-scanner": {
+            "ref": "@openhive/secrets-scanner"
+          }
+        }
+      ]
     }
   },
   "additionalProperties": {
     "description": "Extension namespaces for consuming systems (e.g. macro_agent, claude_code, gemini). Stored but not interpreted by openteams."
   },
   "$defs": {
+    "McpProviderSpec": {
+      "type": "object",
+      "description": "Install spec for an MCP server. Field shape matches the de-facto MCP ecosystem standard (Claude Code / Cursor / Cline / Windsurf `mcpServers` entry) with openteams-specific additions (`ref`, `description`, `disabled`). Consumers emitting `.mcp.json` should strip the openteams fields and pass the rest through.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["stdio", "sse", "http"],
+          "description": "Transport. Defaults to `stdio` when omitted. `http` = streamable-http. `sse` is deprecated in the MCP spec but still supported by major clients."
+        },
+        "command": {
+          "type": "string",
+          "description": "Executable for stdio transport."
+        },
+        "args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Arguments to `command` for stdio transport."
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Environment variables for the stdio subprocess. Claude Code supports ${VAR} and ${VAR:-default} expansion."
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory for the stdio subprocess (proposed standard in MCP discussion #2218)."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Endpoint URL for sse / http transport."
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "HTTP headers for sse / http transport. Bearer tokens and API keys go here."
+        },
+        "disabled": {
+          "type": "boolean",
+          "description": "Declared but inactive — consumer should not install."
+        },
+        "ref": {
+          "type": "string",
+          "description": "openteams-specific: symbolic reference resolved by the consumer against its own registry. When set, other fields may be omitted. Strip this field before emitting a standard-compliant `.mcp.json`."
+        },
+        "description": {
+          "type": "string",
+          "description": "openteams-specific: human-readable description for UIs."
+        }
+      },
+      "additionalProperties": false
+    },
     "TopologyConfig": {
       "type": "object",
       "description": "Defines the team's agent hierarchy — root node, companion nodes, and spawn permissions.",

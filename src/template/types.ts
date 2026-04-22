@@ -16,8 +16,72 @@ export interface TeamManifest {
   topology: TopologyConfig;
   communication?: CommunicationConfig;
 
+  /**
+   * Optional install specs for MCP servers this team expects.
+   *
+   * Fully optional. Templates may omit this entirely and rely on MCP
+   * servers installed by other means (plugin.json, project .mcp.json,
+   * user settings, hive DB registrations). Declared providers are
+   * *advisory* — consumers choose whether to install them; loadout
+   * scope references resolve against the consumer's actual base set,
+   * which may be a superset or subset of what's declared here.
+   *
+   * Cross-template conflicts (two federated teams declaring the same
+   * provider name with different specs) are a consumer-layer policy
+   * decision; openteams does not reject them.
+   */
+  mcp_providers?: Record<string, McpProviderSpec>;
+
   /** Extension namespaces for consuming systems — stored, not interpreted. */
   [key: string]: unknown;
+}
+
+// --- MCP Provider Specs (team-level install declarations) ---
+
+/**
+ * Install spec for an MCP server declared at team level via
+ * `team.yaml:mcp_providers`. Advisory — consumers decide whether
+ * to actually install.
+ *
+ * Field shape matches the Claude Code / Cursor / Windsurf / Cline
+ * `mcpServers` entry format (the de-facto MCP ecosystem standard)
+ * with a few openteams-specific additions (`ref`, `description`,
+ * `disabled`). Consumers emitting `.mcp.json` can strip the openteams
+ * extensions and pass the rest through verbatim.
+ */
+export interface McpProviderSpec {
+  /**
+   * Transport. Defaults to "stdio" when omitted.
+   * "http" = streamable-http (the current standard for remote MCP).
+   * "sse" = Server-Sent Events (deprecated in the MCP spec but still
+   * accepted by Claude Code and other clients for legacy servers).
+   */
+  type?: "stdio" | "sse" | "http";
+
+  /** stdio transport. */
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  /** Working directory for the stdio subprocess (proposed standard). */
+  cwd?: string;
+
+  /** Remote transport (sse | http). */
+  url?: string;
+  headers?: Record<string, string>;
+
+  /** Declared but inactive — consumer should not install. */
+  disabled?: boolean;
+
+  /**
+   * openteams-specific: symbolic reference resolved by the consumer
+   * (OpenHive hive DB, claude-code-swarm bundled registry, etc.).
+   * When set, other fields may be omitted — the resolver fills them in.
+   * Strip this field before emitting a standard-compliant `.mcp.json`.
+   */
+  ref?: string;
+
+  /** openteams-specific: human-readable description for UIs. */
+  description?: string;
 }
 
 // --- Topology ---
@@ -168,8 +232,14 @@ export interface ResolvedTemplate {
   manifest: TeamManifest;
   roles: Map<string, ResolvedRole>;
   prompts: Map<string, ResolvedPrompts>; // role name → structured prompts
-  mcpServers: Map<string, McpServerEntry[]>; // role name → MCP server entries
+  mcpServers: Map<string, McpServerEntry[]>; // role name → MCP server entries (legacy)
   loadouts: Map<string, ResolvedLoadout>; // loadout name → resolved loadout
+  /**
+   * Team-level MCP provider install specs (from team.yaml:mcp_providers).
+   * Advisory — consumers decide whether to install. Empty map when
+   * the manifest omits the section entirely.
+   */
+  mcpProviders: Map<string, McpProviderSpec>;
   sourcePath: string;
 }
 
@@ -205,6 +275,44 @@ export interface McpServerRef {
   config?: Record<string, unknown>;
 }
 
+// --- MCP Scope Entries (loadout-level) ---
+
+/**
+ * Options for restricting tool access on a per-server basis.
+ * `tools`  — allowlist: if set, only these tools are in scope.
+ * `exclude` — denylist: always accumulates across inheritance (deny-wins).
+ */
+export interface McpServerScopeOpts {
+  tools?: string[];
+  exclude?: string[];
+}
+
+/**
+ * A scope-only entry in a loadout's `mcp_servers` list.
+ *
+ * Three accepted shapes, all normalized to NormalizedMcpScope internally:
+ *   "server-name"                                 → full scope
+ *   { "server-name": ["tool1", "tool2"] }         → tool allowlist
+ *   { "server-name": { tools?, exclude? } }       → advanced options
+ *
+ * Scope entries reference servers from the *base set* — the actual
+ * installed MCP servers at runtime, which may come from team providers,
+ * inline install specs in loadouts, or consumer-managed installs.
+ */
+export type McpServerScopeEntry =
+  | string
+  | { [server: string]: string[] | McpServerScopeOpts };
+
+/**
+ * Post-normalization canonical form of a scope entry.
+ * Consumers work with this shape, not the raw YAML variants.
+ */
+export interface NormalizedMcpScope {
+  server: string;
+  tools?: string[];
+  exclude?: string[];
+}
+
 // --- Loadout Definition (loadouts/<name>.yaml) ---
 
 /**
@@ -230,8 +338,17 @@ export interface LoadoutDefinition {
   capabilities_add?: string[];
   capabilities_remove?: string[];
 
-  /** MCP server entries (inline) or refs (resolved by consumer). */
-  mcp_servers?: (McpServerEntry | McpServerRef)[];
+  /**
+   * MCP server entries. Four accepted forms:
+   *   - Scope reference (string | object) — reference a server from the
+   *     base set, optionally restricting to specific tools.
+   *   - Inline install spec (McpServerEntry) — install + full scope.
+   *   - Symbolic ref (McpServerRef) — consumer-resolved install + scope.
+   *
+   * Mixing forms in a single list is supported. See McpServerScopeEntry
+   * for the scope reference shape.
+   */
+  mcp_servers?: (McpServerScopeEntry | McpServerEntry | McpServerRef)[];
 
   /** Permissions — shape is agent-system-agnostic but inspired by Claude Code. */
   permissions?: PermissionsConfig;
@@ -282,7 +399,18 @@ export interface ResolvedLoadout {
   skills?: SkillsConfig;
   capabilities: string[];
   capabilityConfig?: CapabilityMap;
+  /**
+   * Install-bearing entries only (inline install specs and symbolic refs).
+   * Pure-scope entries from the source YAML land in `mcpScope` instead.
+   */
   mcpServers: (McpServerEntry | McpServerRef)[];
+  /**
+   * Normalized scope declarations — one entry per referenced server, with
+   * optional `tools` allowlist and `exclude` denylist. Entries are derived
+   * from all three raw shapes (string / map / install spec); symbolic refs
+   * stay only in `mcpServers` until the consumer resolves them.
+   */
+  mcpScope: NormalizedMcpScope[];
   permissions: PermissionsConfig;
   promptAddendum?: string;
   raw: LoadoutDefinition;

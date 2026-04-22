@@ -4,8 +4,10 @@ import path from "path";
 import os from "os";
 import { TemplateLoader } from "../template/loader";
 import {
+  findMissingMcpReferences,
   generateLoadoutArtifacts,
   getEffectiveLoadout,
+  getMcpProviders,
   listInlineLoadoutRoles,
   listLoadoutConsumers,
   renderLoadoutYaml,
@@ -274,6 +276,115 @@ prompt_addendum: |
       const { prompt } = generateAgentPrompt(tpl, "planner");
       expect(prompt).toContain("Plan well");
       expect(prompt).not.toContain("## Implementation Mindset");
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────
+  // mcpScope artifact + provider helpers
+  // ────────────────────────────────────────────────────────────
+
+  describe("mcpScope + providers", () => {
+    it("surfaces normalized mcpScope on artifacts", () => {
+      const lo = resolveStandaloneLoadout({
+        name: "scoped",
+        mcp_servers: [
+          "opentasks",
+          { "ast-grep": ["search"] },
+          { "chrome-devtools": { tools: ["navigate"], exclude: ["evaluate"] } },
+        ],
+      });
+      const artifacts = generateLoadoutArtifacts(lo);
+      expect(artifacts.mcpScope).toEqual([
+        { server: "opentasks", tools: undefined, exclude: undefined },
+        { server: "ast-grep", tools: ["search"], exclude: undefined },
+        {
+          server: "chrome-devtools",
+          tools: ["navigate"],
+          exclude: ["evaluate"],
+        },
+      ]);
+    });
+
+    it("getMcpProviders returns the template-level map as a plain object", () => {
+      writeDemoTemplate();
+      // Overlay mcp_providers onto the existing minimal team.yaml
+      write(
+        "team.yaml",
+        `
+name: demo
+version: 1
+roles: [planner, implementer, reviewer]
+topology:
+  root: { role: planner }
+  spawn_rules:
+    planner: [implementer, reviewer]
+    implementer: []
+    reviewer: []
+mcp_providers:
+  ast-grep:
+    command: npx
+    args: [ast-grep-mcp]
+  filesystem:
+    command: fs-mcp
+`
+      );
+      const tpl = TemplateLoader.load(tmpDir);
+      const providers = getMcpProviders(tpl);
+      expect(Object.keys(providers).sort()).toEqual(["ast-grep", "filesystem"]);
+      expect(providers["ast-grep"]).toMatchObject({ command: "npx" });
+    });
+  });
+
+  describe("findMissingMcpReferences", () => {
+    function setup(): void {
+      write(
+        "team.yaml",
+        `
+name: demo
+version: 1
+roles: [worker]
+topology:
+  root: { role: worker }
+mcp_providers:
+  opentasks: { command: node, args: [./o.js] }
+`
+      );
+      write("roles/worker.yaml", "name: worker\nloadout: main\n");
+      write(
+        "loadouts/main.yaml",
+        `
+name: main
+mcp_servers:
+  - opentasks
+  - chrome-devtools: [navigate]
+  - missing-one
+`
+      );
+    }
+
+    it("flags scope references absent from mcp_providers and installed-set", () => {
+      setup();
+      const tpl = TemplateLoader.load(tmpDir);
+      const missing = findMissingMcpReferences(tpl);
+      const names = missing.map((m) => m.server).sort();
+      expect(names).toEqual(["chrome-devtools", "missing-one"]);
+    });
+
+    it("treats consumer-supplied installed-set as satisfying references", () => {
+      setup();
+      const tpl = TemplateLoader.load(tmpDir);
+      const missing = findMissingMcpReferences(tpl, ["chrome-devtools"]);
+      expect(missing.map((m) => m.server)).toEqual(["missing-one"]);
+    });
+
+    it("returns empty when every scope reference is covered", () => {
+      setup();
+      const tpl = TemplateLoader.load(tmpDir);
+      const missing = findMissingMcpReferences(tpl, [
+        "chrome-devtools",
+        "missing-one",
+      ]);
+      expect(missing).toEqual([]);
     });
   });
 });

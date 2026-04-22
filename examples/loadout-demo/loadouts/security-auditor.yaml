@@ -8,7 +8,11 @@ skills:
     - secrets-detection
 capabilities_add:
   - exec.test
+# Mix of scope references and refs:
+#   - chrome-devtools: tool allowlist (key with array value)
+#   - secrets-scanner: symbolic ref, consumer resolves to an install spec
 mcp_servers:
+  - chrome-devtools: [navigate, screenshot, get_page_text]
   - ref: "@openhive/secrets-scanner"
 permissions:
   allow:
