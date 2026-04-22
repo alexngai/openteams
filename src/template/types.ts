@@ -1,9 +1,10 @@
 // ─────────────────────────────────────────────────────────────
 // Team Template Types
 // ─────────────────────────────────────────────────────────────
-// These mirror the macro-agent team template schema.
-// Generic multi-agent fields are top-level; system-specific
-// extensions live under namespaced keys (e.g. macro_agent).
+// Generic multi-agent fields are top-level. Consuming systems
+// (macro-agent, claude-code, gemini, etc.) attach runtime-specific
+// metadata under arbitrary namespaced keys via the index signature;
+// openteams stores but does not interpret them.
 
 // --- Manifest (team.yaml) ---
 
@@ -15,8 +16,7 @@ export interface TeamManifest {
   topology: TopologyConfig;
   communication?: CommunicationConfig;
 
-  // Extension fields from other systems — stored but not interpreted
-  macro_agent?: Record<string, unknown>;
+  /** Extension namespaces for consuming systems — stored, not interpreted. */
   [key: string]: unknown;
 }
 
@@ -120,8 +120,13 @@ export interface RoleDefinition {
   capabilities_add?: string[];
   capabilities_remove?: string[];
 
-  // Extension fields
-  macro_agent?: Record<string, unknown>;
+  /**
+   * Loadout binding. Either a slug referencing a named loadout in
+   * loadouts/<name>.yaml, or an inline LoadoutDefinition.
+   */
+  loadout?: string | LoadoutDefinition;
+
+  /** Extension namespaces for consuming systems — stored, not interpreted. */
   [key: string]: unknown;
 }
 
@@ -164,6 +169,7 @@ export interface ResolvedTemplate {
   roles: Map<string, ResolvedRole>;
   prompts: Map<string, ResolvedPrompts>; // role name → structured prompts
   mcpServers: Map<string, McpServerEntry[]>; // role name → MCP server entries
+  loadouts: Map<string, ResolvedLoadout>; // loadout name → resolved loadout
   sourcePath: string;
 }
 
@@ -176,6 +182,7 @@ export interface ResolvedRole {
   capabilityConfig?: CapabilityMap;
   promptFile?: string;
   promptFiles?: string[]; // explicit ordering from role YAML
+  loadout?: ResolvedLoadout; // resolved from role.loadout field (slug or inline)
   raw: RoleDefinition; // original YAML for extension fields
 }
 
@@ -188,6 +195,99 @@ export interface McpServerEntry {
   env?: Record<string, string>;
 }
 
+/**
+ * A symbolic reference to an MCP server, resolved by the consuming system
+ * (e.g. OpenHive against its DB, claude-code-swarm against a bundled list).
+ * OpenTeams stores refs but does not resolve them.
+ */
+export interface McpServerRef {
+  ref: string; // e.g. "@openhive/ast-grep"
+  config?: Record<string, unknown>;
+}
+
+// --- Loadout Definition (loadouts/<name>.yaml) ---
+
+/**
+ * A Loadout is a reusable bundle of skills, capabilities, MCP servers,
+ * permissions, and prompt material that can be bound to a role or an
+ * individual agent. Loadouts support single inheritance via `extends`,
+ * mirroring RoleDefinition.
+ *
+ * Loadouts are a definition-layer concept. OpenTeams stores and resolves
+ * them; consuming agent systems materialize them into runtime artifacts
+ * (.mcp.json, settings.json, compiled skill bundles, etc.).
+ */
+export interface LoadoutDefinition {
+  name: string;
+  extends?: string;
+  description?: string;
+
+  /** Skill selection for skill-tree or compatible skill systems. */
+  skills?: SkillsConfig;
+
+  /** Capabilities, using the same schema as RoleDefinition. */
+  capabilities?: string[] | CapabilityComposition | CapabilityMap;
+  capabilities_add?: string[];
+  capabilities_remove?: string[];
+
+  /** MCP server entries (inline) or refs (resolved by consumer). */
+  mcp_servers?: (McpServerEntry | McpServerRef)[];
+
+  /** Permissions — shape is agent-system-agnostic but inspired by Claude Code. */
+  permissions?: PermissionsConfig;
+
+  /** Appended after the role's primary prompt. */
+  prompt_addendum?: string;
+
+  /**
+   * Extension namespaces. Consumers use arbitrary top-level keys (e.g.
+   * `macro_agent:`, `claude_code:`, `gemini:`) to attach runtime-specific
+   * metadata. OpenTeams stores but does not interpret them.
+   */
+  [key: string]: unknown;
+}
+
+export interface SkillsConfig {
+  /** Named profile from the skill system (e.g. "security-engineer"). */
+  profile?: string;
+  /** Explicit skill slugs to include. */
+  include?: string[];
+  /** Skill slugs to exclude even if matched by profile/include. */
+  exclude?: string[];
+  /** Optional token budget hint for the compiled skill bundle. */
+  max_tokens?: number;
+}
+
+export interface PermissionsConfig {
+  /** Allow list — permissions granted unconditionally. */
+  allow?: string[];
+  /** Deny list — permissions refused. Deny always wins across inheritance. */
+  deny?: string[];
+  /** Ask list — permissions that require user confirmation. */
+  ask?: string[];
+}
+
+// --- Resolved Loadout ---
+
+/**
+ * The fully resolved form of a LoadoutDefinition after inheritance.
+ *
+ * `mcpServers` preserves any symbolic refs; consumers are expected to
+ * resolve them via their own registries.
+ */
+export interface ResolvedLoadout {
+  name: string;
+  extends?: string;
+  description: string;
+  skills?: SkillsConfig;
+  capabilities: string[];
+  capabilityConfig?: CapabilityMap;
+  mcpServers: (McpServerEntry | McpServerRef)[];
+  permissions: PermissionsConfig;
+  promptAddendum?: string;
+  raw: LoadoutDefinition;
+}
+
 // --- Load Options ---
 
 /**
@@ -196,8 +296,13 @@ export interface McpServerEntry {
 export interface LoadOptions {
   /** Resolve a role that `extends` a name not found in the local roles map. */
   resolveExternalRole?: (name: string) => ResolvedRole | null;
+  /** Resolve a loadout (by name) not found in the local loadouts map.
+   *  Used both for loadout `extends` chains and for role loadout references. */
+  resolveExternalLoadout?: (name: string) => ResolvedLoadout | null;
   /** Post-process each role after inheritance resolution. */
   postProcessRole?: (role: ResolvedRole, manifest: TeamManifest) => ResolvedRole;
+  /** Post-process each loadout after inheritance resolution. */
+  postProcessLoadout?: (loadout: ResolvedLoadout, manifest: TeamManifest) => ResolvedLoadout;
   /** Post-process the entire template after loading. */
   postProcess?: (template: ResolvedTemplate) => ResolvedTemplate;
 }
@@ -208,8 +313,12 @@ export interface LoadOptions {
 export interface AsyncLoadOptions {
   /** Resolve a role that `extends` a name not found in the local roles map. */
   resolveExternalRole?: (name: string) => Promise<ResolvedRole | null> | ResolvedRole | null;
+  /** Resolve a loadout (by name) not found in the local loadouts map. */
+  resolveExternalLoadout?: (name: string) => Promise<ResolvedLoadout | null> | ResolvedLoadout | null;
   /** Post-process each role after inheritance resolution. */
   postProcessRole?: (role: ResolvedRole, manifest: TeamManifest) => Promise<ResolvedRole> | ResolvedRole;
+  /** Post-process each loadout after inheritance resolution. */
+  postProcessLoadout?: (loadout: ResolvedLoadout, manifest: TeamManifest) => Promise<ResolvedLoadout> | ResolvedLoadout;
   /** Post-process the entire template after loading. */
   postProcess?: (template: ResolvedTemplate) => Promise<ResolvedTemplate> | ResolvedTemplate;
 }

@@ -101,8 +101,48 @@ interface RoleDefinition {
   capabilities?: string[] | CapabilityComposition | CapabilityMap;
   prompt?: string;                 // Single prompt file path
   prompts?: string[];              // Ordered list of prompt files
+  loadout?: string | LoadoutDefinition;  // Slug reference or inline loadout
   // Extension fields
   [key: string]: unknown;
+}
+```
+
+### LoadoutDefinition (loadouts/<name>.yaml)
+
+A loadout is a reusable bundle of skills, capabilities, MCP servers, permissions, and prompt material. Loadouts support single inheritance with the same `extends` semantics as roles.
+
+```typescript
+interface LoadoutDefinition {
+  name: string;
+  extends?: string;                // Single inheritance
+  description?: string;
+  skills?: SkillsConfig;
+  capabilities?: string[] | CapabilityComposition | CapabilityMap;
+  capabilities_add?: string[];
+  capabilities_remove?: string[];
+  mcp_servers?: (McpServerEntry | McpServerRef)[];
+  permissions?: PermissionsConfig;
+  prompt_addendum?: string;
+  // Extension fields
+  [key: string]: unknown;
+}
+
+interface SkillsConfig {
+  profile?: string;
+  include?: string[];
+  exclude?: string[];
+  max_tokens?: number;
+}
+
+interface PermissionsConfig {
+  allow?: string[];
+  deny?: string[];   // Always wins across inheritance
+  ask?: string[];
+}
+
+interface McpServerRef {
+  ref: string;       // Resolved by consuming system; OpenTeams stores verbatim
+  config?: Record<string, unknown>;
 }
 ```
 
@@ -115,8 +155,14 @@ interface ResolvedTemplate {
   manifest: TeamManifest;
   roles: Map<string, ResolvedRole>;       // After inheritance resolution
   prompts: Map<string, ResolvedPrompts>;  // Role name → loaded prompts
-  mcpServers: Map<string, McpServerEntry[]>;
+  mcpServers: Map<string, McpServerEntry[]>;  // Legacy tools/mcp-servers.json path
+  loadouts: Map<string, ResolvedLoadout>; // All resolved loadouts by name
   sourcePath: string;
+}
+
+interface ResolvedRole {
+  // ... identity + capabilities ...
+  loadout?: ResolvedLoadout;              // Attached if role declared one
 }
 ```
 
@@ -128,10 +174,13 @@ interface ResolvedTemplate {
 TemplateLoader.load(dir)
   → Parse team.yaml (manifest validation)
   → Load role definitions from roles/*.yaml
-  → Resolve inheritance chains (cycle detection)
+  → Load loadout definitions from loadouts/*.yaml       (raw, pre-inheritance)
+  → Resolve role inheritance chains (cycle detection)
+  → Resolve loadout inheritance chains (cycle detection, same algorithm)
   → Apply capability composition (add/remove)
+  → Attach resolved loadouts to roles (slug ref or inline)
   → Load prompts from prompts/<role>/*.md
-  → Load MCP server config
+  → Load MCP server config (legacy tools/mcp-servers.json)
   → Return ResolvedTemplate
 ```
 
@@ -140,7 +189,9 @@ TemplateLoader.load(dir)
 Both `load()` and `loadAsync()` accept hooks:
 
 - **`resolveExternalRole`** — Resolve a role that `extends` a name not found in the local roles directory
+- **`resolveExternalLoadout`** — Resolve a loadout (referenced by a role, or as a loadout's `extends` target) not found in the local `loadouts/` directory. Used by consumers like OpenHive to supply loadouts from a database at load time.
 - **`postProcessRole`** — Enrich each role after inheritance resolution
+- **`postProcessLoadout`** — Enrich each loadout after inheritance resolution (before attachment to roles)
 - **`postProcess`** — Transform the entire template after loading
 
 ### Role Inheritance
@@ -162,6 +213,28 @@ capabilities:
 ```
 
 Multi-level chains (A extends B extends C) are resolved in topological order. Circular inheritance is detected and rejected at template load time.
+
+### Loadout Resolution
+
+Loadouts use the same inheritance algorithm as roles (topological order, cycle detection), but with per-field merge rules encoded in `src/template/loadout-merge.ts`:
+
+| Field | Strategy |
+|---|---|
+| `skills.profile`, `skills.max_tokens` | Replace-if-set |
+| `skills.include`, `skills.exclude` | Union |
+| `capabilities` | Same composition (`add`/`remove`) as roles |
+| `mcp_servers` | Union by `name`/`ref`; child wins on conflict |
+| `permissions.allow`, `.ask` | Union |
+| `permissions.deny` | Union — **deny always wins** (child cannot drop parent denies) |
+| `prompt_addendum` | Concatenated parent → child with blank-line separator |
+
+Role → loadout attachment supports three shapes:
+
+1. **No binding** — `role.loadout` is undefined; role runs with whatever capabilities its own YAML declares.
+2. **Slug reference** — `role.loadout: "security-auditor"` looks up `loadouts/security-auditor.yaml`, falling back to `resolveExternalLoadout` if absent.
+3. **Inline definition** — `role.loadout: { extends: security-auditor, capabilities_add: [...] }` resolves as a synthetic loadout named `__inline:<roleName>`.
+
+The merge utility (`mergeLoadout`, `resolveStandaloneLoadout`) is exported from the package index so consumers implementing their own override layers (e.g. per-tenant DB overrides) can apply the canonical rules without reimplementing them.
 
 ## Communication Model
 
@@ -240,11 +313,17 @@ src/
 │   ├── editor.ts         # visual editor launcher
 │   └── prompt-utils.ts   # Interactive prompts for CLI
 ├── template/
-│   ├── types.ts          # All type definitions
-│   ├── loader.ts         # YAML parsing, validation, role inheritance resolution
+│   ├── types.ts          # All type definitions (incl. LoadoutDefinition, ResolvedLoadout)
+│   ├── loader.ts         # YAML parsing, validation, role + loadout inheritance resolution
+│   ├── loadout-merge.ts  # Canonical loadout merge rules (exported for consumers)
 │   └── install-service.ts # Git-based template installation
 └── generators/
     ├── skill-generator.ts        # SKILL.md and catalog generation
     ├── agent-prompt-generator.ts # Agent prompt and role skill generation
     └── package-generator.ts      # Package artifact generation
+
+schema/
+├── team.schema.json
+├── role.schema.json
+└── loadout.schema.json    # JSON Schema for loadouts/<name>.yaml
 ```

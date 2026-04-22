@@ -1,0 +1,4 @@
+name: implementer
+display_name: Implementer
+description: "Implements work items dispatched by the planner."
+loadout: implementer

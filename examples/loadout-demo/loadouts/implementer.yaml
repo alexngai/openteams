@@ -1,0 +1,29 @@
+name: implementer
+description: "Write-path loadout with test execution."
+skills:
+  profile: software-engineer
+capabilities:
+  - file.read
+  - file.write
+  - codebase.search
+  - exec.test
+  - exec.run
+mcp_servers:
+  - name: filesystem
+    command: npx
+    args: [filesystem-mcp]
+permissions:
+  allow:
+    - "Read(**)"
+    - "Write(src/**)"
+    - "Bash(npm test:*)"
+    - "Bash(npm run typecheck:*)"
+  deny:
+    - "Bash(git push:*)"
+    - "Write(.env)"
+    - "Write(**/secrets/**)"
+prompt_addendum: |
+  ## Implementation Mindset
+
+  - Match existing patterns in the file you're editing.
+  - Run tests after substantive changes, before claiming done.

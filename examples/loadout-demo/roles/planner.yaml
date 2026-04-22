@@ -1,0 +1,9 @@
+name: planner
+display_name: Planner
+description: "Decomposes a request into tasks, hands off to implementer + reviewer."
+capabilities:
+  - file.read
+  - codebase.search
+  - task.create
+  - task.assign
+# No loadout — planner uses its own minimal capability set.

@@ -1,0 +1,22 @@
+name: security-auditor
+description: "Security-focused extension of code-reviewer. Adds OWASP skills and secrets-detection tooling."
+extends: code-reviewer
+skills:
+  profile: security-engineer
+  include:
+    - owasp-top-10
+    - secrets-detection
+capabilities_add:
+  - exec.test
+mcp_servers:
+  - ref: "@openhive/secrets-scanner"
+permissions:
+  allow:
+    - "Bash(npm audit:*)"
+  deny:
+    - "Bash(curl *:*)"
+prompt_addendum: |
+  ## Security Focus
+
+  Prioritize: authn/authz gaps, injection vectors, exposed secrets,
+  insecure deserialization, misconfigured CORS/CSP.

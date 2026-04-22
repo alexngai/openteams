@@ -82,19 +82,23 @@
       },
       "examples": [["SOUL.md", "ROLE.md", "RULES.md"]]
     },
-    "macro_agent": {
-      "type": "object",
-      "description": "Extension fields for the macro-agent system. Stored but not interpreted by openteams.",
-      "additionalProperties": true,
-      "examples": [
+    "loadout": {
+      "oneOf": [
         {
-          "workspace": { "type": "own" }
+          "type": "string",
+          "description": "Slug reference to a loadout defined in loadouts/<name>.yaml.",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$"
+        },
+        {
+          "$ref": "https://openteams.dev/schema/loadout.schema.json",
+          "description": "Inline loadout definition for this role."
         }
-      ]
+      ],
+      "description": "Loadout binding: either a slug (file-backed) or an inline definition. Roles without a loadout fall back to their declared capabilities; roles with one inherit skills, MCP servers, and permissions from the loadout."
     }
   },
   "additionalProperties": {
-    "description": "Extension fields for other systems. Stored but not interpreted by openteams."
+    "description": "Extension namespaces for consuming systems (e.g. macro_agent, claude_code, gemini). Stored but not interpreted by openteams."
   },
   "$defs": {
     "CapabilityComposition": {

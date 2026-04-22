@@ -23,9 +23,12 @@ src/
   cli/                   # CLI command definitions (template, generate, editor).
   template/
     loader.ts            # TemplateLoader.load() / loadAsync() — static methods. YAML parsing,
-                         #   role inheritance resolution, prompt loading, MCP server config.
-    types.ts             # All types: TeamManifest, ResolvedTemplate, ResolvedRole,
-                         #   CommunicationConfig, LoadOptions, AsyncLoadOptions.
+                         #   role + loadout inheritance resolution, prompt loading, MCP server config.
+    loadout-merge.ts     # Canonical loadout merge rules (mergeLoadout, resolveStandaloneLoadout).
+                         #   Exported from index so consumers can apply them in override layers.
+    types.ts             # All types: TeamManifest, RoleDefinition, LoadoutDefinition,
+                         #   ResolvedTemplate, ResolvedRole, ResolvedLoadout, SkillsConfig,
+                         #   PermissionsConfig, McpServerRef, LoadOptions, AsyncLoadOptions.
     install-service.ts   # TemplateInstallService — git clone, discover, install templates.
   runtime/
     types.ts             # Runtime types: MemberIdentity, MemberStatus, TeamEvent,
@@ -40,9 +43,11 @@ src/
 examples/
   gsd/                   # 12-role team template with wave-based execution.
   bmad-method/           # Alternative team topology example.
+  loadout-demo/          # Three-role team exercising loadout binding styles.
 schema/
   team.schema.json       # JSON Schema for team.yaml validation.
   role.schema.json       # JSON Schema for role YAML validation.
+  loadout.schema.json    # JSON Schema for loadouts/<name>.yaml validation.
 ```
 
 ## Key Patterns
@@ -72,6 +77,20 @@ const pkg = generatePackage(template, { teamName: "my-team", outputDir: "./out" 
 const installer = new TemplateInstallService();
 const result = await installer.install({ repoUrl: "owner/repo" }, callbacks);
 ```
+
+**Loadouts**: Reusable bundles of skills, capabilities, MCP servers, permissions, and prompt material. Authored in `loadouts/<name>.yaml`, bound to roles via `role.loadout` (slug reference or inline definition). Resolve through the same topological inheritance algorithm as roles, with per-field merge rules in `loadout-merge.ts` (union for capabilities/MCP/permissions.allow; deny-wins for permissions.deny; replace-if-set for skills.profile and skills.max_tokens; concatenate for prompt_addendum).
+
+```typescript
+const template = TemplateLoader.load("./examples/loadout-demo");
+const reviewer = template.roles.get("reviewer")!;
+console.log(reviewer.loadout?.capabilities);   // merged across extends chain
+console.log(reviewer.loadout?.mcpServers);     // inline entries + symbolic refs
+console.log(reviewer.loadout?.permissions);    // deny list accumulated
+```
+
+For consumers that need to override or inject loadouts from outside the template directory (e.g. per-tenant DB overrides in OpenHive), `LoadOptions.resolveExternalLoadout` and `LoadOptions.postProcessLoadout` hooks are available. The `mergeLoadout` + `resolveStandaloneLoadout` helpers are exported from the package index for consumers implementing their own layering logic.
+
+**MCP server refs**: Loadouts accept `{ ref: "@org/server-name" }` entries for symbolic references to MCP servers. OpenTeams stores refs verbatim — it does not ship a registry. Consuming systems (OpenHive against its DB, claude-code-swarm against a bundled list) are responsible for resolving refs at materialization time.
 
 **Runtime state observation**: `TeamState` tracks member identity, status, and communication validity at runtime. Accepts MAP-aligned events, validates against template topology.
 

@@ -1,0 +1,28 @@
+name: code-reviewer
+description: "Baseline loadout for any role that reads code and comments on it."
+skills:
+  profile: code-reviewer
+  include:
+    - review-style-guide
+  max_tokens: 30000
+capabilities:
+  - file.read
+  - git.diff
+  - codebase.search
+mcp_servers:
+  - name: ast-grep
+    command: npx
+    args: [ast-grep-mcp]
+permissions:
+  allow:
+    - "Read(**)"
+    - "Bash(git diff:*)"
+  deny:
+    - "Bash(git push:*)"
+    - "Bash(rm -rf:*)"
+prompt_addendum: |
+  ## Review Mindset
+
+  - Read before you judge.
+  - Cite line numbers in feedback.
+  - Prefer specific questions over vague suggestions.

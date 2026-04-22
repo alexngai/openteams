@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openteams.dev/schema/loadout.schema.json",
+  "title": "OpenTeams Loadout Definition",
+  "description": "Schema for loadouts/<name>.yaml — a reusable bundle of skills, capabilities, MCP servers, permissions, and prompt material that can be bound to a role or an individual agent. Supports single inheritance via `extends`.",
+  "type": "object",
+  "required": ["name"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Loadout name. Must match the filename (loadouts/<name>.yaml). Referenced by roles via the `loadout` field.",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$",
+      "examples": ["security-auditor", "implementer", "debugger"]
+    },
+    "extends": {
+      "type": "string",
+      "description": "Parent loadout to inherit from. Inheritance applies the canonical merge rules (union for capabilities/mcp_servers/permissions.allow/ask; deny-wins for permissions.deny; replace-if-set for skills.profile and skills.max_tokens; concatenate for prompt_addendum).",
+      "examples": ["code-reviewer"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the loadout's purpose.",
+      "examples": ["Deep security review loadout with OWASP focus."]
+    },
+    "skills": {
+      "$ref": "#/$defs/SkillsConfig",
+      "description": "Skill selection for skill-tree or compatible skill systems."
+    },
+    "capabilities": {
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "Flat list — replaces any inherited capabilities entirely.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)*$"
+          },
+          "uniqueItems": true
+        },
+        { "$ref": "#/$defs/CapabilityComposition" },
+        { "$ref": "#/$defs/CapabilityMap" }
+      ],
+      "description": "Capabilities for this loadout. Same shape as RoleDefinition.capabilities."
+    },
+    "capabilities_add": {
+      "type": "array",
+      "description": "Flat-field composition: capabilities to add on top of the parent loadout.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)*$"
+      },
+      "uniqueItems": true
+    },
+    "capabilities_remove": {
+      "type": "array",
+      "description": "Flat-field composition: capabilities to remove from the parent loadout.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)*$"
+      },
+      "uniqueItems": true
+    },
+    "mcp_servers": {
+      "type": "array",
+      "description": "MCP server entries — either inline (name + command + args + env) or symbolic refs resolved by the consuming system.",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/McpServerEntry" },
+          { "$ref": "#/$defs/McpServerRef" }
+        ]
+      }
+    },
+    "permissions": {
+      "$ref": "#/$defs/PermissionsConfig",
+      "description": "Agent-system-agnostic permission lists. Deny always wins across inheritance."
+    },
+    "prompt_addendum": {
+      "type": "string",
+      "description": "Markdown appended after the role's primary prompt. During inheritance, parent and child addenda are concatenated with a blank line."
+    }
+  },
+  "additionalProperties": {
+    "description": "Extension namespaces for consuming systems (e.g. macro_agent, claude_code, gemini). Stored but not interpreted by openteams."
+  },
+  "$defs": {
+    "SkillsConfig": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "type": "string",
+          "description": "Named profile from the skill system.",
+          "examples": ["security-engineer", "implementer"]
+        },
+        "include": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Explicit skill slugs to include."
+        },
+        "exclude": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Skill slugs to exclude even if matched by profile/include."
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Optional token budget hint for the compiled skill bundle."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PermissionsConfig": {
+      "type": "object",
+      "properties": {
+        "allow": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Unconditionally granted. Example: \"Bash(npm test:*)\""
+        },
+        "deny": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Refused. Cannot be removed by child loadouts."
+        },
+        "ask": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Requires user confirmation at invocation time."
+        }
+      },
+      "additionalProperties": false
+    },
+    "McpServerEntry": {
+      "type": "object",
+      "required": ["name", "command"],
+      "properties": {
+        "name": { "type": "string" },
+        "command": { "type": "string" },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "McpServerRef": {
+      "type": "object",
+      "required": ["ref"],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "description": "Symbolic reference resolved by the consuming system.",
+          "examples": ["@openhive/ast-grep", "@openhive/chrome-devtools"]
+        },
+        "config": {
+          "type": "object",
+          "description": "Opaque config passed through to the resolved server.",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "CapabilityComposition": {
+      "type": "object",
+      "properties": {
+        "add": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)*$"
+          },
+          "uniqueItems": true
+        },
+        "remove": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)*$"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "CapabilityMap": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9_]*)*$": {
+          "oneOf": [
+            { "type": "object" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

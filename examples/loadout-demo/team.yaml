@@ -1,0 +1,34 @@
+name: loadout-demo
+description: "Demonstrates loadouts — roles bind to named and inline loadouts, inheritance composes capabilities/MCP/permissions."
+version: 1
+roles:
+  - planner
+  - implementer
+  - reviewer
+
+topology:
+  root:
+    role: planner
+    prompt: prompts/planner.md
+  spawn_rules:
+    planner: [implementer, reviewer]
+    implementer: []
+    reviewer: []
+
+communication:
+  enforcement: permissive
+  channels:
+    work_events:
+      description: "Plan → implementation → review lifecycle"
+      signals: [PLAN_READY, WORK_DONE, REVIEW_PASSED, REVIEW_FAILED]
+  subscriptions:
+    implementer:
+      - channel: work_events
+        signals: [PLAN_READY]
+    reviewer:
+      - channel: work_events
+        signals: [WORK_DONE]
+  emissions:
+    planner: [PLAN_READY]
+    implementer: [WORK_DONE]
+    reviewer: [REVIEW_PASSED, REVIEW_FAILED]

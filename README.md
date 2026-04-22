@@ -20,6 +20,7 @@ A definition layer for multi-agent team structures. Define roles, topology, comm
 - [Quick Start](#quick-start)
 - [Architecture](#architecture)
 - [Template System](#template-system)
+- [Loadouts](#loadouts)
 - [Communication Topology](#communication-topology)
 - [CLI Command Reference](#cli-command-reference)
 - [Library Usage](#library-usage)
@@ -36,6 +37,7 @@ OpenTeams is **not** a runtime coordination system. It does not manage state, sp
 
 - **YAML team templates.** Declare roles, topology, spawn rules, communication channels, and enforcement in a `team.yaml` directory. One format, any agent system.
 - **Role inheritance.** Roles extend other roles with capability composition (`add`/`remove`). Multi-level chains resolved at load time with cycle detection.
+- **Loadouts.** Reusable bundles of skills, capabilities, MCP servers, permissions, and prompt material that bind to roles (by slug or inline). Support single inheritance with canonical merge rules.
 - **Communication topology.** Typed signal channels with role subscriptions, emission permissions, peer routing, and enforcement modes — all as structural metadata.
 - **Prompt loading.** Single-file or multi-file prompts per role, loaded and resolved alongside the template.
 - **Generators.** Produce SKILL.md files, role catalogs, agent prompts, and deployable packages from a template directory.
@@ -136,7 +138,10 @@ templates/my-team/
 ├── team.yaml              # Manifest: topology, communication, role list
 ├── roles/
 │   ├── planner.yaml       # Role definition with capabilities
-│   └── executor.yaml
+│   └── executor.yaml      # Role with optional loadout binding
+├── loadouts/              # Reusable skill/capability/MCP/permission bundles
+│   ├── code-reviewer.yaml
+│   └── security-auditor.yaml  # Can extend other loadouts
 ├── prompts/
 │   ├── planner.md         # Single-file prompt (simple roles)
 │   └── executor/          # Multi-file prompt directory (complex roles)
@@ -144,7 +149,7 @@ templates/my-team/
 │       ├── ROLE.md        # Operational instructions (primary)
 │       └── RULES.md       # Constraints (optional)
 └── tools/
-    └── mcp-servers.json   # MCP server config per role (optional)
+    └── mcp-servers.json   # MCP server config per role (legacy; prefer loadouts)
 ```
 
 ### Minimal team.yaml
@@ -236,6 +241,115 @@ capabilities:
 ```
 
 Multi-level chains (`A extends B extends C`) are resolved in topological order. Circular inheritance is detected and rejected at load time.
+
+---
+
+## Loadouts
+
+A **loadout** is a reusable bundle of everything an agent needs to do its job beyond its identity: skills, capabilities, MCP servers, permissions, and prompt material. Loadouts are decoupled from roles — one loadout can equip multiple roles, across multiple teams — and they support single inheritance, so you can compose a `security-auditor` on top of a generic `code-reviewer` without repeating yourself.
+
+Loadouts are a **definition-layer** concept. OpenTeams stores, resolves, and attaches them; the consuming agent system (Claude Code, Gemini, Codex, etc.) materializes each loadout into its own runtime artifacts (`.mcp.json`, settings, skill bundles).
+
+### Anatomy of a loadout
+
+```yaml
+# loadouts/security-auditor.yaml
+name: security-auditor
+extends: code-reviewer           # optional — inherit from another loadout
+
+skills:
+  profile: security-engineer     # named profile for a skill system
+  include: [owasp-top-10]        # explicit skill slugs
+  exclude: []
+  max_tokens: 50000              # optional budget hint
+
+capabilities: [file.read, git.diff, exec.test]   # flat list
+# or: capabilities_add / capabilities_remove relative to the parent
+
+mcp_servers:
+  - name: ast-grep                             # inline entry
+    command: npx
+    args: [ast-grep-mcp]
+  - ref: "@openhive/secrets-scanner"           # symbolic ref — consumer resolves
+
+permissions:
+  allow: ["Read(**)", "Bash(npm audit:*)"]
+  deny:  ["Bash(git push:*)"]                  # deny always wins across inheritance
+  ask:   ["Write(.env)"]
+
+prompt_addendum: |
+  ## Security Focus
+  Prioritize authn gaps, injection vectors, exposed secrets.
+```
+
+### Binding loadouts to roles
+
+A role picks up a loadout in one of three ways:
+
+```yaml
+# 1. No loadout — role runs bare (existing behavior, still valid)
+name: planner
+capabilities: [task.create, task.assign]
+
+# 2. Slug reference — points at loadouts/<name>.yaml
+name: implementer
+loadout: implementer
+
+# 3. Inline definition — declare a one-off loadout at the binding site
+name: reviewer
+loadout:
+  extends: security-auditor
+  capabilities_add: [task.update]
+  prompt_addendum: |
+    Be direct but kind. Cite specific lines.
+```
+
+The inline form is a convenience for one-off tweaks — you don't have to create a separate YAML file just to add a capability or permission for a single role.
+
+### Inheritance — merge rules
+
+When a child loadout `extends` a parent, each field has a canonical merge strategy:
+
+| Field | Strategy |
+|---|---|
+| `skills.profile` | Child replaces parent if set |
+| `skills.include` / `exclude` | Union (deduplicated) |
+| `skills.max_tokens` | Child replaces parent if set |
+| `capabilities` | Same as role inheritance — composition (`add`/`remove`) or replacement |
+| `mcp_servers` | Union by `name` (or `ref`); child wins on conflict |
+| `permissions.allow` / `ask` | Union |
+| `permissions.deny` | Union — **deny always wins**, child cannot drop a parent deny |
+| `prompt_addendum` | Concatenated parent → child, separated by a blank line |
+
+Multi-level chains and circular inheritance detection work the same way as roles.
+
+### Consuming systems
+
+OpenTeams itself never writes `.mcp.json`, settings files, or skill bundles. It resolves loadouts and hands `ResolvedTemplate.loadouts` / `ResolvedRole.loadout` to the consuming system, which decides how to materialize each piece:
+
+- **MCP servers** — consumer writes `loadout.mcpServers` to whatever config its runtime expects. Symbolic `ref:` entries are resolved against the consumer's own registry (OpenTeams does not ship one).
+- **Permissions** — shape is agent-system-agnostic and inspired by Claude Code's allow/deny/ask syntax; consumers can adopt it directly or map it to their own permission model.
+- **Skills** — consumer with a skill system (e.g. [skill-tree](https://github.com/alexngai/skill-tree)) compiles `loadout.skills` into a prompt bundle. OpenTeams itself doesn't ship a skill compiler.
+- **Prompt addendum** — appended after the role's primary prompt when rendering agent markdown.
+
+### Customization hooks
+
+For consumers that need to override or supply loadouts from outside the template directory (databases, user settings, remote registries), the loader exposes two hooks:
+
+```typescript
+TemplateLoader.loadAsync(dir, {
+  // Supply or override a loadout by name
+  resolveExternalLoadout: async (name) => getDbLoadout(hiveId, name),
+  // Post-process every resolved loadout (e.g. apply per-tenant tweaks)
+  postProcessLoadout:    (lo) => applyOverrides(hiveId, lo),
+});
+```
+
+This is how systems like [OpenHive](https://github.com/alexngai/openhive) layer per-deployment loadout overrides on top of shared YAML templates without forking the template repo.
+
+### Complete example
+
+See `examples/loadout-demo/` for a working three-role team that exercises all three binding styles (no loadout, slug reference, inline-with-extends) and demonstrates multi-level loadout inheritance.
 
 ---
 
@@ -351,6 +465,20 @@ console.log(planner.capabilities);           // ["plan", "coordinate", ...]
 const prompts = template.prompts.get("planner");
 console.log(prompts.primary);               // Content of prompt.md or ROLE.md
 console.log(prompts.additional);            // Additional prompt sections
+
+// Access loadouts (if the template defines any)
+for (const [name, lo] of template.loadouts) {
+  console.log(name, lo.capabilities, lo.mcpServers, lo.permissions);
+}
+// Each role with a loadout binding has it attached post-resolution:
+const reviewer = template.roles.get("reviewer");
+if (reviewer?.loadout) {
+  console.log(reviewer.loadout.capabilities);
+  console.log(reviewer.loadout.mcpServers);
+  console.log(reviewer.loadout.permissions);
+  console.log(reviewer.loadout.skills);
+  console.log(reviewer.loadout.promptAddendum);
+}
 ```
 
 ### Async Loading with Hooks

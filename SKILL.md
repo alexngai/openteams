@@ -92,7 +92,10 @@ templates/my-team/
 ├── team.yaml              # Manifest: topology, communication, roles
 ├── roles/
 │   ├── planner.yaml       # Role definition with capabilities
-│   └── executor.yaml
+│   └── executor.yaml      # Role with optional `loadout:` binding
+├── loadouts/              # Reusable equipment bundles (optional)
+│   ├── code-reviewer.yaml
+│   └── security-auditor.yaml  # Can extend other loadouts
 ├── prompts/
 │   ├── planner.md         # Single-file prompt (simple roles)
 │   └── executor/          # Multi-file prompt directory
@@ -100,7 +103,7 @@ templates/my-team/
 │       ├── ROLE.md        # Operational instructions (primary)
 │       └── RULES.md       # Constraints (optional)
 └── tools/
-    └── mcp-servers.json   # MCP server config per role (optional)
+    └── mcp-servers.json   # MCP server config per role (legacy; prefer loadouts)
 ```
 
 ### Minimal team.yaml
@@ -189,6 +192,68 @@ capabilities:
   remove: [deploy]
 # Resolved: [code, review, debug]
 ```
+
+### Loadouts
+
+A loadout bundles skills, capabilities, MCP servers, permissions, and prompt material that can equip any role. Authored in `loadouts/<name>.yaml`, bound to a role via the `loadout:` field.
+
+```yaml
+# loadouts/code-reviewer.yaml
+name: code-reviewer
+skills:
+  profile: code-reviewer
+  include: [review-style-guide]
+capabilities: [file.read, git.diff, codebase.search]
+mcp_servers:
+  - name: ast-grep
+    command: npx
+    args: [ast-grep-mcp]
+permissions:
+  allow: ["Read(**)", "Bash(git diff:*)"]
+  deny:  ["Bash(git push:*)"]
+prompt_addendum: |
+  ## Review Mindset
+  - Read before you judge. Cite line numbers in feedback.
+
+# loadouts/security-auditor.yaml — extends code-reviewer
+name: security-auditor
+extends: code-reviewer
+skills:
+  profile: security-engineer
+  include: [owasp-top-10]
+capabilities_add: [exec.test]
+permissions:
+  deny: ["Bash(curl *:*)"]
+prompt_addendum: |
+  ## Security Focus
+  Prioritize authn gaps, injection, exposed secrets.
+```
+
+Bind a loadout to a role three ways:
+
+```yaml
+# 1. No loadout — role uses only its own declared capabilities
+name: planner
+capabilities: [task.create, task.assign]
+
+# 2. Slug reference — points at loadouts/<name>.yaml
+name: implementer
+loadout: implementer
+
+# 3. Inline definition — extend a named loadout with a one-off tweak
+name: reviewer
+loadout:
+  extends: security-auditor
+  capabilities_add: [task.update]
+  prompt_addendum: |
+    Be direct but kind.
+```
+
+Inheritance merges: capabilities/MCP/permissions.allow union, `permissions.deny` always wins (child can't drop a parent deny), `skills.profile`/`max_tokens` replace if set, `skills.include`/`exclude` union, `prompt_addendum` concatenates parent → child.
+
+MCP servers accept either inline entries (`name` + `command`) or symbolic refs (`{ ref: "@org/server" }`) resolved by the consuming agent system — OpenTeams stores refs verbatim.
+
+See `examples/loadout-demo/` for a complete working example.
 
 ## Testing
 

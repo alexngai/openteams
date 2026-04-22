@@ -19,6 +19,11 @@ export type {
   CapabilityComposition,
   CapabilityMap,
   McpServerEntry,
+  McpServerRef,
+  LoadoutDefinition,
+  ResolvedLoadout,
+  SkillsConfig,
+  PermissionsConfig,
   LoadOptions,
   AsyncLoadOptions,
   PromptSection,
@@ -37,6 +42,9 @@ export type {
 
 // Template loader
 export { TemplateLoader, spawnRuleTarget, isCapabilityMap } from "./template/loader";
+
+// Loadout merge utilities (for consumers implementing their own override layers)
+export { mergeLoadout, resolveStandaloneLoadout } from "./template/loadout-merge";
 
 // Template install
 export { TemplateInstallService } from "./template/install-service";

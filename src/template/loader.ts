@@ -14,7 +14,10 @@ import type {
   McpServerEntry,
   LoadOptions,
   AsyncLoadOptions,
+  LoadoutDefinition,
+  ResolvedLoadout,
 } from "./types";
+import { mergeLoadout, resolveStandaloneLoadout } from "./loadout-merge";
 import { isTemplateName, listBuiltinTemplates } from "./builtins";
 import type { BuiltinTemplateInfo } from "./builtins";
 import { resolveTemplateName, listAllTemplates } from "./resolver";
@@ -61,11 +64,17 @@ export class TemplateLoader {
    * @param options - Optional hooks for external role resolution and post-processing
    */
   static load(templateDir: string, options?: LoadOptions): ResolvedTemplate {
-    const { manifest, roles, prompts, mcpServers, absDir } =
+    const { manifest, roles, prompts, mcpServers, loadoutDefs, absDir } =
       TemplateLoader.loadCore(templateDir);
 
     // Resolve role inheritance chains (with optional external resolution)
     TemplateLoader.resolveInheritance(roles, options?.resolveExternalRole);
+
+    // Resolve loadout inheritance chains
+    const loadouts = TemplateLoader.resolveLoadoutInheritance(
+      loadoutDefs,
+      options?.resolveExternalLoadout
+    );
 
     // Post-process each role if hook provided
     if (options?.postProcessRole) {
@@ -73,6 +82,20 @@ export class TemplateLoader {
         roles.set(name, options.postProcessRole(role, manifest));
       }
     }
+
+    // Post-process each loadout if hook provided
+    if (options?.postProcessLoadout) {
+      for (const [name, lo] of loadouts) {
+        loadouts.set(name, options.postProcessLoadout(lo, manifest));
+      }
+    }
+
+    // Attach loadouts to roles (handles both slug refs and inline defs)
+    TemplateLoader.attachLoadoutsToRoles(
+      roles,
+      loadouts,
+      options?.resolveExternalLoadout
+    );
 
     // Load prompts
     for (const roleName of manifest.roles) {
@@ -92,6 +115,7 @@ export class TemplateLoader {
       roles,
       prompts,
       mcpServers,
+      loadouts,
       sourcePath: absDir,
     };
 
@@ -112,7 +136,7 @@ export class TemplateLoader {
     templateDir: string,
     options?: AsyncLoadOptions
   ): Promise<ResolvedTemplate> {
-    const { manifest, roles, prompts, mcpServers, absDir } =
+    const { manifest, roles, prompts, mcpServers, loadoutDefs, absDir } =
       TemplateLoader.loadCore(templateDir);
 
     // Resolve role inheritance chains (with optional async external resolution)
@@ -121,12 +145,32 @@ export class TemplateLoader {
       options?.resolveExternalRole
     );
 
+    // Resolve loadout inheritance chains
+    const loadouts = await TemplateLoader.resolveLoadoutInheritanceAsync(
+      loadoutDefs,
+      options?.resolveExternalLoadout
+    );
+
     // Post-process each role if hook provided
     if (options?.postProcessRole) {
       for (const [name, role] of roles) {
         roles.set(name, await options.postProcessRole(role, manifest));
       }
     }
+
+    // Post-process each loadout if hook provided
+    if (options?.postProcessLoadout) {
+      for (const [name, lo] of loadouts) {
+        loadouts.set(name, await options.postProcessLoadout(lo, manifest));
+      }
+    }
+
+    // Attach loadouts to roles (handles both slug refs and inline defs)
+    await TemplateLoader.attachLoadoutsToRolesAsync(
+      roles,
+      loadouts,
+      options?.resolveExternalLoadout
+    );
 
     // Load prompts
     for (const roleName of manifest.roles) {
@@ -146,6 +190,7 @@ export class TemplateLoader {
       roles,
       prompts,
       mcpServers,
+      loadouts,
       sourcePath: absDir,
     };
 
@@ -165,6 +210,7 @@ export class TemplateLoader {
     roles: Map<string, ResolvedRole>;
     prompts: Map<string, ResolvedPrompts>;
     mcpServers: Map<string, McpServerEntry[]>;
+    loadoutDefs: Map<string, LoadoutDefinition>;
     absDir: string;
   } {
     let absDir = path.resolve(templateDir);
@@ -220,7 +266,10 @@ export class TemplateLoader {
     // Load MCP server configs
     const mcpServers = TemplateLoader.loadMcpServers(absDir);
 
-    return { manifest, roles, prompts, mcpServers, absDir };
+    // Load raw loadout definitions (inheritance resolved later in load()/loadAsync())
+    const loadoutDefs = TemplateLoader.loadLoadoutDefinitions(absDir);
+
+    return { manifest, roles, prompts, mcpServers, loadoutDefs, absDir };
   }
 
   /**
@@ -246,6 +295,7 @@ export class TemplateLoader {
       roles,
       prompts: new Map(),
       mcpServers: new Map(),
+      loadouts: new Map(),
       sourcePath: "",
     };
   }
@@ -701,6 +751,234 @@ export class TemplateLoader {
     }
 
     return result;
+  }
+
+  /**
+   * Load raw loadout definitions from loadouts/*.yaml.
+   * Returns a map of loadout name → LoadoutDefinition (pre-inheritance).
+   */
+  private static loadLoadoutDefinitions(
+    absDir: string
+  ): Map<string, LoadoutDefinition> {
+    const result = new Map<string, LoadoutDefinition>();
+    const dir = path.join(absDir, "loadouts");
+    if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return result;
+
+    const files = fs.readdirSync(dir).filter((f) =>
+      f.endsWith(".yaml") || f.endsWith(".yml")
+    );
+
+    for (const file of files) {
+      const full = path.join(dir, file);
+      const raw = fs.readFileSync(full, "utf-8");
+      const def = yaml.load(raw) as LoadoutDefinition | null;
+      if (!def || typeof def !== "object") continue;
+
+      const stem = path.basename(file, path.extname(file));
+      if (!def.name) def.name = stem;
+      if (def.name !== stem) {
+        throw new Error(
+          `Loadout file "${file}" declares name "${def.name}" — must match filename stem "${stem}"`
+        );
+      }
+      if (result.has(def.name)) {
+        throw new Error(`Duplicate loadout name "${def.name}"`);
+      }
+      result.set(def.name, def);
+    }
+
+    return result;
+  }
+
+  /**
+   * Resolve loadout inheritance chains using the canonical merge rules.
+   * Parents can be resolved via the external resolver if not in the local map.
+   * Detects circular inheritance.
+   */
+  private static resolveLoadoutInheritance(
+    defs: Map<string, LoadoutDefinition>,
+    resolveExternal?: (name: string) => ResolvedLoadout | null
+  ): Map<string, ResolvedLoadout> {
+    return TemplateLoader.resolveLoadoutInheritanceCore(defs, (name) =>
+      resolveExternal ? resolveExternal(name) : null
+    );
+  }
+
+  private static async resolveLoadoutInheritanceAsync(
+    defs: Map<string, LoadoutDefinition>,
+    resolveExternal?: (
+      name: string
+    ) => Promise<ResolvedLoadout | null> | ResolvedLoadout | null
+  ): Promise<Map<string, ResolvedLoadout>> {
+    // Pre-resolve external parents up front so the core can be synchronous.
+    const externals = new Map<string, ResolvedLoadout>();
+    if (resolveExternal) {
+      const wanted = new Set<string>();
+      for (const def of defs.values()) {
+        if (def.extends && !defs.has(def.extends)) wanted.add(def.extends);
+      }
+      for (const name of wanted) {
+        const ext = await resolveExternal(name);
+        if (ext) externals.set(name, ext);
+      }
+    }
+    return TemplateLoader.resolveLoadoutInheritanceCore(defs, (name) =>
+      externals.get(name) ?? null
+    );
+  }
+
+  /**
+   * Core loadout-inheritance resolution. Synchronous. Walks extends chains
+   * in topological order, applying mergeLoadout at each step. Cycles are
+   * detected and rejected.
+   */
+  private static resolveLoadoutInheritanceCore(
+    defs: Map<string, LoadoutDefinition>,
+    getExternal: (name: string) => ResolvedLoadout | null
+  ): Map<string, ResolvedLoadout> {
+    const resolved = new Map<string, ResolvedLoadout>();
+
+    // Cycle detection — follow each chain through local defs
+    for (const startName of defs.keys()) {
+      const chain: string[] = [];
+      let current: string | undefined = startName;
+      while (current) {
+        if (chain.includes(current)) {
+          const cycleStart = chain.indexOf(current);
+          const cyclePath = [...chain.slice(cycleStart), current].join(" -> ");
+          throw new Error(`Circular loadout inheritance detected: ${cyclePath}`);
+        }
+        chain.push(current);
+        const def = defs.get(current);
+        current = def?.extends && defs.has(def.extends) ? def.extends : undefined;
+      }
+    }
+
+    const resolve = (name: string): ResolvedLoadout => {
+      const existing = resolved.get(name);
+      if (existing) return existing;
+
+      const def = defs.get(name);
+      if (!def) {
+        const ext = getExternal(name);
+        if (!ext) {
+          throw new Error(`Loadout "${name}" not found (not in local map, no external resolver hit)`);
+        }
+        resolved.set(name, ext);
+        return ext;
+      }
+
+      let out: ResolvedLoadout;
+      if (def.extends) {
+        const parent = defs.has(def.extends)
+          ? resolve(def.extends)
+          : getExternal(def.extends);
+        if (!parent) {
+          throw new Error(
+            `Loadout "${def.name}" extends unknown loadout "${def.extends}"`
+          );
+        }
+        out = mergeLoadout(parent, def);
+      } else {
+        out = resolveStandaloneLoadout(def);
+      }
+      resolved.set(name, out);
+      return out;
+    };
+
+    for (const name of defs.keys()) resolve(name);
+    return resolved;
+  }
+
+  /**
+   * Attach a ResolvedLoadout to each role whose raw.loadout is set.
+   * Supports both slug references (string) and inline definitions (object).
+   */
+  private static attachLoadoutsToRoles(
+    roles: Map<string, ResolvedRole>,
+    loadouts: Map<string, ResolvedLoadout>,
+    resolveExternal?: (name: string) => ResolvedLoadout | null
+  ): void {
+    for (const role of roles.values()) {
+      const ref = role.raw.loadout;
+      if (ref === undefined) continue;
+      role.loadout = TemplateLoader.resolveRoleLoadoutRef(
+        role.name,
+        ref,
+        loadouts,
+        (name) => (resolveExternal ? resolveExternal(name) : null)
+      );
+    }
+  }
+
+  private static async attachLoadoutsToRolesAsync(
+    roles: Map<string, ResolvedRole>,
+    loadouts: Map<string, ResolvedLoadout>,
+    resolveExternal?: (
+      name: string
+    ) => Promise<ResolvedLoadout | null> | ResolvedLoadout | null
+  ): Promise<void> {
+    for (const role of roles.values()) {
+      const ref = role.raw.loadout;
+      if (ref === undefined) continue;
+
+      // Pre-resolve any external parent needed by an inline def (or by the slug itself).
+      let external: ResolvedLoadout | null = null;
+      if (typeof ref === "string" && !loadouts.has(ref) && resolveExternal) {
+        external = (await resolveExternal(ref)) ?? null;
+      } else if (typeof ref === "object" && ref.extends && !loadouts.has(ref.extends) && resolveExternal) {
+        external = (await resolveExternal(ref.extends)) ?? null;
+      }
+
+      role.loadout = TemplateLoader.resolveRoleLoadoutRef(
+        role.name,
+        ref,
+        loadouts,
+        (name) => {
+          if (typeof ref === "string" && name === ref) return external;
+          if (typeof ref === "object" && name === ref.extends) return external;
+          return null;
+        }
+      );
+    }
+  }
+
+  /**
+   * Resolve a single role's loadout reference (slug or inline def) into
+   * a concrete ResolvedLoadout. Shared by sync and async attach paths.
+   */
+  private static resolveRoleLoadoutRef(
+    roleName: string,
+    ref: string | LoadoutDefinition,
+    loadouts: Map<string, ResolvedLoadout>,
+    getExternal: (name: string) => ResolvedLoadout | null
+  ): ResolvedLoadout {
+    if (typeof ref === "string") {
+      const found = loadouts.get(ref);
+      if (found) return found;
+      const external = getExternal(ref);
+      if (external) return external;
+      throw new Error(
+        `Role "${roleName}" references unknown loadout "${ref}"`
+      );
+    }
+
+    // Inline definition — assign a synthetic name if absent.
+    const def: LoadoutDefinition = {
+      ...ref,
+      name: ref.name ?? `__inline:${roleName}`,
+    };
+
+    if (def.extends) {
+      const parent = loadouts.get(def.extends) ?? getExternal(def.extends);
+      if (!parent) {
+        throw new Error(
+          `Role "${roleName}" inline loadout extends unknown loadout "${def.extends}"`
+        );
+      }
+      return mergeLoadout(parent, def);
+    }
+    return resolveStandaloneLoadout(def);
   }
 
   /**
