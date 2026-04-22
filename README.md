@@ -423,6 +423,19 @@ Generate artifacts from a template directory.
 
 All `generate` commands accept `-n, --name <name>` to override the team name and `-o, --output <path>` to control output location.
 
+### Loadout
+
+Inspect and validate the loadouts in a template.
+
+| Command | Description |
+|---------|-------------|
+| `openteams loadout validate <dir>` | Parse all loadouts; report count, extends chains, capability/MCP totals |
+| `openteams loadout list <dir>` | Show each named loadout with its role consumers; flag unused loadouts and inline bindings |
+| `openteams loadout show <dir> <name>` | Print the fully resolved loadout (after extends chain) as YAML |
+| `openteams loadout preview <dir> <role>` | Print the effective loadout bound to a role |
+
+`show` and `preview` accept `--json` to emit a structured artifact object (split inline MCP entries / refs, permissions, skills, prompt addendum) suitable for piping into consumer tooling.
+
 ### Editor
 
 | Command | Description |

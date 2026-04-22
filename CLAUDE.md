@@ -20,7 +20,7 @@ npm run dev              # tsc --watch
 src/
   cli.ts                 # Entry point. Commander program with 3 subcommand groups.
   index.ts               # Public API exports (types, loader, generators, install service).
-  cli/                   # CLI command definitions (template, generate, editor).
+  cli/                   # CLI command definitions (template, generate, loadout, editor).
   template/
     loader.ts            # TemplateLoader.load() / loadAsync() — static methods. YAML parsing,
                          #   role + loadout inheritance resolution, prompt loading, MCP server config.
@@ -39,7 +39,10 @@ src/
   generators/
     skill-generator.ts   # generateSkillMd(), generateCatalog() from templates.
     agent-prompt-generator.ts  # generateAgentPrompts(), generateRoleSkillMd().
+                         #   Appends role.loadout.promptAddendum when present.
     package-generator.ts # generatePackage() — bundle template for distribution.
+    loadout-generator.ts # generateLoadoutArtifacts(), getEffectiveLoadout(),
+                         #   renderLoadoutYaml(), listLoadoutConsumers().
 examples/
   gsd/                   # 12-role team template with wave-based execution.
   bmad-method/           # Alternative team topology example.
@@ -124,6 +127,7 @@ Vitest config: `vitest.config.ts`. Globals enabled, watch off by default.
 
 - `openteams template` — validate, install (from git repos)
 - `openteams generate` — skill, catalog, agents, all, package, role-package (from templates)
+- `openteams loadout` — validate, list, show, preview (inspect template loadouts)
 - `openteams editor` — launch visual team configuration editor
 
 ## Conventions

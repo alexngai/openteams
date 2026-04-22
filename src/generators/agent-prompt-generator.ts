@@ -135,6 +135,12 @@ export function generateRoleSkillMd(
     sections.push(`## Instructions\n\n${rolePrompts.primary.trim()}`);
   }
 
+  // Loadout prompt addendum — rendered verbatim since authors supply
+  // their own markdown headings in `prompt_addendum`.
+  if (role?.loadout?.promptAddendum) {
+    sections.push(role.loadout.promptAddendum.trim());
+  }
+
   // Teammates
   const otherRoles = m.roles.filter((r) => r !== roleName);
   if (otherRoles.length > 0) {
@@ -330,6 +336,12 @@ function generateSingleAgentPrompt(
       sections.push(`## ${heading}\n\n${section.content.trim()}`);
     }
     sections.push(`## Instructions\n\n${rolePrompts.primary.trim()}`);
+  }
+
+  // Loadout prompt addendum — rendered verbatim since authors supply
+  // their own markdown headings in `prompt_addendum`.
+  if (role?.loadout?.promptAddendum) {
+    sections.push(role.loadout.promptAddendum.trim());
   }
 
   // Team context

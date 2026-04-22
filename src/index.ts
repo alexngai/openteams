@@ -1,4 +1,4 @@
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0";
 
 // Template types
 export type {
@@ -97,6 +97,16 @@ export type {
   PackageGeneratorOptions,
   PackageResult,
 } from "./generators/package-generator";
+
+// Loadout generator — artifacts, effective-loadout lookup, YAML rendering, consumer index
+export {
+  generateLoadoutArtifacts,
+  getEffectiveLoadout,
+  renderLoadoutYaml,
+  listLoadoutConsumers,
+  listInlineLoadoutRoles,
+} from "./generators/loadout-generator";
+export type { LoadoutArtifacts } from "./generators/loadout-generator";
 
 // Federation
 export { loadFederation, composeFederation } from "./template/federation-loader";

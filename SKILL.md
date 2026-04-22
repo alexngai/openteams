@@ -59,6 +59,15 @@ Common options:
 - `-n, --name <name>` - Override the team name
 - `-o, --output <path>` - Output path or directory
 
+### Inspect Loadouts
+
+| Command | Description |
+|---------|-------------|
+| `openteams loadout validate <dir>` | Parse all loadouts, show extends chains + counts |
+| `openteams loadout list <dir>` | Name → consumers index; flag unused loadouts + inline bindings |
+| `openteams loadout show <dir> <name>` | Print a resolved loadout as YAML (add `--json` for artifacts) |
+| `openteams loadout preview <dir> <role>` | Print the effective loadout for a role (add `--json` for artifacts) |
+
 ### Visual Editor
 
 | Command | Description |
