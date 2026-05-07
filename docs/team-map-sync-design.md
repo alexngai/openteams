@@ -340,15 +340,11 @@ orchestrator subscribed to resources:x-openteams/team:
 leaf agents see nothing — they're already on their hash, doing their work, will exit normally
 ```
 
-## Required MAP SDK Additions
+## MAP Integration
 
-This design depends on three additions to the MAP SDK that are documented in the protocol spec but not yet implemented. See [`docs/map-sdk-extensions-proposal.md`](./map-sdk-extensions-proposal.md) for details:
+This design works against the **current** MAP SDK with no protocol or SDK changes. OpenTeams ships kind handlers + a hub-side wiring helper that plugs into the SDK's existing `additionalHandlers` mechanism, and a thin client wrapper for agent-side fetches over `map/resources/get`. Lifecycle events ride the SDK's existing event bus with payload conforming to the spec's `ResourceEvent` shape.
 
-1. **Ship the protocol types** — `MAPResource`, `ResourceKindHandler`, etc., in `ts-sdk/src/types/`.
-2. **Built-in handler dispatch** — `MAPServer.registerResourceKinds(handlers)`, so hubs don't write `additionalHandlers['map/resources/list']` themselves.
-3. **Resource event helpers** — `server.emitResourceEvent('added' | 'updated' | 'removed', resource)` and `resources:<type>` scope channel routing.
-
-All three are additive and non-breaking. The proposal doc walks through file-level changes.
+See [`docs/map-integration.md`](./map-integration.md) for the wiring path, including a separate, **optional** set of SDK improvements (types, built-in dispatch, scope-channel event routing) that would reduce per-kind boilerplate if multiple kind packages adopt the pattern. None of those are required.
 
 ## What This Is *Not*
 
@@ -402,6 +398,6 @@ What's needed to make the centering use case work end-to-end:
 6. CLI: `openteams bundle-loadout <template-dir> <loadout-name>` → loadout resource JSON. `openteams bundle <template-dir>` → team resource JSON. `openteams publish --map <ws-url> <bundle.json>` calls the appropriate `<kind>/publish` method.
 7. Worked example: `examples/loadout-demo` round-trips through both kinds.
 
-Depends on the [MAP SDK additions](./map-sdk-extensions-proposal.md) landing in parallel. Phases 1–2 (bundling, hashing) are independent and can start now; Phase 3 (handlers + client) needs the SDK additions in place.
+Independent of any MAP SDK changes — see [`docs/map-integration.md`](./map-integration.md). All phases can start now.
 
 Everything else — registries, signatures, hot-swap, federation bundles, `SwarmState`, communication-context publishing, materialization caching, trust/PKI — stays out until a consumer needs it.
