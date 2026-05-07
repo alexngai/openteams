@@ -1,44 +1,71 @@
 # Teams as MAP-Syncable Resources — Design Exploration
 
-> Status: **Exploration** — not a spec, not committed to. This document sketches what it could look like to publish OpenTeams team templates and loadouts as first-class, syncable resources over MAP, with **cross-runtime agent dispatch** as the centering use case.
+> Status: **Exploration** — not a spec, not committed to. This document sketches what it could look like to publish OpenTeams loadouts and team templates as content-addressed, syncable resources over MAP, with **cross-runtime agent dispatch** as the centering use case.
 
 ## The Centering Use Case
 
-An orchestrator running on machine A (Claude Code) decides it needs an `executor`. The pool worker that picks up the spawn is on machine B (could be Gemini, Codex, or a custom runtime). For that worker to actually boot a meaningful agent, it needs:
+An orchestrator running on machine A (Claude Code) decides it needs an `executor`. The pool worker that picks up the spawn is on machine B (could be Gemini, Codex, or a custom runtime). The minimum the worker needs to boot a meaningful agent is the role's **loadout** — capabilities, permissions, MCP scope, prompt addendum. That loadout has to travel by reference, not by value, because the orchestrator already holds the resolved form and shouldn't have to ship bytes on every spawn.
 
-- The **team definition** (so member events line up — channels, signals, topology)
-- The role's **loadout** (capabilities, permissions, MCP scope, prompt addendum)
-- A **stable identifier** for both, so the orchestrator can refer to "the executor loadout *I* resolved" rather than rehydrating the entire team on the dispatch path
+Today, no part of this travels over the wire. Templates and loadouts live on disk in the agent system that loaded them. Member events from `src/runtime/` reference roles by name only — meaningful only against a manifest the receiver already has out-of-band.
 
-Today none of this travels over the wire. Templates live on disk in the agent system that loaded them. The runtime layer (`src/runtime/`) already emits MAP-aligned member events (`agent_registered`, `agent_state_changed`, `agent_unregistered`), but those events reference roles by name only — they're meaningful only against a team manifest the receiver already has.
-
-Publishing the manifest itself, as a content-addressed resource, closes the loop: orchestrators dispatch by hash, workers fetch what they don't have, member events validate against the exact bundle the publisher used.
-
-## The Problem, Spelled Out
-
-1. **No shared vocabulary.** When Agent A says "I am `executor-2`," Agent B has no protocol-level way to know what role `executor` is, what channels it subscribes to, or what loadout it carries.
-2. **No dispatch semantics.** An orchestrator that wants to spawn a child on a different machine has no portable way to say "with *this* loadout."
-3. **No discovery.** A federation bridge or a UI dashboard must obtain templates through side channels (git clone, scp, manual install).
+Publishing the loadout (and, when needed, the team) as a content-addressed MAP resource closes the loop: orchestrators dispatch by URI, workers fetch what they don't have, validation works against the exact bundle the publisher used.
 
 ## Design Principles
 
-1. **Definition stays definitional.** Synced artifacts are *resolved, immutable snapshots* — not live editable state. Edits happen in files via the CLI, then a new snapshot is published.
-2. **Content-addressed.** Resources are identified by hash. Names and versions are aliases that point at hashes.
-3. **Loadouts are first-class.** A loadout has its own bundle, its own URI, its own lifecycle. A team is a *composition* of loadouts (plus topology and communication).
-4. **Reuse MAP primitives — don't invent verbs.** Bundles map onto MAP `context`. Spawn dispatch maps onto MAP `task`. Member events already align with MAP. OpenTeams ships zero new protocol — only typed payloads on existing primitives.
-5. **Bundles travel; runtimes materialize.** A bundle carries `ResolvedTemplate` / `ResolvedLoadout` data. Runtime-specific outputs (CLAUDE.md, Gemini config, etc.) are generated client-side at hydrate time.
-6. **Hash-stickiness.** Once an agent registers under a hash, that hash is fixed for its lifetime. New spawns pick up new hashes.
+1. **Minimal footprint.** Most agents need only their own loadout. Heavier constructs (full team manifest, multi-team aggregate) load only when an agent's job actually requires them.
+2. **Definition stays definitional.** Synced artifacts are immutable resolved snapshots. Edits happen in files via the CLI, then a new snapshot is published.
+3. **Content-addressed.** Resources are identified by hash. Names and versions are aliases that point at hashes.
+4. **Loadouts are first-class.** A loadout has its own bundle, its own URI, its own lifecycle. A team is a *composition* of loadouts plus topology and communication — but the team bundle is for *coordinators*, not every participant.
+5. **Reuse MAP primitives — don't invent verbs or events.** Bundles ride MAP `context`. Spawn dispatch rides MAP `task`. Agent registration and state events ride MAP's existing agent primitives. OpenTeams contributes typed payloads and metadata fields.
+6. **Bundles travel; runtimes materialize.** Bundles carry resolved data; runtime-specific outputs (CLAUDE.md, Gemini config, etc.) are generated client-side at hydrate time.
+7. **Hash-stickiness.** Once an agent registers under a hash, that hash is fixed for its lifetime.
+
+## Manifestation Tiers
+
+Not every agent loads the same thing. The protocol supports four tiers; choose the lightest that fits the agent's job.
+
+| Tier | Loads | Who fits |
+|---|---|---|
+| **0. Loadout-only** | Its own `LoadoutBundle` | Most spawned executors. Boot, do work, emit state events, exit. |
+| **1. Loadout + role context** | Loadout + (optionally) the team for self-validation of own emissions | Agents that emit on channels and want to check before sending |
+| **2. Full team** | Whole `TeamBundle` + a `TeamState` | Orchestrators, bridges — anyone dispatching or routing |
+| **3. Multi-team** | Multiple `TeamBundle`s + a `SwarmState` aggregate | Federation bridges, cross-team observers |
+
+The team bundle remains a first-class MAP resource — its primary consumer is the coordination layer, not every agent. Leaves stay lightweight.
 
 ## The Resources
 
-### `TeamBundle`
+### `LoadoutBundle` — primary
 
-The serialized form of `ResolvedTemplate`, plus everything needed to reproduce its prompts and skills without further filesystem access.
+A `LoadoutBundle` is what every spawned agent receives, directly or by reference. It's the serialized form of `ResolvedLoadout`.
+
+```typescript
+interface LoadoutBundle {
+  bundleVersion: 1;
+  hash: string;                          // sha256 of canonicalized payload
+
+  name: string;
+  version: string;
+
+  resolved: ResolvedLoadout;             // capabilities, MCP scope, permissions, skills config
+  promptAddendum?: string;
+
+  tags?: string[];                       // for registry-style discovery
+  publisher?: { id: string; signature?: string };
+  description?: string;
+}
+```
+
+The merge rules in `src/template/loadout-merge.ts` already produce `ResolvedLoadout`. `bundleLoadout(resolved)` is just *serialize what's already there*.
+
+### `TeamBundle` — for coordinators
+
+A `TeamBundle` is what orchestrators, bridges, and observers load to reason about topology, channels, and routing. Leaf agents don't load this.
 
 ```typescript
 interface TeamBundle {
   bundleVersion: 1;
-  hash: string;                          // sha256 of canonicalized payload
+  hash: string;
 
   name: string;
   version: string;
@@ -47,12 +74,12 @@ interface TeamBundle {
   roles: Record<string, ResolvedRole>;
 
   // Loadouts referenced by roles. Each entry includes its own standalone hash
-  // so it can also be addressed independently — see LoadoutBundle below.
+  // so the same bytes are addressable independently.
   loadouts: Record<string, EmbeddedLoadout>;
 
-  prompts: Record<string, string>;       // path → markdown body
+  prompts: Record<string, string>;
   skillCatalog: string;
-  rolePrompts: Record<string, string>;   // role name → ROLE.md body
+  rolePrompts: Record<string, string>;
 
   publishedAt?: string;
   publisher?: { id: string; signature?: string };
@@ -60,80 +87,59 @@ interface TeamBundle {
 }
 
 interface EmbeddedLoadout {
-  hash: string;                          // standalone loadout hash
-  resolved: ResolvedLoadout;
-  promptAddendum?: string;
-}
-```
-
-### `LoadoutBundle`
-
-A loadout published independently of any team. Same shape as the embedded form, but addressable on its own.
-
-```typescript
-interface LoadoutBundle {
-  bundleVersion: 1;
   hash: string;
-
-  name: string;
-  version: string;
-
   resolved: ResolvedLoadout;
   promptAddendum?: string;
-
-  // Optional descriptive metadata for registries/discovery.
-  tags?: string[];
-  publisher?: { id: string; signature?: string };
-  description?: string;
 }
 ```
 
-The merge rules in `src/template/loadout-merge.ts` already produce `ResolvedLoadout`. `bundleLoadout(resolved)` is just *serialize what's already there*.
+Embedded loadout hashes are computed first, then included in the team hash input. Two teams that embed the same loadout share its hash.
 
 ### Identity: hash + alias
 
-Two URI shapes for loadouts — one team-relative, one standalone:
-
 ```
-team:sha256:9f3a…                            # canonical team hash
+loadout:sha256:abc…                          # standalone, content-hashed   (primary)
+loadout:code-reviewer@2.0.0                  # standalone alias
+
+team:sha256:9f3a…                            # team hash                    (coordinator-only)
 team:gsd@1.4.0                               # team alias
-
 team:sha256:9f3a…/loadout/executor           # team-relative loadout reference
-loadout:sha256:abc…                          # standalone loadout hash
-loadout:code-reviewer@2.0.0                  # standalone loadout alias
 ```
 
-Both loadout shapes resolve to the same `ResolvedLoadout`. Team-relative URIs are convenient for orchestrators dispatching within their own team. Standalone URIs unlock:
-
-- **Reuse across teams** — one `code-reviewer` loadout used by three teams, stored once.
-- **Ad-hoc agents** — spawn a one-off doc-writer with a loadout, no team context.
-- **Registry-style discovery** — "give me any loadout tagged `research`."
-- **Independent versioning** — republish a loadout (new MCP server in scope) without republishing every team that references it.
+The team-relative form resolves to the same `ResolvedLoadout` as the embedded loadout's standalone hash — it's a path-style alias for convenience inside team-aware contexts.
 
 ### Canonicalization
 
-Hashes are computed over a canonical JSON serialization:
-- Sorted object keys.
-- Normalized line endings (LF), trimmed trailing whitespace in prompt bodies.
-- Stable iteration order for `roles`, `loadouts`, `prompts`.
-- The `hash`, `publishedAt`, `publisher`, and `description` fields are excluded from the hash input.
-- Embedded loadout hashes are computed first, then included in the team hash input — so changing a loadout changes the team hash, but two teams that embed the same loadout share its hash.
+Hashes are computed over canonical JSON: sorted keys, normalized line endings (LF), trimmed trailing whitespace in prompt bodies, stable iteration order. The `hash`, `publishedAt`, `publisher`, and `description` fields are excluded from hash input. Same input on different machines ⇒ same hash.
 
 ## Mapping to MAP Primitives
 
+OpenTeams ships zero new wire protocol — only typed payloads and metadata on existing MAP primitives.
+
 | OpenTeams concern | MAP primitive | Notes |
 |---|---|---|
-| Team definition | `context` | `kind: openteams.team`, payload is `TeamBundle` |
 | Loadout definition | `context` | `kind: openteams.loadout`, payload is `LoadoutBundle` |
-| Member lifecycle | task/agent events | `agent_registered`, `agent_state_changed`, `agent_unregistered` — already in `src/runtime/types.ts` |
+| Team definition | `context` | `kind: openteams.team`, payload is `TeamBundle` |
 | Spawn dispatch | `task` | `meta.kind: openteams.spawn`, see below |
-| Active-team declaration | task assignment | An agent's MAP identity carries `meta.team` and `meta.role` |
+| Agent registration | MAP's agent primitive | OpenTeams contributes metadata fields (`loadout`, optionally `role`/`team`) |
+| Member state events | MAP's agent state primitives | Coordinators translate into `TeamEvent` on the consumer side |
 
-Mapping onto MAP `context` for definitions follows the opentasks pattern: bundles published as MAP contexts get fetch + watch + cache-by-hash for free, the same way opentasks tasks plug into MAP tasks. No custom `team_request/response` verbs needed.
+OpenTeams **does not define new agent events**. The `TeamEvent` types in `src/runtime/types.ts` are coordinator-side abstractions over MAP's agent events — what `TeamState` consumes after a runtime adapter translates from MAP. Agents themselves register and update state via MAP's existing primitives.
+
+### Metadata fields on agent registration
+
+When an OpenTeams-aware agent registers with MAP, it includes:
+
+| Field | Required | Meaning |
+|---|---|---|
+| `loadout` | yes | Loadout URI (`loadout:sha256:…` or `team:<hash>/loadout/<name>`). This is the agent's identity for OpenTeams purposes. |
+| `role` | optional | Role name from a team. Present when the agent was spawned in team context. |
+| `team` | optional | Team URI. Present when the agent participates in a team and a coordinator needs to associate it. |
+| `parent` | optional | The spawning agent's MAP id. Lets observers reconstruct hierarchies. |
+
+`team` is deliberately optional. Agent-to-team association is otherwise reconstructable from the spawn task's `meta.team` — that's MAP's job, not OpenTeams's.
 
 ### Spawn dispatch via MAP task
-
-Spawn requests fit naturally onto MAP's existing **task** primitive — the same one [opentasks](https://github.com/alexngai/opentasks) uses:
 
 ```jsonc
 {
@@ -141,10 +147,10 @@ Spawn requests fit naturally onto MAP's existing **task** primitive — the same
   "status": "open",                                 // → "in_progress" → "completed"
   "meta": {
     "kind":     "openteams.spawn",
-    "team":     "team:sha256:9f3a…",
-    "role":     "executor",
+    "loadout":  "loadout:sha256:abc…",              // required
+    "role":     "executor",                          // optional, team context
+    "team":     "team:sha256:9f3a…",                 // optional, team context
     "label":    "executor-3",
-    "loadout":  "team:sha256:9f3a…/loadout/executor",
     "target":   { "runtime": "claude-code", "placement": { "zone": "edge" } },
     "parent":   "gsd-orchestrator"
   }
@@ -153,18 +159,18 @@ Spawn requests fit naturally onto MAP's existing **task** primitive — the same
 
 A worker pool subscribes to `kind: openteams.spawn` tasks. When it picks one up:
 
-1. Fetch team bundle if not cached (`get` on the MAP context).
-2. Resolve the loadout URI to a `ResolvedLoadout`.
-3. Materialize for the worker's runtime (CLAUDE.md, Gemini config, etc.).
+1. Fetch the loadout bundle if not cached (MAP context get on the loadout URI).
+2. *Optional:* fetch the team bundle if the worker materializes Tier 1+ for this child.
+3. Materialize for the worker's runtime.
 4. Boot the child agent.
-5. Child emits `agent_registered { team, role, label, agentId }`.
+5. Child registers with MAP, including the metadata fields above.
 6. Worker marks the spawn task `completed`, with `meta.agentId` filled in.
 
-The orchestrator's `TeamState` updates via the existing event path — no custom dispatch protocol needed.
+The orchestrator's `TeamState` (if it has one) sees the agent come up via MAP's agent events — no custom dispatch protocol needed.
 
-### Loadout-only dispatch (ad-hoc)
+### Loadout-only dispatch (the common case)
 
-The same task shape works without a team:
+The spawn task without `team` and `role` is the dominant flow for ad-hoc and leaf agents:
 
 ```jsonc
 {
@@ -177,40 +183,40 @@ The same task shape works without a team:
 }
 ```
 
-No `team` field → the spawned agent is a free-standing agent with that loadout's capabilities. Useful for one-shot tools.
+The spawned agent is free-standing with that loadout's capabilities. No team manifestation on either side.
 
 ## The Client Interface
 
-A single `MAPTeamClient` interface modeled on opentasks's `MAPTaskClient`. Methods are minimal; capabilities are advertised by which methods are implemented.
+A single `MAPTeamClient` interface modeled on opentasks's `MAPTaskClient`. Methods are minimal; capabilities are advertised by which methods are implemented. Most agents only use `getLoadout`.
 
 ```typescript
 interface MAPTeamClient {
-  // Bundles (over MAP context)
-  getTeam(uri: string): Promise<TeamBundle>;
+  // Loadouts (the common case)
   getLoadout(uri: string): Promise<LoadoutBundle>;
-  publishTeam?(bundle: TeamBundle): Promise<void>;
   publishLoadout?(bundle: LoadoutBundle): Promise<void>;
+
+  // Teams (coordinators only)
+  getTeam?(uri: string): Promise<TeamBundle>;
+  publishTeam?(bundle: TeamBundle): Promise<void>;
+
+  // Bundle update notifications (optional, for hot-reload observers)
   onBundleEvent?(callback: (event: BundleEvent) => void): () => void;
 
   // Spawn dispatch (over MAP task)
   requestSpawn?(req: SpawnRequest): Promise<SpawnResult>;
   onSpawnRequest?(callback: (req: SpawnRequest) => void): () => void;
-
-  // Member lifecycle (already MAP-aligned)
-  emitMemberEvent?(event: TeamEvent): Promise<void>;
-  onMemberEvent?(callback: (event: TeamEvent) => void): () => void;
 }
 ```
 
-Implementations: a MAP SDK `ClientConnection` (hub topology), a `BaseConnection` wrapper (peer topology), or an in-process adapter (same-machine, no network). Same boundary opentasks uses.
+Implementations: a MAP SDK `ClientConnection` (hub), a `BaseConnection` wrapper (peer), or an in-process adapter (same-machine, no network). Same boundary opentasks uses.
 
-Read-only consumers (UI dashboards, observers) implement only the `get*` and `on*` methods. Workers implement `onSpawnRequest` and `emitMemberEvent`. Orchestrators implement `requestSpawn` and `emitMemberEvent`. Publishers implement `publish*`.
+Read-only consumers (UI dashboards) implement only the `get*` and `onBundleEvent` methods. Workers implement `onSpawnRequest`. Orchestrators implement `requestSpawn`. Publishers implement `publish*`.
 
 ## Trust & Hot-Reload
 
 ### Trust: enforcement is consumer policy
 
-When a parent dispatches a loadout granting permissions, the receiving runtime needs a policy. OpenTeams doesn't pick one — it provides the bundle format and lets consumers implement any of:
+When a parent dispatches a loadout granting permissions, the receiving runtime needs a policy. OpenTeams provides the bundle format; consumers implement any of:
 
 | Policy | Means | Cost |
 |---|---|---|
@@ -218,179 +224,179 @@ When a parent dispatches a loadout granting permissions, the receiving runtime n
 | **Parent-attenuating** | Runtime grants `min(parent.perms, loadout.perms)` | Parent must hold every permission it dispatches |
 | **Runtime-policy** | Runtime has its own allow-list; loadout is a request | Most flexible, hardest to reason about |
 
-Bundles carry the *declared* loadout. Runtimes carry the *enforcement policy*. Same separation as `enforcement: permissive | audit | strict` today.
-
-Concretely: `publisher.signature` is opaque to OpenTeams. Hashes are verifiable without trust (recompute and compare). A consumer policy might be "accept any loadout signed by `did:example:alex`" or "only accept hashes pre-registered in `~/.openteams/trusted.json`."
+Bundles carry the *declared* loadout. Runtimes carry the *enforcement policy*. `publisher.signature` is opaque to OpenTeams. Hashes are verifiable without trust.
 
 ### Hot-reload: sticky for v1
 
-**An agent's loadout hash is fixed for its lifetime.** Same rule as team hashes. New spawns pick up new hashes; in-flight agents don't swap.
-
-This avoids mid-execution permission shifts and matches how `TeamState` already validates events per-template. Two agents on different hashes of the "same" team are, for validation purposes, in different teams.
+**An agent's loadout hash is fixed for its lifetime.** New spawns pick up new hashes; in-flight agents don't swap.
 
 A `loadout_published` MAP context update lets observers see a new version exists. Consumers decide whether to drain + respawn:
 
-- **Orchestrator drain pattern.** Stop dispatching under the old hash, let in-flight agents finish, new spawns use the new hash.
-- **Hot-swap (future).** A `hot_reloadable: true` flag on the loadout could allow running agents to fetch new permissions on the next idle boundary. Out of v1.
+- **Orchestrator drain pattern.** Stop dispatching under the old hash, let in-flight finish, new spawns use the new hash.
+- **Hot-swap (future).** A `hot_reloadable: true` flag could allow running agents to fetch new permissions on the next idle boundary. Out of v1.
 
 ## End-to-End Flows
 
-### Flow 1: Cold join
+### Flow 1: Leaf executor lifecycle (the common case)
 
-A new agent boots into a swarm where peers already reference a team it doesn't have.
-
-```
-peers running with team:sha256:9f3a…
-new agent connects to MAP
-
-  ← agent_registered { team: "team:sha256:9f3a…", role: "executor", agentId: … }
-  ← agent_registered { team: "team:sha256:9f3a…", role: "verifier",  agentId: … }
-
-new agent: "I don't have 9f3a"
-  → MAP context get { kind: "openteams.team", hash: "sha256:9f3a…" }
-  ← TeamBundle (cached locally for the session)
-
-new agent: hydrateBundle() → ResolvedTemplate → new TeamState(template)
-new agent: applies buffered events retroactively
-new agent: emits agent_registered + active-team declaration
-```
-
-Buffering during fetch is the consumer's responsibility — `TeamState.applyEvent()` rejects events for unknown teams, so callers must hold them until hydrate completes.
-
-### Flow 2: Cross-runtime spawn
-
-The centering use case, end to end. Orchestrator on Claude Code (machine A) dispatches an executor; worker pool on a different runtime (machine B) materializes it.
+A spawned executor that does its work and exits without ever loading a team.
 
 ```
-orchestrator (machine A, claude-code):
-  has TeamState for team:sha256:9f3a
-  resolves: roles.executor.loadout → ResolvedLoadout (in-memory)
-
-  → MAP task create {
-      meta: {
-        kind:    "openteams.spawn",
-        team:    "team:sha256:9f3a…",
-        role:    "executor",
-        label:   "executor-3",
-        loadout: "team:sha256:9f3a…/loadout/executor",
-        target:  { runtime: "gemini", placement: { zone: "edge" } }
-      }
-    }
-
-worker pool (machine B, gemini runtime) picks up the task:
-  has team bundle? no →
-    ← MAP context get { hash: "sha256:9f3a…" } → TeamBundle
-  resolve loadout URI → ResolvedLoadout
-  materialize for gemini (runtime-specific config)
+worker pool picks up MAP task:
+  ← { meta: { kind: "openteams.spawn", loadout: "loadout:sha256:abc", label: "exec-3", … } }
+  
+  has loadout in cache? no →
+    ← MAP context get { kind: "openteams.loadout", hash: "sha256:abc" }
+    → LoadoutBundle
+  
+  materialize for the worker's runtime
   boot child agent
 
 child agent boots:
-  → agent_registered { team: "team:sha256:9f3a…", role: "executor", label: "executor-3", agentId: "gemini-7" }
+  → MAP agent register {
+      loadout: "loadout:sha256:abc",
+      role:    "executor",          // optional context from spawn task
+      team:    "team:sha256:9f3a",  // optional context from spawn task
+      parent:  "gsd-orchestrator"
+    }
+  
+  agent runs to completion
+  → MAP agent state: in_progress → completed
+  → MAP agent unregister
 
-worker:
-  → MAP task update { taskId: "spawn-executor-3", status: "completed", meta.agentId: "gemini-7" }
-
-orchestrator's TeamState receives the registered event via existing event path
+worker marks spawn task completed
 ```
 
-The orchestrator's dispatch is two MAP calls: create task, await completion. The worker's machinery (fetch, materialize, boot) all happens behind the task lifecycle. Member event validation works unchanged because both sides agree on hash `9f3a`.
+The leaf never fetches the team bundle. Never builds a `TeamState`. Just does its job.
+
+### Flow 2: Coordinator dispatch + manifestation
+
+An orchestrator manifests a team so it can dispatch and route.
+
+```
+orchestrator boots:
+  ← MAP context get { kind: "openteams.team", hash: "sha256:9f3a" } → TeamBundle
+  hydrateBundle() → ResolvedTemplate
+  new TeamState(template)
+  subscribes to MAP agent events for team:sha256:9f3a participants
+
+orchestrator decides to spawn executor-3:
+  resolves locally: roles.executor.loadout → loadout:sha256:abc
+  → MAP task create {
+      meta: {
+        kind: "openteams.spawn",
+        loadout: "loadout:sha256:abc",
+        team:    "team:sha256:9f3a",
+        role:    "executor",
+        label:   "executor-3",
+        target:  { runtime: "gemini" },
+        parent:  "gsd-orchestrator"
+      }
+    }
+
+worker on machine B materializes (Flow 1 path), boots child
+child registers with MAP including loadout/role/team metadata
+
+orchestrator's TeamState picks up the registration via MAP agent events
+(translated by the runtime adapter into a TeamEvent)
+```
+
+The orchestrator is the only side that loads the team bundle. The worker can choose to fetch it (Tier 1) or not (Tier 0) depending on its runtime needs.
 
 ### Flow 3: Loadout republish + drain
 
-Publisher updates a loadout (e.g. adds an MCP server to scope). Running agents stay on the old hash; new spawns pick up the new one.
-
 ```
 state: 5 executors running with loadout:sha256:abc
-       (referenced as team:sha256:9f3a/loadout/executor)
+       (referenced as team:sha256:9f3a/loadout/executor inside team gsd@1.4.0)
 
-publisher republishes:
-  → MAP context publish { kind: "openteams.team", bundle: TeamBundle }
-    new team hash: sha256:bb12 (because embedded loadout changed)
-    new loadout hash: sha256:def
+publisher republishes loadout:
   → MAP context publish { kind: "openteams.loadout", bundle: LoadoutBundle (def) }
-  → alias update: team:gsd@latest now points at sha256:bb12
+  → MAP context publish { kind: "openteams.team",    bundle: TeamBundle (bb12) }
+    (team hash changes because embedded loadout changed)
+  → alias update: team:gsd@latest → team:sha256:bb12
 
-orchestrator (running on 9f3a):
+orchestrator (running on team:9f3a):
   ← bundle event: new team hash for gsd
   policy: drain
   stops dispatching openteams.spawn tasks under team:9f3a
-  in-flight executors finish their work, emit agent_unregistered
-  next dispatch uses team:bb12
+  in-flight executors finish their work, unregister normally
+  next dispatch uses team:bb12 / loadout:def
 
-result: graceful transition, no mid-execution permission changes
+leaf agents see nothing — they're already on their hash, doing their work, will exit normally
 ```
 
-The protocol does nothing special here — this is just the consumer applying the hash-stickiness rule on top of normal MAP context updates.
+The protocol does nothing special here — the consumer applies hash-stickiness on top of normal MAP context updates. Leaf agents are unaffected because they never loaded the team in the first place.
 
 ## Relationship to Existing Runtime
 
-`src/runtime/team-state.ts` already consumes a `ResolvedTemplate` to validate member events. Sync layer adds one step in front:
-
-```
-peer publishes → consumer fetches bundle → consumer hydrates ResolvedTemplate
-                                         → consumer constructs TeamState(template)
-                                         → existing event validation works unchanged
-```
+`src/runtime/team-state.ts` already consumes a `ResolvedTemplate` to validate member events. Sync layer adds one step in front *for coordinators*:
 
 ```typescript
 const bundle = await mapTeamClient.getTeam("team:sha256:9f3a…");
 const template = hydrateBundle(bundle);                    // TeamBundle → ResolvedTemplate
 const team = new TeamState(bundle.name, template);
-mapTeamClient.onMemberEvent((e) => team.applyEvent(e));
+mapAdapter.onAgentEvent((mapEvent) => {
+  const teamEvent = translateAgentEvent(mapEvent);          // MAP event → TeamEvent
+  team.applyEvent(teamEvent);
+});
 ```
 
-For multi-team swarms, a `SwarmState` aggregate routes events by their team URI to the right `TeamState`. `SwarmState` is a future runtime construct — not part of v1 sync.
+`TeamEvent` and `TeamState` stay coordinator-side abstractions. They're not on the wire — they're how a runtime adapter presents MAP agent events to OpenTeams's validation layer.
+
+For multi-team coordinators, a `SwarmState` aggregate routes events by team URI to the right `TeamState`. `SwarmState` is a future construct — not part of v1 sync.
 
 ## What This Is *Not*
 
-- **Not a registry.** OpenTeams stores and references bundles; it doesn't host them. A registry (npm-for-teams) is a separate layer that maps aliases → hashes and serves bytes.
-- **Not federation.** Federation (`docs/federated-teams-design.md`) composes multiple teams into one runtime topology. Sync distributes the *definition* of any single team or loadout. Federation will consume sync once both exist; a federation manifest will likely be its own bundle type.
-- **Not editable state.** Live edits to a published bundle are not a thing. Editing produces a new hash. Aliases can move, hashes cannot.
-- **Not a transport.** OpenTeams ships the bundle format and the `MAPTeamClient` interface. Consumers ship the radio (MAP SDK ClientConnection, BaseConnection wrapper, in-process adapter, etc.).
-- **Not a replacement for `template install`.** `openteams template install <repo>` still works for git-based distribution. Sync is the peer-to-peer/runtime-discovery path; install is the developer-workflow path. They produce the same `ResolvedTemplate`.
-- **Not new protocol.** Bundles ride MAP `context`, spawns ride MAP `task`, member events already align. OpenTeams ships typed payloads on existing primitives.
+- **Not every agent's concern.** Most agents need only their loadout. Team manifestation is for coordinators.
+- **Not a new event protocol.** Member events ride MAP's agent primitives. OpenTeams contributes metadata fields, not new event types.
+- **Not a registry.** OpenTeams stores and references bundles; it doesn't host them. A registry layer (npm-for-loadouts) is separate.
+- **Not federation.** Federation (`docs/federated-teams-design.md`) composes multiple teams into one runtime topology. Sync distributes the *definition* of any single team or loadout. Federation will consume sync once both exist.
+- **Not editable state.** Live edits to a published bundle don't exist. Editing produces a new hash.
+- **Not a transport.** OpenTeams ships the bundle format and the `MAPTeamClient` interface. Consumers ship the radio.
+- **Not a replacement for `template install`.** `openteams template install <repo>` still works for git-based distribution. Sync is the peer-to-peer/runtime path; install is the developer-workflow path. Same `ResolvedTemplate` either way.
 
 ## Proposed Module Layout
 
 ```
 src/sync/
-  bundle.ts          # bundleTeam(template, opts): TeamBundle
-                     # bundleLoadout(loadout, opts): LoadoutBundle
-                     # hydrateBundle(bundle): ResolvedTemplate
+  bundle.ts          # bundleLoadout(loadout, opts): LoadoutBundle
+                     # bundleTeam(template, opts): TeamBundle
                      # hydrateLoadout(bundle): ResolvedLoadout
+                     # hydrateBundle(bundle): ResolvedTemplate
                      # canonicalize() + hash()
   client.ts          # MAPTeamClient interface (abstraction boundary)
   spawn.ts           # SpawnRequest / SpawnResult types,
                      # encode/decode for MAP task meta
-  uri.ts             # parse/format team:sha256:… team:name@version
-                     # team:<hash>/loadout/<name>  loadout:sha256:… loadout:name@version
-  types.ts           # TeamBundle, LoadoutBundle, EmbeddedLoadout, BundleEvent
-  bundle.test.ts     # round-trip: template → bundle → template (deep equal)
-                     # canonicalization: same input, different machines, same hash
-                     # embedded loadout hash matches standalone loadout hash
+  uri.ts             # parse/format loadout:sha256:…  loadout:name@version
+                     # team:sha256:…  team:name@version  team:<hash>/loadout/<name>
+  types.ts           # LoadoutBundle, TeamBundle, EmbeddedLoadout, BundleEvent,
+                     # AgentMetadata (the metadata fields on MAP registration)
+  bundle.test.ts     # round-trip tests, canonicalization tests, hash equivalence tests
 ```
 
-No transport code in `src/sync/` — MAP wiring lives in the consumer. OpenTeams ships the bundle format, the URI scheme, the spawn payload schema, and the client interface; consumers ship the radio.
+No transport code in `src/sync/` — MAP wiring lives in the consumer.
 
 ## Open Questions
 
-1. **Prompt bodies inline vs. by-reference.** Inline keeps bundles self-contained at the cost of size. By-reference (each prompt is its own hash, bundle holds references) enables dedup across teams that share prompts. Recommendation: inline for v1.
-2. **MCP server refs (`{ ref: "@org/foo" }`).** Bundles travel between machines whose MCP registries differ. `findMissingMcpReferences()` should run at hydrate time and surface warnings in `ValidationResult`. Non-fatal.
-3. **Extension namespaces** (`macro_agent:`, `gsd:`, etc.). Stay opaque — that's the existing contract. The bundle format passes them through verbatim.
-4. **Active-team declaration.** Does an agent need a separate "I'm currently on team X" message, or is it enough to put `team`/`role` in MAP agent metadata + every member event? Probably the latter; revisit if multi-team agents become common.
-5. **Alias resolution.** Who resolves `team:gsd@1.4.0` → hash? Out of scope for v1. Aliases are publisher-asserted in the bundle's MAP context metadata; consumers cache locally. A registry layer above OpenTeams can add authoritative resolution.
-6. **Materialization caching.** Worker pools repeatedly spawn under the same `(loadout_hash, runtime)` pair. Cache the runtime-specific config keyed on that pair? Likely a worker-side concern, not a bundle concern.
-7. **Spawn task standardization.** Should `meta.kind: openteams.spawn` be a versioned schema with its own JSON Schema in `schema/`? Probably yes once a second consumer adopts it.
+1. **Communication context.** Tier 1 agents (self-validate own emissions) need their role's subscriptions/emissions slice. *Resolved:* communication context flows through other channels — not folded into the loadout. OpenTeams stays config/permissions-focused; comms is a separate concern.
+2. **Optional `team` field on agent registration.** *Resolved:* keep it optional. Agents include it when convenient; coordinators reconstruct membership from spawn task `meta.team` otherwise.
+3. **Agent-to-team mapping.** *Resolved:* MAP's job, not OpenTeams's. Agent registration and discovery live in MAP; OpenTeams just contributes metadata payloads.
+4. **Standalone-loadout dispatch as the general case.** *Resolved:* yes. Leaf agents are the dominant flow; team-context fields on the spawn task are optional.
+5. **Prompt bodies inline vs. by-reference.** Inline keeps bundles self-contained at the cost of size. By-reference enables dedup. Recommendation: inline for v1.
+6. **MCP server refs (`{ ref: "@org/foo" }`).** Bundles travel between machines whose MCP registries differ. `findMissingMcpReferences()` should run at hydrate time and surface warnings non-fatally.
+7. **Materialization caching.** Worker-side concern. A worker repeatedly spawning under `(loadout_hash, runtime)` should cache its rendered config. Not a bundle concern.
+8. **Spawn task standardization.** Should `meta.kind: openteams.spawn` get a versioned JSON Schema in `schema/`? Probably yes once a second consumer adopts it.
 
 ## Minimal v1 Scope
 
 What's needed to make the centering use case work end-to-end:
 
-1. `bundleTeam()` + `bundleLoadout()` + `hydrateBundle()` + `hydrateLoadout()` + canonical hash, with round-trip tests.
-2. `TeamBundle`, `LoadoutBundle`, `EmbeddedLoadout`, `SpawnRequest` types in `src/sync/types.ts`, exported from `src/index.ts`.
-3. `MAPTeamClient` interface in `src/sync/client.ts` — interface only, no implementations.
-4. URI parser/formatter for the four shapes (team-hash, team-alias, loadout-hash, loadout-alias, plus team-relative loadout path).
-5. CLI: `openteams bundle <template-dir>` → writes `<hash>.teambundle.json`. `openteams bundle-loadout <template-dir> <loadout-name>` → writes `<hash>.loadoutbundle.json`.
-6. Worked example: `examples/loadout-demo` bundled and hydrated, round-trip equal.
+1. `bundleLoadout()` + `hydrateLoadout()` + canonical hash, with round-trip tests. **Loadout is the core deliverable.**
+2. `bundleTeam()` + `hydrateBundle()` for coordinators, with round-trip tests. Embedded loadout hash equals standalone loadout hash (verified by test).
+3. URI parser/formatter for loadout and team URI shapes.
+4. `LoadoutBundle`, `TeamBundle`, `EmbeddedLoadout`, `SpawnRequest`, `AgentMetadata` types in `src/sync/types.ts`, exported from `src/index.ts`.
+5. `MAPTeamClient` interface in `src/sync/client.ts` — interface only, no implementations.
+6. CLI: `openteams bundle-loadout <template-dir> <loadout-name>` → `<hash>.loadoutbundle.json`. `openteams bundle <template-dir>` → `<hash>.teambundle.json`.
+7. Worked example: `examples/loadout-demo` round-trips through both bundle types.
 
-Everything else — registries, signatures, hot-swap, transport implementations, federation bundles, `SwarmState` — stays out until a consumer needs it.
+Everything else — registries, signatures, hot-swap, transport implementations, federation bundles, `SwarmState`, communication-context publishing — stays out until a consumer needs it.
