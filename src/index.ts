@@ -125,6 +125,28 @@ export type {
 export { generateFederatedSkillMd, generateBridgeContext } from "./generators/federation-generator";
 export type { FederationSkillOptions } from "./generators/federation-generator";
 
+// Sync — bundle format and helpers (MAP Resource Protocol)
+export {
+  canonicalize,
+  hash,
+  bundleLoadout,
+  hydrateLoadout,
+  verifyHash,
+  computeLoadoutId,
+} from "./sync/bundle";
+export {
+  LOADOUT_RESOURCE_TYPE,
+  TEAM_RESOURCE_TYPE,
+} from "./sync/types";
+export type {
+  MAPResource,
+  LoadoutResource,
+  LoadoutResourceMetadata,
+  BundleLoadoutOptions,
+  BundlePublisher,
+  BundleVersion,
+} from "./sync/types";
+
 // Runtime state observation
 export { MemberRegistry } from "./runtime/member-registry";
 export { TeamState } from "./runtime/team-state";
