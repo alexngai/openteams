@@ -171,3 +171,128 @@ export interface BundleTeamOptions {
 
 export const LOADOUT_RESOURCE_TYPE = "x-openteams/loadout" as const;
 export const TEAM_RESOURCE_TYPE = "x-openteams/team" as const;
+
+export type OpenTeamsResourceType =
+  | typeof LOADOUT_RESOURCE_TYPE
+  | typeof TEAM_RESOURCE_TYPE;
+
+// ─────────────────────────────────────────────────────────────
+// Resource reference (parsed URI-like string)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Parsed form of a resource reference such as
+ * `x-openteams/loadout:sha256:abc…` or `x-openteams/team:gsd@1.4.0`.
+ *
+ * The string form is `<type>:<id>` where `<type>` is the namespaced
+ * MAP resource type and `<id>` is the kind-defined identifier
+ * (content hash or `<name>@<version>` alias).
+ */
+export interface ResourceRef {
+  type: OpenTeamsResourceType;
+  id: string;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Spawn dispatch (MAP task meta payload)
+// ─────────────────────────────────────────────────────────────
+
+/** Discriminator value for spawn-dispatch tasks. */
+export const SPAWN_KIND = "openteams.spawn" as const;
+
+export interface SpawnTarget {
+  /** Target runtime, e.g. "claude-code", "gemini". */
+  runtime?: string;
+  /** Logical placement hints. Opaque to OpenTeams. */
+  placement?: Record<string, unknown>;
+  /** Extension namespaces — consumers may attach runtime-specific fields. */
+  [key: string]: unknown;
+}
+
+/**
+ * Application-level spawn request shape used by orchestrators and
+ * worker pools. Travels on the wire as `MAPTask.meta` after passing
+ * through `encodeSpawnTaskMeta`.
+ */
+export interface SpawnRequest {
+  /** Loadout reference, stringified (e.g. `x-openteams/loadout:sha256:…`). */
+  loadout: string;
+  /** Optional label for the spawned agent. */
+  label?: string;
+  /** Optional team reference, stringified. Present in team-context spawns. */
+  team?: string;
+  /** Optional role name from the team. */
+  role?: string;
+  /** Target runtime + placement hints. */
+  target?: SpawnTarget;
+  /** Spawning agent's MAP id. */
+  parent?: string;
+}
+
+/** Wire form of `SpawnRequest` carried in `MAPTask.meta`. */
+export interface SpawnTaskMeta {
+  kind: typeof SPAWN_KIND;
+  loadout: string;
+  label?: string;
+  team?: string;
+  role?: string;
+  target?: SpawnTarget;
+  parent?: string;
+  /** Set on completion: the spawned agent's id. */
+  agentId?: string;
+}
+
+/** Outcome of a spawn task. */
+export interface SpawnResult {
+  /** The MAP task id. */
+  taskId: string;
+  /** Final task status (e.g. "completed", "failed"). */
+  status: string;
+  /** The spawned agent's id, set on successful completion. */
+  agentId?: string;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Agent registration metadata
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Fields an OpenTeams-aware agent attaches to its MAP `Participant.metadata`
+ * at registration. `loadout` is required; the rest are optional team-context
+ * hints that coordinators may use for membership reconstruction.
+ */
+export interface AgentMetadata {
+  /** Loadout reference, stringified. */
+  loadout: string;
+  /** Role name from the team. */
+  role?: string;
+  /** Team reference, stringified. */
+  team?: string;
+  /** Spawning agent's id. */
+  parent?: string;
+  /** Extension namespaces — consumers may attach runtime-specific fields. */
+  [key: string]: unknown;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Bundle lifecycle events (per MAP Resource Protocol §Events)
+// ─────────────────────────────────────────────────────────────
+
+export type BundleEventType =
+  | "resource.added"
+  | "resource.updated"
+  | "resource.removed";
+
+/**
+ * Lifecycle event payload for an OpenTeams resource. Conforms to the
+ * `ResourceEvent` shape in the MAP Resource Protocol spec, constrained
+ * to OpenTeams resource types.
+ */
+export interface BundleEvent {
+  type: BundleEventType;
+  resource_type: OpenTeamsResourceType;
+  resource_id: string;
+  resource_name: string;
+  origin_hub_id: string | null;
+  timestamp: string;
+}

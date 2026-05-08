@@ -139,8 +139,23 @@ export {
   computeTeamId,
 } from "./sync/bundle";
 export {
+  parseRef,
+  formatRef,
+  isHashId,
+  isAliasId,
+  splitAliasId,
+  loadoutRef,
+  teamRef,
+} from "./sync/uri";
+export {
+  encodeSpawnTaskMeta,
+  decodeSpawnTaskMeta,
+  isSpawnTaskMeta,
+} from "./sync/spawn";
+export {
   LOADOUT_RESOURCE_TYPE,
   TEAM_RESOURCE_TYPE,
+  SPAWN_KIND,
 } from "./sync/types";
 export type {
   MAPResource,
@@ -153,7 +168,17 @@ export type {
   BundleTeamOptions,
   BundlePublisher,
   BundleVersion,
+  OpenTeamsResourceType,
+  ResourceRef,
+  SpawnRequest,
+  SpawnTaskMeta,
+  SpawnResult,
+  SpawnTarget,
+  AgentMetadata,
+  BundleEvent,
+  BundleEventType,
 } from "./sync/types";
+export type { OpenTeamsClient } from "./sync/client";
 
 // Runtime state observation
 export { MemberRegistry } from "./runtime/member-registry";
