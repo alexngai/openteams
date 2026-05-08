@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { createTemplateCommands } from "./cli/template";
 import { createGenerateCommands } from "./cli/generate";
 import { createLoadoutCommands } from "./cli/loadout";
+import { createBundleCommands } from "./cli/bundle";
 import { createEditorCommand } from "./cli/editor";
 
 const program = new Command();
@@ -16,6 +17,7 @@ program
 program.addCommand(createTemplateCommands());
 program.addCommand(createGenerateCommands());
 program.addCommand(createLoadoutCommands());
+program.addCommand(createBundleCommands());
 program.addCommand(createEditorCommand());
 
 program.parseAsync(process.argv).catch((err) => {
