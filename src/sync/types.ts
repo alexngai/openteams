@@ -9,7 +9,14 @@
 // See docs/team-map-sync-design.md for the design and
 // docs/map-integration.md for the wiring path.
 
-import type { ResolvedLoadout } from "../template/types";
+import type {
+  McpProviderSpec,
+  McpServerEntry,
+  ResolvedLoadout,
+  ResolvedPrompts,
+  ResolvedRole,
+  TeamManifest,
+} from "../template/types";
 
 // ─────────────────────────────────────────────────────────────
 // MAP Resource envelope (matches Resource Protocol v1)
@@ -77,11 +84,59 @@ export interface LoadoutResource extends MAPResource<LoadoutResourceMetadata> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Team resource (x-openteams/team)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * A loadout embedded inside a team bundle. The `id` is the standalone
+ * loadout hash (matches the result of `bundleLoadout(resolved).id`),
+ * which lets a coordinator address the same loadout independently of
+ * the team it was discovered in.
+ */
+export interface EmbeddedLoadout {
+  /** Standalone loadout content hash. */
+  id: string;
+  /** Resolved loadout content. */
+  resolved: ResolvedLoadout;
+}
+
+/**
+ * Metadata payload for an x-openteams/team resource.
+ *
+ * Hash inputs: `bundleVersion`, `type`, `name`, `manifest`, `roles`,
+ * loadout id refs (not full content), `prompts`, `mcpServers`.
+ *
+ * Excluded from hash: `version`, `publisher`, `description`, `tags`.
+ *
+ * `mcpProviders` is not stored separately — it is reconstructed from
+ * `manifest.mcp_providers` at hydrate time.
+ */
+export interface TeamResourceMetadata {
+  bundleVersion: BundleVersion;
+  /** Author-controlled semver label. Excluded from hash. */
+  version: string;
+  manifest: TeamManifest;
+  roles: Record<string, ResolvedRole>;
+  loadouts: Record<string, EmbeddedLoadout>;
+  prompts: Record<string, ResolvedPrompts>;
+  /** Legacy role-level MCP server entries (from roles/<name>.yaml). */
+  mcpServers: Record<string, McpServerEntry[]>;
+  publisher?: BundlePublisher;
+  description?: string;
+  tags?: string[];
+}
+
+/** A MAPResource of type "x-openteams/team". */
+export interface TeamResource extends MAPResource<TeamResourceMetadata> {
+  type: "x-openteams/team";
+}
+
+// ─────────────────────────────────────────────────────────────
 // Bundling options
 // ─────────────────────────────────────────────────────────────
 
 export interface BundleLoadoutOptions {
-  /** Author-controlled semantic version. */
+  /** Author-controlled semver label. Excluded from hash. */
   version: string;
   /** Defaults to `resolved.name`. */
   name?: string;
@@ -92,6 +147,21 @@ export interface BundleLoadoutOptions {
   tags?: string[];
   publisher?: BundlePublisher;
   /** ISO-8601 timestamp for `created_at`/`updated_at`. Defaults to now. Excluded from hash. */
+  timestamp?: string;
+}
+
+export interface BundleTeamOptions {
+  /** Author-controlled semver label. Excluded from hash. */
+  version: string;
+  /** Defaults to `template.manifest.name`. */
+  name?: string;
+  /** Owning agent/user id. Defaults to empty string. */
+  ownerId?: string;
+  /** Optional descriptive metadata — excluded from hash. */
+  description?: string;
+  tags?: string[];
+  publisher?: BundlePublisher;
+  /** ISO-8601 timestamp. Defaults to now. Excluded from hash. */
   timestamp?: string;
 }
 

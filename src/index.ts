@@ -133,6 +133,10 @@ export {
   hydrateLoadout,
   verifyHash,
   computeLoadoutId,
+  bundleTeam,
+  hydrateBundle,
+  verifyTeamHash,
+  computeTeamId,
 } from "./sync/bundle";
 export {
   LOADOUT_RESOURCE_TYPE,
@@ -142,7 +146,11 @@ export type {
   MAPResource,
   LoadoutResource,
   LoadoutResourceMetadata,
+  TeamResource,
+  TeamResourceMetadata,
+  EmbeddedLoadout,
   BundleLoadoutOptions,
+  BundleTeamOptions,
   BundlePublisher,
   BundleVersion,
 } from "./sync/types";
