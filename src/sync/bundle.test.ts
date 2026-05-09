@@ -51,6 +51,27 @@ describe("canonicalize", () => {
     expect(canonicalize({ p: "a\r\nb" })).toBe('{"p":"a\\nb"}');
   });
 
+  it("normalizes Unicode to NFC so NFD and NFC equivalents canonicalize equally", () => {
+    // "café" in NFD: c, a, f, e + combining acute → 5 code points
+    // "café" in NFC: c, a, f, é → 4 code points
+    const nfd = "café";
+    const nfc = "café";
+    expect(nfd).not.toBe(nfc); // different byte sequences pre-normalization
+    expect(canonicalize(nfd)).toBe(canonicalize(nfc));
+    expect(canonicalize({ name: nfd })).toBe(canonicalize({ name: nfc }));
+  });
+
+  it("preserves trailing whitespace (markdown line breaks use two trailing spaces)", () => {
+    // Markdown: a line ending in two spaces produces a <br>. Trimming would corrupt this.
+    expect(canonicalize("line  \nnext")).toBe('"line  \\nnext"');
+    expect(canonicalize({ p: "trailing   " })).toBe('{"p":"trailing   "}');
+  });
+
+  it("emits null distinctly from omitted-undefined", () => {
+    expect(canonicalize({ a: null })).toBe('{"a":null}');
+    expect(canonicalize({ a: undefined })).toBe("{}");
+  });
+
   it("treats Maps as plain objects with sorted keys", () => {
     const m = new Map<string, number>();
     m.set("b", 2);

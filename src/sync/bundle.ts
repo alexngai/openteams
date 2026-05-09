@@ -35,8 +35,14 @@ import {
  *   - Map keys sorted; Maps treated as plain objects.
  *   - Array order preserved (order is meaningful).
  *   - Properties whose value is `undefined` are omitted.
+ *   - String values normalized to **NFC Unicode** so that the same
+ *     accented character produced on macOS (often NFD) and Linux
+ *     (NFC) yields identical bytes — load-bearing for cross-machine
+ *     hash determinism.
  *   - String line endings normalized: `\r\n` → `\n`.
- *   - All other content preserved verbatim (no trimming).
+ *   - Trailing whitespace is **not** trimmed. Markdown line breaks
+ *     are encoded as two trailing spaces; trimming would corrupt
+ *     prompt bodies.
  */
 export function canonicalize(value: unknown): string {
   return JSON.stringify(canonicalizeValue(value));
@@ -46,7 +52,7 @@ function canonicalizeValue(value: unknown): unknown {
   if (value === null || value === undefined) return value;
 
   if (typeof value === "string") {
-    return value.replace(/\r\n/g, "\n");
+    return value.normalize("NFC").replace(/\r\n/g, "\n");
   }
 
   if (typeof value !== "object") return value;

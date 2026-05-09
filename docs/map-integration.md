@@ -22,11 +22,12 @@ src/sync/
                    ResourceKindHandler (local copy matching the spec)
   bundle.ts      — bundleLoadout / bundleTeam / hydrateLoadout / hydrateBundle
                    canonicalize, hash, verifyHash. Pure functions.
-  handlers.ts    — createLoadoutKindHandler({ store }): ResourceKindHandler
-                   createTeamKindHandler({ store }): ResourceKindHandler
-                   InMemoryBundleStore — reference implementation
-                   wireOpenTeamsHandlers(server, handlers): () => void
-  client.ts      — OpenTeamsClient(mapClient): typed getLoadout / getTeam,
+  handlers.ts    — createLoadoutKindHandler({ store, emit? }): ResourceKindHandler
+                   createTeamKindHandler({ store, emit? }): ResourceKindHandler
+                   composeResourceHandlers(handlers): { handlers, kinds }
+  store.ts       — InMemoryBundleStore — reference implementation of BundleStore
+  client.ts      — createOpenTeamsClient(mapClient, { events? }): OpenTeamsClient
+                   typed getLoadout / getTeam / publishLoadout / publishTeam,
                    thin wrapper over map/resources/get + event bus subscribe
   spawn.ts       — encode/decode for MAP task meta
 ```
@@ -36,47 +37,52 @@ Everything in `src/sync/` is either a pure function or accepts an existing MAP s
 ### How a hub integrates
 
 ```typescript
-import { MAPServer } from "@multi-agent-protocol/sdk";
+import { MAPServer } from "@multi-agent-protocol/sdk/server";
 import {
-  wireOpenTeamsHandlers,
+  composeResourceHandlers,
   createLoadoutKindHandler,
   createTeamKindHandler,
   InMemoryBundleStore,
 } from "@openteams/sync";
 
-const server = new MAPServer({ /* ... */ });
 const store = new InMemoryBundleStore();    // or your own backend
-
-const unwire = wireOpenTeamsHandlers(server, [
+const composed = composeResourceHandlers([
   createLoadoutKindHandler({ store }),
   createTeamKindHandler({ store }),
 ]);
+
+const server = new MAPServer({
+  capabilities: { resources: { enabled: true, kinds: composed.kinds } },
+  additionalHandlers: composed.handlers,
+});
 ```
 
-`wireOpenTeamsHandlers` does four things:
+`composeResourceHandlers` is a pure function:
 
-1. Installs `map/resources/list` and `map/resources/get` as additional handlers if not already present. If they exist (another kind package wired itself first), it **wraps** the existing handler: requests for `x-openteams/*` types route to OpenTeams handlers, others fall through.
-2. Installs `x-openteams/loadout/publish` and `x-openteams/team/publish` as additional handlers.
-3. Adds `x-openteams/loadout` and `x-openteams/team` to `capabilities.resources.kinds`.
-4. Returns `unwire()` which removes everything.
+1. Returns a `handlers` map ready for `MAPServer.additionalHandlers`. The `map/resources/list` and `map/resources/get` entries route by `params.type` to the registered kind handler.
+2. For each kind handler that exposes `publish`, installs a `<type>/publish` method.
+3. Returns the `kinds` array to advertise via `capabilities.resources.kinds`.
+4. Throws on duplicate kind registration.
+
+Hubs that already register `map/resources/list` / `get` themselves (e.g. for non-OpenTeams kinds) compose their own handler maps; they pick the routing strategy that fits their setup.
 
 ### How an agent fetches
 
 ```typescript
-import { OpenTeamsClient } from "@openteams/sync";
+import { createOpenTeamsClient } from "@openteams/sync";
 
-const client = new OpenTeamsClient(mapClient);
-const loadout  = await client.getLoadout("sha256:abc");      // → ResolvedLoadout
-const template = await client.getTeam("sha256:9f3a");        // → ResolvedTemplate
+const client = createOpenTeamsClient(mapClient, { events: mapClient });
+const loadout  = await client.getLoadout("sha256:abc");      // → LoadoutResource
+const template = await client.getTeam!("sha256:9f3a");       // → TeamResource
 
-const unsub = client.onBundleEvent((evt) => {
+const unsub = client.onBundleEvent!((evt) => {
   if (evt.resource_type === "x-openteams/loadout" && evt.type === "resource.updated") {
     // …
   }
 });
 ```
 
-`OpenTeamsClient` is ~50 lines: `getLoadout` calls `map/resources/get { type, id }` and hydrates the result; `onBundleEvent` subscribes to the SDK's existing event bus and filters client-side.
+`createOpenTeamsClient` returns an `OpenTeamsClient` whose methods wrap typed calls into `map/resources/get` and the kind-specific `<type>/publish` methods. Pass `events` to enable `onBundleEvent`, `onSpawnRequest`, and `requestSpawn`'s completion-waiting behavior; without it those methods are omitted (or `requestSpawn` resolves immediately with `status: "open"`).
 
 ### Events without SDK helpers
 

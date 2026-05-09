@@ -68,8 +68,7 @@ The resource every spawned agent receives, directly or by reference. Its `metada
   "metadata": {
     "bundleVersion": 1,
     "version":       "2.0.0",
-    "resolved":      { /* ResolvedLoadout */ },
-    "promptAddendum": "...",
+    "resolved":      { /* ResolvedLoadout — includes promptAddendum, capabilities, mcpScope, etc. */ },
     "tags":          ["research"],
     "publisher":     { "id": "did:example:alex", "signature": "..." },
     "description":   "Code reviewer loadout"
@@ -96,24 +95,23 @@ What orchestrators, bridges, and observers load to reason about topology, channe
   "metadata": {
     "bundleVersion": 1,
     "version":       "1.4.0",
-    "manifest":      { /* ResolvedTemplate manifest */ },
+    "manifest":      { /* TeamManifest, including mcp_providers */ },
     "roles":         { /* Record<string, ResolvedRole> */ },
     "loadouts":      {
-      "executor": { "id": "sha256:abc…", "embeddedHash": "sha256:abc…" }
+      "executor": { "id": "sha256:abc…", "resolved": { /* ResolvedLoadout */ } }
     },
-    "prompts":       { /* path → markdown */ },
-    "skillCatalog":  "...",
-    "rolePrompts":   { /* role name → ROLE.md */ },
+    "prompts":       { /* role → ResolvedPrompts */ },
+    "mcpServers":    { /* role → McpServerEntry[] (legacy role-level) */ },
     "publisher":     { "id": "did:example:alex" }
   }
 }
 ```
 
-Embedded loadout entries reference `x-openteams/loadout` resources by id. The team-internal references are *advisory* — a hydrating coordinator can use them as cache hints, but the canonical form lives in the standalone loadout resources.
+Each `loadouts[<name>]` entry carries a content hash (`id`) that equals what `bundleLoadout(resolved).id` produces standalone — the same loadout addressed two ways resolves to the same hash. `mcpProviders` is reconstructed at hydrate time from `manifest.mcp_providers`. Skill catalogs and rendered ROLE prompts are not embedded; consumers regenerate them from the hydrated template via `generateCatalog(template)` / `generateAgentPrompts(template)` if needed.
 
 ### Canonicalization
 
-Hashes are computed over a canonical JSON serialization of the bundle payload (the `metadata` field plus version/name): sorted keys, normalized line endings (LF), trimmed trailing whitespace in prompt bodies, stable iteration order. Hashes exclude `created_at`, `updated_at`, `owner_id`, `origin_hub_id`, `publisher`, and `description`. Same template on different machines ⇒ same hash.
+Hashes are computed over a canonical JSON serialization of the bundle payload: sorted keys, stable array order, properties whose value is `undefined` omitted, **strings normalized to NFC Unicode** (so the same accented character produced on macOS NFD and Linux NFC hashes the same), and CRLF line endings normalized to LF. Trailing whitespace is **not** trimmed — Markdown encodes line breaks as two trailing spaces, and trimming would corrupt prompt bodies. Hashes exclude descriptive metadata (`description`, `tags`, `publisher`), the author-controlled `version` label, lifecycle fields (`status`, `created_at`, `updated_at`, `owner_id`, `origin_hub_id`), and (for teams) `mcpProviders` which is reconstructed from `manifest.mcp_providers` at hydrate time. Same template on different machines ⇒ same hash.
 
 ## Spawn dispatch via MAP task
 
@@ -179,18 +177,25 @@ OpenTeams does **not define new agent events**. The `TeamEvent` types in `src/ru
 For each kind, OpenTeams exports a handler factory that hubs register with the MAP SDK:
 
 ```typescript
-import { createLoadoutKindHandler, createTeamKindHandler } from "@openteams/sync";
+import { MAPServer } from "@multi-agent-protocol/sdk/server";
+import {
+  composeResourceHandlers,
+  createLoadoutKindHandler,
+  createTeamKindHandler,
+} from "@openteams/sync";
 
-const handlers = [
+const composed = composeResourceHandlers([
   createLoadoutKindHandler({ store: myLoadoutStore }),
   createTeamKindHandler({ store: myTeamStore }),
-];
+]);
 
-// Register with MAP SDK (after the SDK additions described below):
-mapServer.registerResourceKinds(handlers);
+const server = new MAPServer({
+  capabilities: { resources: { enabled: true, kinds: composed.kinds } },
+  additionalHandlers: composed.handlers,
+});
 ```
 
-The handler implements `list`, `get`, validation, and (optionally) write methods. Storage backend is hub-defined — OpenTeams ships an in-memory reference implementation; production hubs wire their own.
+`composeResourceHandlers` is a pure function that returns a method-handler map suitable for `MAPServer.additionalHandlers` plus the `kinds` list for the capability advertisement. Storage backend is hub-defined — OpenTeams ships an in-memory reference (`InMemoryBundleStore`); production hubs wire their own. See `docs/map-integration.md` for the full integration walk-through.
 
 ### Kind-specific publish methods
 
@@ -395,7 +400,7 @@ What's needed to make the centering use case work end-to-end:
 3. `LoadoutResource`, `TeamResource`, `SpawnRequest`, `AgentMetadata` types in `src/sync/types.ts`, exported from `src/index.ts`.
 4. `createLoadoutKindHandler` + `createTeamKindHandler` factories with an in-memory reference store.
 5. `OpenTeamsClient` wrapper exposing typed `getLoadout` / `getTeam` over a MAP client.
-6. CLI: `openteams bundle-loadout <template-dir> <loadout-name>` → loadout resource JSON. `openteams bundle <template-dir>` → team resource JSON. `openteams publish --map <ws-url> <bundle.json>` calls the appropriate `<kind>/publish` method.
+6. CLI: `openteams bundle team <template-dir>` → team resource JSON; `openteams bundle loadout <template-dir> <loadout-name>` → loadout resource JSON; `openteams bundle verify <file>` recomputes and reports. Network publish is left to consumers — they call `OpenTeamsClient.publishLoadout` / `publishTeam` against their MAP setup.
 7. Worked example: `examples/loadout-demo` round-trips through both kinds.
 
 Independent of any MAP SDK changes — see [`docs/map-integration.md`](./map-integration.md). All phases can start now.
