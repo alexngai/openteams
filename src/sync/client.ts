@@ -13,6 +13,8 @@
 //
 // See docs/map-integration.md for the wiring path.
 
+import { randomUUID } from "node:crypto";
+
 import { decodeSpawnTaskMeta, encodeSpawnTaskMeta } from "./spawn";
 import { parseRef } from "./uri";
 import {
@@ -122,19 +124,22 @@ export function createOpenTeamsClient(
 
   // ── Spawn dispatch (orchestrator side) ───────────────────────
   client.requestSpawn = async (req: SpawnRequest): Promise<SpawnResult> => {
-    const created = await mapClient.call<{ task: { id: string } }>(
-      "map/tasks/create",
-      { task: { status: "open", meta: encodeSpawnTaskMeta(req) } }
-    );
-    const taskId = created.task.id;
+    // Generate the task id client-side so the completion listener can
+    // filter on it *before* the task.create call's events fire. Without
+    // this, a worker that flips status synchronously in one update call
+    // can race ahead of the listener registration.
+    const taskId = `spawn-${randomUUID()}`;
 
     if (!options.events) {
       // No subscription: caller has to track completion themselves.
+      await mapClient.call("map/tasks/create", {
+        task: { id: taskId, status: "open", meta: encodeSpawnTaskMeta(req) },
+      });
       return { taskId, status: "open" };
     }
 
     const subscribable = options.events;
-    return new Promise<SpawnResult>((resolve) => {
+    const completion = new Promise<SpawnResult>((resolve) => {
       const unsub = subscribable.on((event) => {
         const data = event.data as
           | { taskId?: string; current?: string; task?: { meta?: { agentId?: string } } }
@@ -156,6 +161,11 @@ export function createOpenTeamsClient(
         }
       });
     });
+
+    await mapClient.call("map/tasks/create", {
+      task: { id: taskId, status: "open", meta: encodeSpawnTaskMeta(req) },
+    });
+    return completion;
   };
 
   if (options.events) {

@@ -339,7 +339,7 @@ describe("integration: spawn lifecycle (orchestrator + worker)", () => {
 
     expect(result.status).toBe("completed");
     expect(result.agentId).toBe("child-of-reviewer-1");
-    expect(result.taskId).toMatch(/^task-\d+$/);
+    expect(result.taskId).toMatch(/^spawn-/);
   });
 
   it("worker filters task.created events with non-spawn meta", async () => {
@@ -378,6 +378,84 @@ describe("integration: spawn lifecycle (orchestrator + worker)", () => {
       loadout: "x-openteams/loadout:sha256:abc",
     });
     expect(result.status).toBe("open");
-    expect(result.taskId).toMatch(/^task-\d+$/);
+    expect(result.taskId).toMatch(/^spawn-/);
+  });
+
+  it("orchestrator sees status=failed when worker marks task failed", async () => {
+    const setup = makeServerAndClient();
+
+    // Worker side: mark every spawn task as failed
+    const unsub = setup.client.onSpawnRequest!(async (_req, taskId) => {
+      await setup.server.call("map/tasks/update", { taskId, status: "failed" });
+    });
+
+    const result = await setup.client.requestSpawn!({
+      loadout: "x-openteams/loadout:sha256:abc",
+      label: "fail-me",
+    });
+
+    unsub();
+    expect(result.status).toBe("failed");
+    expect(result.agentId).toBeUndefined();
+  });
+
+  it("orchestrator sees status=cancelled when worker marks task cancelled", async () => {
+    const setup = makeServerAndClient();
+
+    const unsub = setup.client.onSpawnRequest!(async (_req, taskId) => {
+      await setup.server.call("map/tasks/update", { taskId, status: "cancelled" });
+    });
+
+    const result = await setup.client.requestSpawn!({
+      loadout: "x-openteams/loadout:sha256:abc",
+      label: "cancel-me",
+    });
+
+    unsub();
+    expect(result.status).toBe("cancelled");
+  });
+});
+
+describe("integration: resource removal", () => {
+  it("emits resource.removed and the resource is no longer fetchable", async () => {
+    const setup = makeServerAndClient();
+    const reviewer = TemplateLoader.load(LOADOUT_DEMO_DIR).loadouts.get("code-reviewer")!;
+    const bundle = bundleLoadout(reviewer, { version: "1.0.0", name: "code-reviewer" });
+
+    const events: BundleEvent[] = [];
+    const unsub = setup.client.onBundleEvent!((e) => events.push(e));
+
+    await setup.client.publishLoadout!(bundle);
+    expect(events.at(-1)?.type).toBe("resource.added");
+
+    // Call <type>/remove via the underlying mapClient — not a typed
+    // method on OpenTeamsClient (yet), but the handler is registered.
+    const result = await setup.server.call<{ removed: boolean }>(
+      `${LOADOUT_RESOURCE_TYPE}/remove`,
+      { id: bundle.id }
+    );
+    expect(result.removed).toBe(true);
+    expect(events.at(-1)?.type).toBe("resource.removed");
+    expect(events.at(-1)?.resource_id).toBe(bundle.id);
+
+    unsub();
+
+    // Subsequent get should fail with not-found
+    await expect(setup.client.getLoadout(bundle.id)).rejects.toThrow(/Not found/);
+  });
+
+  it("returns removed=false for an unknown id and emits no event", async () => {
+    const setup = makeServerAndClient();
+    const events: BundleEvent[] = [];
+    const unsub = setup.client.onBundleEvent!((e) => events.push(e));
+
+    const result = await setup.server.call<{ removed: boolean }>(
+      `${LOADOUT_RESOURCE_TYPE}/remove`,
+      { id: "sha256:" + "0".repeat(64) }
+    );
+    expect(result.removed).toBe(false);
+    expect(events).toHaveLength(0);
+
+    unsub();
   });
 });

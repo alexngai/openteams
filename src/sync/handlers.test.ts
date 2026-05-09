@@ -162,7 +162,9 @@ describe("composeResourceHandlers", () => {
       "map/resources/get",
       "map/resources/list",
       `${LOADOUT_RESOURCE_TYPE}/publish`,
+      `${LOADOUT_RESOURCE_TYPE}/remove`,
       `${TEAM_RESOURCE_TYPE}/publish`,
+      `${TEAM_RESOURCE_TYPE}/remove`,
     ].sort());
   });
 

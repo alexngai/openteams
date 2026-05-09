@@ -74,6 +74,14 @@ export function createLoadoutKindHandler(
       emitLifecycle(opts.emit, existed ? "resource.updated" : "resource.added", stored);
       return stored;
     },
+
+    async remove(id, _ctx) {
+      const existing = await opts.store.get(LOADOUT_RESOURCE_TYPE, id);
+      if (!existing) return false;
+      await opts.store.delete(LOADOUT_RESOURCE_TYPE, id);
+      emitLifecycle(opts.emit, "resource.removed", existing);
+      return true;
+    },
   };
 }
 
@@ -109,6 +117,14 @@ export function createTeamKindHandler(
       const stored = await stampAndPut(opts.store, bundle, now);
       emitLifecycle(opts.emit, existed ? "resource.updated" : "resource.added", stored);
       return stored;
+    },
+
+    async remove(id, _ctx) {
+      const existing = await opts.store.get(TEAM_RESOURCE_TYPE, id);
+      if (!existing) return false;
+      await opts.store.delete(TEAM_RESOURCE_TYPE, id);
+      emitLifecycle(opts.emit, "resource.removed", existing);
+      return true;
     },
   };
 }
@@ -165,6 +181,13 @@ export function composeResourceHandlers(
       methodHandlers[`${handler.type}/publish`] = async (params, ctx) => {
         const p = asPublishParams(params);
         return publishImpl(p.bundle, ctx);
+      };
+    }
+    if (handler.remove) {
+      const removeImpl = handler.remove.bind(handler);
+      methodHandlers[`${handler.type}/remove`] = async (params, ctx) => {
+        const p = asRemoveParams(params);
+        return { removed: await removeImpl(p.id, ctx) };
       };
     }
   }
@@ -299,6 +322,13 @@ function asPublishParams(params: unknown): { bundle: MAPResource } {
     throw new Error("publish requires { bundle: MAPResource }");
   }
   return { bundle: params.bundle as unknown as MAPResource };
+}
+
+function asRemoveParams(params: unknown): { id: string } {
+  if (!isObject(params) || typeof params.id !== "string") {
+    throw new Error("remove requires { id: string }");
+  }
+  return { id: params.id };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

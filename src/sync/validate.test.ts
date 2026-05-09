@@ -153,3 +153,19 @@ describe("validateTeamBundle", () => {
     expect(result.valid).toBe(true);
   });
 });
+
+describe("validators: mixed severity behavior", () => {
+  it("loadout with hash mismatch + missing MCP scope reports both severities", () => {
+    const reviewer = loadDemoTemplate().loadouts.get("code-reviewer")!;
+    const bundle = bundleLoadout(reviewer, { version: "1.0.0", name: "code-reviewer" });
+
+    // Tamper the id (error) AND pass an empty installed set so scope refs
+    // become warnings.
+    const tampered: LoadoutResource = { ...bundle, id: "sha256:" + "0".repeat(64) };
+    const result = validateLoadoutBundle(tampered, { installedMcpServers: [] });
+
+    expect(result.valid).toBe(false);
+    expect(result.violations.some((v) => v.severity === "error")).toBe(true);
+    expect(result.violations.some((v) => v.severity === "warning")).toBe(true);
+  });
+});

@@ -330,8 +330,9 @@ export interface ListResourcesResult<T extends MAPResource = MAPResource> {
  * factories (`createLoadoutKindHandler`, `createTeamKindHandler`) return
  * objects conforming to this interface.
  *
- * `publish` is OpenTeams's kind-specific write convention — see
- * `docs/map-integration.md`. Hubs that don't accept writes can omit it.
+ * `publish` and `remove` are OpenTeams's kind-specific write conventions —
+ * see `docs/map-integration.md`. Hubs that don't accept writes can omit
+ * one or both.
  */
 export interface ResourceKindHandler {
   type: string;
@@ -344,6 +345,8 @@ export interface ResourceKindHandler {
     bundle: MAPResource,
     ctx: ResourceHandlerContext
   ): Promise<MAPResource>;
+  /** Returns true if the resource existed and was removed, false otherwise. */
+  remove?(id: string, ctx: ResourceHandlerContext): Promise<boolean>;
 }
 
 /** Method-handler signature suitable for `MAPServer.additionalHandlers`. */

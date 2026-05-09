@@ -274,6 +274,13 @@ export function verifyTeamHash(resource: TeamResource): boolean {
  *
  * The reconstructed `sourcePath` is empty — it has no meaning across
  * machines. Consumers that need a path can set it after hydrate.
+ *
+ * **Aliasing.** The returned `ResolvedTemplate` wraps the resource's
+ * own object references in fresh `Map`s (it does not deep-copy).
+ * Mutating `hydrated.manifest` or `hydrated.roles.get(name)` mutates
+ * the source `resource.metadata`. If you need an isolated copy,
+ * deep-clone the result yourself or re-hydrate from a fresh JSON
+ * round-trip.
  */
 export function hydrateBundle(resource: TeamResource): ResolvedTemplate {
   if (!verifyTeamHash(resource)) {
