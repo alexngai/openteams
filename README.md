@@ -22,6 +22,7 @@ A definition layer for multi-agent team structures. Define roles, topology, comm
 - [Template System](#template-system)
 - [Loadouts](#loadouts)
 - [Communication Topology](#communication-topology)
+- [Distribution](#distribution)
 - [CLI Command Reference](#cli-command-reference)
 - [Library Usage](#library-usage)
 - [Examples](#examples)
@@ -41,7 +42,8 @@ OpenTeams is **not** a runtime coordination system. It does not manage state, sp
 - **Communication topology.** Typed signal channels with role subscriptions, emission permissions, peer routing, and enforcement modes — all as structural metadata.
 - **Prompt loading.** Single-file or multi-file prompts per role, loaded and resolved alongside the template.
 - **Generators.** Produce SKILL.md files, role catalogs, agent prompts, and deployable packages from a template directory.
-- **Template installation.** Clone and install templates from git repositories.
+- **Template installation.** Clone and install templates from git repositories. Teams can live as a dedicated repo, multiple templates in one repo, or embedded in an existing project under `.openteams/`.
+- **Content-addressed bundles.** Bundle a template or loadout into a deterministic JSON envelope keyed by content hash, ready to publish to a [Multi-Agent Protocol](https://github.com/alexngai/multi-agent-protocol) (MAP) hub for runtime distribution. Same input always produces the same hash, so consumers can cache and verify integrity without trusting the publisher.
 - **Visual editor.** Interactive browser-based UI for editing team configurations.
 
 Agent systems read the resolved template and implement runtime behavior (task management, messaging, agent spawning, enforcement) using their own primitives.
@@ -98,13 +100,32 @@ Generated SKILL.md + 12 agent prompt(s) for team "gsd"
 openteams template install owner/repo
 ```
 
+### Bundle a template for distribution
+
+```bash
+# Bundle the team as a content-addressed MAP resource
+openteams bundle team ./examples/gsd -o gsd.bundle.json
+
+# Bundle a single loadout
+openteams bundle loadout ./examples/gsd executor -o executor.bundle.json
+
+# Recompute the hash and verify the bundle is intact
+openteams bundle verify ./gsd.bundle.json
+```
+
+```
+OK        x-openteams/team  sha256:c1de81e800d2a63d…
+```
+
+The bundle JSON is the same on any machine for the same template (NFC Unicode normalization + canonical JSON), so it's safe to cache by hash and ship across machines or CI pipelines.
+
 ---
 
 ## Architecture
 
 ```
 src/
-  cli.ts                 # Entry point: template, generate, editor commands
+  cli.ts                 # Entry point: template, generate, loadout, bundle, editor commands
   index.ts               # Public API exports
   cli/                   # CLI command definitions
   template/
@@ -112,18 +133,37 @@ src/
     types.ts             # All type definitions
     install-service.ts   # Git-based template installation
   generators/
-    skill-generator.ts   # generateSkillMd(), generateCatalog()
-    agent-prompt-generator.ts  # generateAgentPrompts(), generateRoleSkillMd()
-    package-generator.ts # generatePackage()
+    skill-generator.ts          # generateSkillMd(), generateCatalog()
+    agent-prompt-generator.ts   # generateAgentPrompts(), generateRoleSkillMd()
+    package-generator.ts        # generatePackage()
+    loadout-generator.ts        # generateLoadoutArtifacts(), findMissingMcpReferences()
+  runtime/                      # Coordinator-side state observation
+    team-state.ts               # TeamState — applies MAP-aligned events, snapshots
+  sync/                         # MAP Resource Protocol bundling and integration
+    bundle.ts                   # bundleLoadout / bundleTeam / hydrateLoadout / hydrateBundle
+    handlers.ts                 # Kind handler factories + composeResourceHandlers
+    store.ts                    # InMemoryBundleStore (reference impl of BundleStore)
+    client.ts                   # createOpenTeamsClient — typed wrapper over a MAP client
+    spawn.ts                    # Spawn dispatch encode/decode for MAP task meta
+    validate.ts                 # validateLoadoutBundle / validateTeamBundle
+    uri.ts                      # parseRef / formatRef / loadoutRef / teamRef
 schema/
-  team.schema.json       # JSON Schema for team.yaml
-  role.schema.json       # JSON Schema for role YAML
+  team.schema.json              # JSON Schema for team.yaml
+  role.schema.json              # JSON Schema for role YAML
+  loadout.schema.json           # JSON Schema for loadouts/<name>.yaml
 examples/
-  gsd/                   # 12-role team with wave-based execution
-  bmad-method/           # 10-role agile development team
+  gsd/                          # 12-role team with wave-based execution
+  bmad-method/                  # 10-role agile development team
+  loadout-demo/                 # Three-role team exercising loadout binding styles
+  sync-walkthrough/             # Runnable end-to-end sync demo (bundle → JSON → hydrate)
+  ...                           # Additional templates: bug-fix-pipeline, security-audit, etc.
+docs/
+  team-map-sync-design.md       # Sync layer design
+  map-integration.md            # Hub wiring + optional SDK improvements
+  federated-teams-design.md     # Federation exploration (separate track)
 ```
 
-No database. No runtime state. Templates are the source of truth.
+No database. No runtime state in the template/generator layer. Templates are the source of truth; the sync layer adds content-addressed distribution on top, and the runtime layer is a thin observer over MAP-aligned events.
 
 ---
 
@@ -440,6 +480,144 @@ Set via `communication.enforcement` in the manifest. Interpretation is left to t
 
 ---
 
+## Distribution
+
+OpenTeams projects can be distributed as **git repositories**, as **content-addressed bundles** published to a [MAP](https://github.com/alexngai/multi-agent-protocol) hub, or as a combination — git as the authoring source of truth, MAP as the runtime distribution mechanism. Pick the mode that matches your deployment.
+
+### Git-backed projects
+
+Three layouts are supported, no configuration needed.
+
+#### 1. Dedicated team repo
+
+The repo *is* the template. `team.yaml` lives at the root.
+
+```
+my-team-repo/
+├── team.yaml
+├── roles/
+│   └── executor.yaml
+├── loadouts/
+│   └── code-reviewer.yaml
+└── prompts/
+    └── executor/
+        └── ROLE.md
+```
+
+Consume:
+
+```bash
+openteams template install owner/my-team-repo
+```
+
+The template lands in `.openteams/templates/my-team-repo/` and is reachable by name from every subsequent CLI command.
+
+#### 2. Multi-template repo
+
+Many templates in one repo, each in its own subdirectory with its own `team.yaml`.
+
+```
+team-library/
+├── teams/
+│   ├── bmad-method/team.yaml
+│   ├── gsd/team.yaml
+│   └── custom-flow/team.yaml
+└── README.md
+```
+
+`openteams template install` runs auto-discovery and prompts you to pick which template to install (or pass `[name]` directly):
+
+```bash
+openteams template install owner/team-library bmad-method
+```
+
+#### 3. Embedded in an existing repo
+
+A team lives at any path inside a larger codebase — alongside source code, infrastructure, or docs.
+
+```
+my-app/
+├── src/
+├── package.json
+└── .openteams/
+    └── templates/
+        └── ops-team/
+            ├── team.yaml
+            └── roles/
+```
+
+Path-based loading works without an install step. The CLI accepts a directory anywhere `<dir>` is expected:
+
+```bash
+openteams template validate ./.openteams/templates/ops-team
+openteams generate all      ./.openteams/templates/ops-team -o ./build/team
+openteams bundle team       ./.openteams/templates/ops-team -o ./build/team.bundle.json
+```
+
+The library API does the same:
+
+```typescript
+const template = TemplateLoader.load("./.openteams/templates/ops-team");
+```
+
+### Content-addressed bundles (MAP sync)
+
+For runtime distribution to agents that don't have git access, OpenTeams bundles templates into the [MAP Resource Protocol](https://github.com/alexngai/multi-agent-protocol/blob/main/docs/13-resource-protocol.md) format. Two resource kinds are defined: `x-openteams/loadout` (the leaf-agent unit) and `x-openteams/team` (the coordinator unit).
+
+```bash
+openteams bundle loadout ./my-team code-reviewer -o code-reviewer.bundle.json
+openteams bundle team    ./my-team                -o my-team.bundle.json
+```
+
+Each bundle's `id` is `sha256:<hex>` derived from the canonical content. Two byte-identical templates on different machines, or under different version labels, produce identical hashes — so bundles are safely deduplicatable, verifiable, and cache-friendly. Tampering is detectable by recomputing.
+
+Hub-side, OpenTeams ships kind handler factories that plug into `MAPServer.additionalHandlers`:
+
+```typescript
+import { MAPServer } from "@multi-agent-protocol/sdk/server";
+import {
+  composeResourceHandlers,
+  createLoadoutKindHandler,
+  createTeamKindHandler,
+  InMemoryBundleStore,
+} from "openteams";
+
+const store = new InMemoryBundleStore();
+const composed = composeResourceHandlers([
+  createLoadoutKindHandler({ store }),
+  createTeamKindHandler({ store }),
+]);
+
+const server = new MAPServer({
+  capabilities: { resources: { enabled: true, kinds: composed.kinds } },
+  additionalHandlers: composed.handlers,
+});
+```
+
+Agent-side, a typed client wrapper exposes get / publish / remove methods plus subscriptions and spawn dispatch:
+
+```typescript
+import { createOpenTeamsClient, hydrateLoadout } from "openteams";
+
+const client = createOpenTeamsClient(mapClient, { events: mapClient });
+const resource = await client.getLoadout("sha256:abc…");
+const resolved = hydrateLoadout(resource);  // verifies hash, returns ResolvedLoadout
+```
+
+See [`docs/team-map-sync-design.md`](./docs/team-map-sync-design.md) for the full design and [`docs/map-integration.md`](./docs/map-integration.md) for the integration walk-through. The complete dispatch flow — orchestrator on one runtime spawning a child on another via MAP tasks — is exercised end-to-end in `examples/sync-walkthrough/walkthrough.ts`.
+
+### Combining git and MAP
+
+The two modes complement each other. Common pattern:
+
+1. Authors commit `team.yaml` + roles + loadouts to a git repo (any layout above).
+2. CI runs `openteams bundle team .` on push and `client.publishTeam(bundle)` against a MAP endpoint.
+3. Runtime agents fetch the team by id from MAP — no git access needed.
+
+Git is the source of truth and review surface; MAP is the runtime cache. The bundle hash gives you content-based cache invalidation; the resource's `version` field (set from a git tag) gives you a human-meaningful alias on top of the hash.
+
+---
+
 ## CLI Command Reference
 
 ### Template
@@ -496,6 +674,29 @@ Inspect and validate the loadouts in a template.
 |------|---------|-------------|
 | `-d, --dir <path>` | cwd | Template directory to load |
 | `-p, --port <port>` | `5173` | Port for the editor server |
+
+### Bundle
+
+Bundle templates and loadouts as content-addressed [MAP](https://github.com/alexngai/multi-agent-protocol) resources, and verify bundles.
+
+| Command | Description |
+|---------|-------------|
+| `openteams bundle team <dir>` | Bundle a template as an `x-openteams/team` resource |
+| `openteams bundle loadout <dir> <name>` | Bundle a single loadout as an `x-openteams/loadout` resource |
+| `openteams bundle verify <file\|->` | Recompute the hash and report `OK` or `MISMATCH` (accepts stdin via `-`) |
+
+**Options for `bundle team` / `bundle loadout`:**
+
+| Flag | Description |
+|------|-------------|
+| `--bundle-version <semver>` | Author-controlled version label, default `0.0.0`. Excluded from the hash — labels are pointers, content is the identity. |
+| `-o, --output <file>` | Write bundle JSON to file (default: stdout) |
+| `--name <name>` | Override the bundle's display name (team only) |
+| `--description <text>` | Descriptive metadata (excluded from hash) |
+| `--tag <tag>` | Tag, repeatable (excluded from hash) |
+| `--owner <id>` | Owner id (excluded from hash) |
+
+Network publish is left to consumers — call `OpenTeamsClient.publishLoadout` / `publishTeam` against your MAP setup. See [Distribution](#distribution) for the integration patterns.
 
 ---
 
@@ -612,6 +813,69 @@ const result = await installer.install(
 );
 console.log(`Installed to: ${result.installedPath}`);
 ```
+
+### Bundling and Hydrating
+
+```typescript
+import {
+  TemplateLoader,
+  bundleLoadout,
+  bundleTeam,
+  hydrateLoadout,
+  hydrateBundle,
+  validateTeamBundle,
+} from "openteams";
+
+const template = TemplateLoader.load("./my-team");
+
+// Bundle the team and any of its loadouts
+const teamBundle = bundleTeam(template, { version: "1.4.0" });
+const loadoutBundle = bundleLoadout(
+  template.loadouts.get("code-reviewer")!,
+  { version: "2.0.0", name: "code-reviewer" }
+);
+
+// Wire format: plain JSON. Same input → same hash on any machine.
+const json = JSON.stringify(teamBundle);
+
+// On the receiver — validate (returns warnings + errors) before hydrating
+const validation = validateTeamBundle(JSON.parse(json));
+if (!validation.valid) throw new Error(validation.violations[0]?.message);
+
+// Hydrate verifies the hash and reconstructs a ResolvedTemplate
+const reconstructed = hydrateBundle(JSON.parse(json));
+console.log(reconstructed.manifest.name);  // same as the original template
+```
+
+The embedded loadout id inside a team bundle equals what `bundleLoadout` produces standalone — the same content addressed two ways resolves to the same hash.
+
+### MAP integration
+
+```typescript
+import {
+  createOpenTeamsClient,
+  composeResourceHandlers,
+  createLoadoutKindHandler,
+  createTeamKindHandler,
+  InMemoryBundleStore,
+} from "openteams";
+
+// Hub side: drop our handlers into MAPServer.additionalHandlers
+const store = new InMemoryBundleStore();
+const composed = composeResourceHandlers([
+  createLoadoutKindHandler({ store }),
+  createTeamKindHandler({ store }),
+]);
+// pass composed.handlers to MAPServer({ additionalHandlers, capabilities: { resources: { kinds: composed.kinds } } })
+
+// Agent side: typed wrapper over any MAP client
+const client = createOpenTeamsClient(mapClient, { events: mapClient });
+await client.publishLoadout!(loadoutBundle);
+const fetched = await client.getLoadout("sha256:abc…");
+const removed = await client.removeLoadout!("sha256:abc…");
+```
+
+Spawn dispatch (orchestrator → MAP task → worker) and lifecycle events (`resource.added` / `updated` / `removed`) are also wired through this client. See [`docs/team-map-sync-design.md`](./docs/team-map-sync-design.md).
 
 ---
 
