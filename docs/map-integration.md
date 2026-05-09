@@ -82,7 +82,20 @@ const unsub = client.onBundleEvent!((evt) => {
 });
 ```
 
-`createOpenTeamsClient` returns an `OpenTeamsClient` whose methods wrap typed calls into `map/resources/get` and the kind-specific `<type>/publish` methods. Pass `events` to enable `onBundleEvent`, `onSpawnRequest`, and `requestSpawn`'s completion-waiting behavior; without it those methods are omitted (or `requestSpawn` resolves immediately with `status: "open"`).
+`createOpenTeamsClient` returns an `OpenTeamsClient` whose methods wrap typed calls into `map/resources/get` and the kind-specific `<type>/publish` and `<type>/remove` methods:
+
+| Method | Wraps |
+|---|---|
+| `getLoadout(idOrRef)` / `getTeam(idOrRef)` | `map/resources/get { type, id }` |
+| `publishLoadout(bundle)` / `publishTeam(bundle)` | `<type>/publish { bundle }` — emits `resource.added` / `resource.updated` |
+| `removeLoadout(idOrRef)` / `removeTeam(idOrRef)` | `<type>/remove { id }` → `{ removed: boolean }` — emits `resource.removed` when found |
+| `onBundleEvent(cb)` | filters the event subscription to OpenTeams resource types |
+| `requestSpawn(req)` | `map/tasks/create` with `meta.kind = "openteams.spawn"`, then waits on `task.completed` / `task.status` |
+| `onSpawnRequest(cb)` | filters `task.created` events by `isSpawnTaskMeta(meta)` |
+
+Pass `events` to enable `onBundleEvent`, `onSpawnRequest`, and `requestSpawn`'s completion-waiting behavior; without it those methods are omitted (or `requestSpawn` resolves immediately with `status: "open"`).
+
+**`requestSpawn` portability note.** The orchestrator-side implementation generates the task id client-side (`spawn-${randomUUID()}`) and passes it to `map/tasks/create`. This lets the completion listener filter on the id *before* the create call's events fire — without it, a worker that flips status synchronously can race ahead of listener registration. The MAP spec permits client-supplied task ids (`TasksCreateRequestParams.task.id?: TaskId`). If you target a server that auto-reassigns ids on create, wrap this client and look up the assigned id from the create response.
 
 ### Events without SDK helpers
 

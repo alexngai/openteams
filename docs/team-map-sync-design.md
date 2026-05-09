@@ -197,16 +197,22 @@ const server = new MAPServer({
 
 `composeResourceHandlers` is a pure function that returns a method-handler map suitable for `MAPServer.additionalHandlers` plus the `kinds` list for the capability advertisement. Storage backend is hub-defined — OpenTeams ships an in-memory reference (`InMemoryBundleStore`); production hubs wire their own. See `docs/map-integration.md` for the full integration walk-through.
 
-### Kind-specific publish methods
+### Kind-specific write methods
 
-Per the Resource Protocol's "writes are kind-specific" stance, OpenTeams defines two publish methods that hubs route to the loadout/team handlers:
+Per the Resource Protocol's "writes are kind-specific" stance, OpenTeams defines four write methods that hubs route to the loadout/team handlers:
 
 ```
-x-openteams/loadout/publish    →  handler.publish(bundle)  →  emits resource.added
-x-openteams/team/publish       →  handler.publish(bundle)  →  emits resource.added
+x-openteams/loadout/publish    →  handler.publish(bundle)        →  emits resource.added or resource.updated
+x-openteams/team/publish       →  handler.publish(bundle)        →  emits resource.added or resource.updated
+x-openteams/loadout/remove     →  handler.remove(id) → boolean   →  emits resource.removed (when found)
+x-openteams/team/remove        →  handler.remove(id) → boolean   →  emits resource.removed (when found)
 ```
 
-These are registered as `additionalHandlers` on the MAP server; hub developers don't write the dispatch themselves once the kind handler is registered.
+`composeResourceHandlers` installs these on `MAPServer.additionalHandlers` automatically — hub developers don't write the dispatch themselves. Publish emits `resource.added` on first publish and `resource.updated` on republish (existence is checked against the store). Remove returns `false` (and emits no event) when the id isn't present.
+
+The agent-side typed wrappers are `OpenTeamsClient.publishLoadout` / `publishTeam` and `removeLoadout` / `removeTeam`; both `publish*` and `remove*` accept either a bare id (`sha256:…`) or a full resource ref (`x-openteams/loadout:sha256:…`).
+
+**Cross-resource integrity.** `remove` does not check whether the target resource is referenced elsewhere (e.g., a loadout embedded in a team). Removing a loadout that's still referenced by a team will leave that team's hydrate path failing on the embedded-loadout-not-found check at fetch time. v1 leaves this as a consumer-side concern; cross-resource consistency belongs to the hub's policy layer.
 
 ### Bundle types and helpers
 

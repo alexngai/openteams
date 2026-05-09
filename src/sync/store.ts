@@ -16,6 +16,12 @@ import type {
  * In-memory store of MAP resources, keyed by `(type, id)`. Pagination
  * uses a simple offset cursor — `cursor` is the index of the next
  * page's first item as a base-10 string. `limit` defaults to 50.
+ *
+ * **`list` filter is ignored.** The reference implementation does not
+ * apply `opts.filter`; it returns every resource of the requested type
+ * (paginated). Production stores typically do filtering at the storage
+ * layer (SQL `WHERE`, Mongo query, etc.); kind handlers can layer
+ * additional filtering on top of the store result if needed.
  */
 export class InMemoryBundleStore implements BundleStore {
   private byType = new Map<string, Map<string, MAPResource>>();

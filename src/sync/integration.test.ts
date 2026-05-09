@@ -428,13 +428,8 @@ describe("integration: resource removal", () => {
     await setup.client.publishLoadout!(bundle);
     expect(events.at(-1)?.type).toBe("resource.added");
 
-    // Call <type>/remove via the underlying mapClient — not a typed
-    // method on OpenTeamsClient (yet), but the handler is registered.
-    const result = await setup.server.call<{ removed: boolean }>(
-      `${LOADOUT_RESOURCE_TYPE}/remove`,
-      { id: bundle.id }
-    );
-    expect(result.removed).toBe(true);
+    const removed = await setup.client.removeLoadout!(bundle.id);
+    expect(removed).toBe(true);
     expect(events.at(-1)?.type).toBe("resource.removed");
     expect(events.at(-1)?.resource_id).toBe(bundle.id);
 
@@ -444,18 +439,39 @@ describe("integration: resource removal", () => {
     await expect(setup.client.getLoadout(bundle.id)).rejects.toThrow(/Not found/);
   });
 
-  it("returns removed=false for an unknown id and emits no event", async () => {
+  it("returns false for an unknown id and emits no event", async () => {
     const setup = makeServerAndClient();
     const events: BundleEvent[] = [];
     const unsub = setup.client.onBundleEvent!((e) => events.push(e));
 
-    const result = await setup.server.call<{ removed: boolean }>(
-      `${LOADOUT_RESOURCE_TYPE}/remove`,
-      { id: "sha256:" + "0".repeat(64) }
-    );
-    expect(result.removed).toBe(false);
+    const removed = await setup.client.removeLoadout!("sha256:" + "0".repeat(64));
+    expect(removed).toBe(false);
     expect(events).toHaveLength(0);
 
     unsub();
+  });
+
+  it("removeTeam works the same way as removeLoadout", async () => {
+    const setup = makeServerAndClient();
+    const template = TemplateLoader.load(LOADOUT_DEMO_DIR);
+    const bundle = bundleTeam(template, { version: "1.0.0" });
+
+    await setup.client.publishTeam!(bundle);
+    expect(await setup.client.getTeam!(bundle.id)).toBeDefined();
+
+    const removed = await setup.client.removeTeam!(bundle.id);
+    expect(removed).toBe(true);
+
+    await expect(setup.client.getTeam!(bundle.id)).rejects.toThrow(/Not found/);
+  });
+
+  it("accepts both bare ids and full resource refs", async () => {
+    const setup = makeServerAndClient();
+    const reviewer = TemplateLoader.load(LOADOUT_DEMO_DIR).loadouts.get("code-reviewer")!;
+    const bundle = bundleLoadout(reviewer, { version: "1.0.0", name: "code-reviewer" });
+
+    await setup.client.publishLoadout!(bundle);
+    const removedByRef = await setup.client.removeLoadout!(loadoutRef(bundle.id));
+    expect(removedByRef).toBe(true);
   });
 });

@@ -47,6 +47,12 @@ export interface OpenTeamsClient {
   /** Publish a team bundle. */
   publishTeam?(bundle: TeamResource): Promise<TeamResource>;
 
+  /** Remove a loadout by id. Returns true if the resource existed and was removed. */
+  removeLoadout?(idOrRef: string): Promise<boolean>;
+
+  /** Remove a team by id. Returns true if the resource existed and was removed. */
+  removeTeam?(idOrRef: string): Promise<boolean>;
+
   /**
    * Subscribe to bundle lifecycle events (`resource.added`,
    * `resource.updated`, `resource.removed`) for OpenTeams resource
@@ -120,14 +126,40 @@ export function createOpenTeamsClient(
         bundle,
       });
     },
+
+    async removeLoadout(idOrRef: string): Promise<boolean> {
+      const { id } = resolveRefOrId(idOrRef, LOADOUT_RESOURCE_TYPE);
+      const result = await mapClient.call<{ removed: boolean }>(
+        `${LOADOUT_RESOURCE_TYPE}/remove`,
+        { id }
+      );
+      return result.removed;
+    },
+
+    async removeTeam(idOrRef: string): Promise<boolean> {
+      const { id } = resolveRefOrId(idOrRef, TEAM_RESOURCE_TYPE);
+      const result = await mapClient.call<{ removed: boolean }>(
+        `${TEAM_RESOURCE_TYPE}/remove`,
+        { id }
+      );
+      return result.removed;
+    },
   };
 
   // ── Spawn dispatch (orchestrator side) ───────────────────────
+  // Generates the task id client-side so the completion listener can
+  // filter on it *before* the task.create call's events fire. Without
+  // this, a worker that flips status synchronously in one update call
+  // can race ahead of the listener registration.
+  //
+  // **Portability assumption:** the underlying MAP server must honor
+  // the client-supplied task id. The MAP spec
+  // (`TasksCreateRequestParams.task.id?: TaskId`) permits this, but
+  // a server that auto-reassigns ids on create would break the
+  // completion correlation here. If you're targeting such a server,
+  // wrap this client and look up the assigned id from the create
+  // response, then track completion via that id instead.
   client.requestSpawn = async (req: SpawnRequest): Promise<SpawnResult> => {
-    // Generate the task id client-side so the completion listener can
-    // filter on it *before* the task.create call's events fire. Without
-    // this, a worker that flips status synchronously in one update call
-    // can race ahead of the listener registration.
     const taskId = `spawn-${randomUUID()}`;
 
     if (!options.events) {
