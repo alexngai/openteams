@@ -43,7 +43,7 @@ OpenTeams contributes two resource kinds and one task `meta` payload. Everything
 | Team definition | `MAPResource` with `type: "x-openteams/team"` | `id` = content hash |
 | Bundle fetch | `map/resources/get { type, id }` | — |
 | Bundle browse | `map/resources/list { type, filter }` | — |
-| Bundle update notifications | `resource.added/updated/removed` on `resources:x-openteams/*` scope channels | — |
+| Bundle update notifications | `resource.added/updated/removed` events on the SDK event bus (filterable by `resource_type`) | — |
 | Spawn dispatch | `MAPTask` with `meta.kind: "openteams.spawn"` | — |
 | Agent registration | `Participant.metadata` carries `loadout`/`role`/`team`/`parent` | — |
 
@@ -232,14 +232,18 @@ verifyHash(resource): boolean
 Most agent-side code wants typed fetches rather than raw `MAPResource` envelopes:
 
 ```typescript
-import { OpenTeamsClient } from "@openteams/sync";
+import { createOpenTeamsClient, hydrateLoadout, hydrateBundle } from "@openteams/sync";
 
-const client = new OpenTeamsClient(mapClient);              // wraps a MAP client
-const loadout = await client.getLoadout("sha256:abc…");     // → ResolvedLoadout
-const template = await client.getTeam("sha256:9f3a…");      // → ResolvedTemplate
+const client = createOpenTeamsClient(mapClient, { events: mapClient });
+const loadoutResource = await client.getLoadout("sha256:abc…");      // → LoadoutResource
+const teamResource    = await client.getTeam!("sha256:9f3a…");       // → TeamResource
+
+// Hydrate when ready to use:
+const loadout = hydrateLoadout(loadoutResource);                     // → ResolvedLoadout
+const template = hydrateBundle(teamResource);                        // → ResolvedTemplate
 ```
 
-This is a 50-line wrapper around `map/resources/get`; no new transport.
+The factory wraps a MAP client and returns an `OpenTeamsClient` with `getLoadout`, `getTeam`, `publishLoadout`, `publishTeam`, `removeLoadout`, `removeTeam`, plus (when an `events` subscribable is supplied) `onBundleEvent`, `requestSpawn`, and `onSpawnRequest`. All `*Loadout` / `*Team` methods accept either a bare id (`sha256:…`) or a full resource ref (`x-openteams/loadout:sha256:…`). No new transport — consumers bring their own MAP client.
 
 ## Trust & Hot-Reload
 
@@ -367,22 +371,30 @@ See [`docs/map-integration.md`](./map-integration.md) for the wiring path, inclu
 - **Not a transport.** OpenTeams ships kind handlers and bundle helpers. The MAP SDK ships the wire.
 - **Not a replacement for `template install`.** `openteams template install <repo>` still works for git-based distribution.
 
-## Proposed Module Layout
+## Module Layout
 
 ```
 src/sync/
   bundle.ts          # bundleLoadout / bundleTeam / hydrateLoadout / hydrateBundle
-                     # canonicalize() + hash() + verifyHash()
-  handlers.ts        # createLoadoutKindHandler / createTeamKindHandler
-                     # in-memory reference store; consumers can swap
-  client.ts          # OpenTeamsClient — typed wrapper over a MAP client
-  spawn.ts           # SpawnRequest / SpawnResult types + encode/decode for MAP task meta
-  types.ts           # LoadoutResource, TeamResource, AgentMetadata, etc.
-  bundle.test.ts     # round-trip + canonicalization tests
-  handlers.test.ts   # handler factory tests against an in-memory store
+                     # canonicalize() + hash() + verifyHash() / verifyTeamHash()
+                     # computeLoadoutId / computeTeamId
+  store.ts           # InMemoryBundleStore — reference impl of BundleStore
+  handlers.ts        # createLoadoutKindHandler / createTeamKindHandler factories
+                     # composeResourceHandlers — pure handler-map builder
+  client.ts          # createOpenTeamsClient — typed wrapper over a MAP client
+                     # OpenTeamsClient interface (get/publish/remove + events + spawn)
+  uri.ts             # parseRef / formatRef / isHashId / isAliasId / loadoutRef / teamRef
+  spawn.ts           # encodeSpawnTaskMeta / decodeSpawnTaskMeta / isSpawnTaskMeta
+  validate.ts        # validateLoadoutBundle / validateTeamBundle
+                     # — hash check + missing MCP-server warnings
+  types.ts           # MAPResource, LoadoutResource, TeamResource, ResourceKindHandler,
+                     # BundleStore, AgentMetadata, BundleEvent, SpawnRequest, etc.
+  *.test.ts          # unit + integration tests (bundle, store, handlers, client,
+                     # spawn, uri, validate, e2e, integration, sdk-integration,
+                     # transport, agent-registration, network, cross-process)
 ```
 
-No transport in `src/sync/`. The handler factories accept a storage abstraction; the client wrapper accepts an existing MAP client. OpenTeams plugs into MAP, doesn't reimplement it.
+No transport in `src/sync/`. The handler factories accept a `BundleStore`; the client wrapper accepts an existing MAP client. OpenTeams plugs into MAP, doesn't reimplement it.
 
 ## Open Questions (resolved & remaining)
 
@@ -390,9 +402,9 @@ No transport in `src/sync/`. The handler factories accept a storage abstraction;
 2. **Optional `team` field on agent registration.** *Resolved:* keep optional. Coordinators reconstruct membership from spawn task `meta.team` otherwise.
 3. **Agent-to-team mapping.** *Resolved:* MAP's job, not OpenTeams's.
 4. **Standalone-loadout dispatch as the general case.** *Resolved:* yes.
-5. **Wire format / protocol.** *Resolved:* MAP Resource Protocol v1, with three SDK additions.
-6. **Prompt bodies inline vs. by-reference.** Inline keeps bundles self-contained at the cost of size. Recommendation: inline for v1.
-7. **MCP server refs.** `findMissingMcpReferences()` should run at hydrate time and surface non-fatal warnings.
+5. **Wire format / protocol.** *Resolved:* MAP Resource Protocol v1, against the **current** SDK with no protocol changes required. SDK additions documented in `docs/map-integration.md` are explicitly optional quality-of-life improvements.
+6. **Prompt bodies inline vs. by-reference.** *Resolved:* inline for v1 — keeps bundles self-contained.
+7. **MCP server refs.** *Resolved:* exposed via `validateLoadoutBundle` / `validateTeamBundle` rather than at hydrate time. Hydrate stays focused on hash verification (throws on mismatch); validators return a `ValidationResult` consumers can read for non-fatal warnings about unknown MCP servers. Keeps the throw-vs-return semantics clean.
 8. **Materialization caching.** Worker-side concern. Cache rendered config keyed on `(loadout_hash, runtime)`. Not a bundle concern.
 9. **Spawn task standardization.** Should `meta.kind: openteams.spawn` get a versioned JSON Schema in `schema/`? Probably yes once a second consumer adopts it.
 10. **Hub write-method convention.** `<kind>/publish` is what we propose. Open question: do other kind packages adopt the same pattern, or does each invent its own?
@@ -403,11 +415,11 @@ What's needed to make the centering use case work end-to-end:
 
 1. `bundleLoadout()` + `hydrateLoadout()` + canonical hash, with round-trip tests. **The core deliverable.**
 2. `bundleTeam()` + `hydrateBundle()` for coordinators, with embedded-vs-standalone hash equivalence tests.
-3. `LoadoutResource`, `TeamResource`, `SpawnRequest`, `AgentMetadata` types in `src/sync/types.ts`, exported from `src/index.ts`.
-4. `createLoadoutKindHandler` + `createTeamKindHandler` factories with an in-memory reference store.
-5. `OpenTeamsClient` wrapper exposing typed `getLoadout` / `getTeam` over a MAP client.
+3. `MAPResource`, `LoadoutResource`, `TeamResource`, `ResourceKindHandler`, `BundleStore`, `SpawnRequest`, `AgentMetadata`, `BundleEvent` types in `src/sync/types.ts`, exported from `src/index.ts`. `validateLoadoutBundle` / `validateTeamBundle` return `ValidationResult` for non-fatal checks.
+4. `createLoadoutKindHandler` + `createTeamKindHandler` factories, `composeResourceHandlers` for installing on `MAPServer.additionalHandlers`, and `InMemoryBundleStore` as the reference store. Each handler ships `list`/`get`/`publish`/`remove` and emits `resource.added`/`updated`/`removed` events on republish/remove.
+5. `createOpenTeamsClient` wrapping any MAP client: `getLoadout`, `getTeam`, `publishLoadout`, `publishTeam`, `removeLoadout`, `removeTeam`, plus `onBundleEvent`, `requestSpawn`, and `onSpawnRequest` when an `events` subscribable is supplied.
 6. CLI: `openteams bundle team <template-dir>` → team resource JSON; `openteams bundle loadout <template-dir> <loadout-name>` → loadout resource JSON; `openteams bundle verify <file>` recomputes and reports. Network publish is left to consumers — they call `OpenTeamsClient.publishLoadout` / `publishTeam` against their MAP setup.
-7. Worked example: `examples/loadout-demo` round-trips through both kinds.
+7. Worked example: `examples/sync-walkthrough/walkthrough.ts` runs against the `loadout-demo` template, demonstrating bundle → JSON → hydrate, embedded-vs-standalone equivalence, validation, and spawn dispatch encoding.
 
 Independent of any MAP SDK changes — see [`docs/map-integration.md`](./map-integration.md). All phases can start now.
 
