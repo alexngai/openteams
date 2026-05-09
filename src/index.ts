@@ -152,6 +152,8 @@ export {
   decodeSpawnTaskMeta,
   isSpawnTaskMeta,
 } from "./sync/spawn";
+export { validateLoadoutBundle, validateTeamBundle } from "./sync/validate";
+export type { ValidateBundleOptions } from "./sync/validate";
 export {
   LOADOUT_RESOURCE_TYPE,
   TEAM_RESOURCE_TYPE,
