@@ -177,6 +177,12 @@ export type {
   ListResourcesParams,
   ListResourcesResult,
   ComposedResourceHandlers,
+  MAPEvent,
+  MAPEventSubscribable,
+  MAPTaskShape,
+  TaskCreatedEvent,
+  TaskStatusEvent,
+  TaskCompletedEvent,
 } from "./sync/types";
 export {
   LOADOUT_RESOURCE_TYPE,

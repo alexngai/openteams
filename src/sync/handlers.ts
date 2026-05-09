@@ -13,6 +13,7 @@ import { validateTeamBundle } from "./validate";
 import {
   LOADOUT_RESOURCE_TYPE,
   TEAM_RESOURCE_TYPE,
+  type BundleEvent,
   type BundleStore,
   type ComposedResourceHandlers,
   type ListResourcesParams,
@@ -31,6 +32,12 @@ interface CreateKindHandlerOptions {
    * Defaults to `new Date().toISOString()`.
    */
   now?: () => string;
+  /**
+   * Optional emit hook called on successful publish with a
+   * `resource.added` or `resource.updated` event. Connect this to
+   * the hub's event bus to wake up `onBundleEvent` subscribers.
+   */
+  emit?: (event: BundleEvent) => void;
 }
 
 /**
@@ -62,7 +69,9 @@ export function createLoadoutKindHandler(
           `Hash mismatch: ${bundle.id} does not match content`
         );
       }
+      const existed = (await opts.store.get(LOADOUT_RESOURCE_TYPE, bundle.id)) != null;
       const stored = await stampAndPut(opts.store, bundle, now);
+      emitLifecycle(opts.emit, existed ? "resource.updated" : "resource.added", stored);
       return stored;
     },
   };
@@ -96,7 +105,9 @@ export function createTeamKindHandler(
       if (error) {
         throw new ResourcePublishError(error.message);
       }
+      const existed = (await opts.store.get(TEAM_RESOURCE_TYPE, bundle.id)) != null;
       const stored = await stampAndPut(opts.store, bundle, now);
+      emitLifecycle(opts.emit, existed ? "resource.updated" : "resource.added", stored);
       return stored;
     },
   };
@@ -199,6 +210,28 @@ export class ResourcePublishError extends Error {
 
 function defaultNow(): string {
   return new Date().toISOString();
+}
+
+function emitLifecycle(
+  emit: ((event: BundleEvent) => void) | undefined,
+  type: BundleEvent["type"],
+  resource: MAPResource
+): void {
+  if (!emit) return;
+  if (
+    resource.type !== LOADOUT_RESOURCE_TYPE &&
+    resource.type !== TEAM_RESOURCE_TYPE
+  ) {
+    return;
+  }
+  emit({
+    type,
+    resource_type: resource.type,
+    resource_id: resource.id,
+    resource_name: resource.name,
+    origin_hub_id: resource.origin_hub_id,
+    timestamp: resource.updated_at,
+  });
 }
 
 async function stampAndPut(

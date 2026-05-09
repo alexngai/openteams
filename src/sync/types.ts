@@ -375,3 +375,51 @@ export interface BundleStore {
   put(resource: MAPResource): Promise<MAPResource>;
   delete(type: string, id: string): Promise<boolean>;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Event bus (structural; matches MAP SDK's MAPEvent shape)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Generic event envelope used to deliver MAP events into the
+ * OpenTeams client. Structural — the MAP SDK's `MAPEvent` is
+ * compatible (extra fields are ignored).
+ */
+export interface MAPEvent {
+  type: string;
+  data?: unknown;
+}
+
+/** Hook for subscribing to a stream of MAP events. */
+export interface MAPEventSubscribable {
+  on(callback: (event: MAPEvent) => void): () => void;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Task event payloads (matching MAP SDK's task event shapes)
+// ─────────────────────────────────────────────────────────────
+
+/** A task as carried on the wire. Subset of the MAP SDK's `MAPTask`. */
+export interface MAPTaskShape {
+  id: string;
+  status?: string;
+  assignee?: string | null;
+  title?: string;
+  description?: string;
+  meta?: unknown;
+}
+
+export interface TaskCreatedEvent {
+  type: "task.created";
+  data: { task: MAPTaskShape };
+}
+
+export interface TaskStatusEvent {
+  type: "task.status";
+  data: { taskId: string; previous?: string; current?: string };
+}
+
+export interface TaskCompletedEvent {
+  type: "task.completed";
+  data: { taskId: string; task?: MAPTaskShape; result?: unknown };
+}

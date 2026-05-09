@@ -26,19 +26,29 @@ import { InMemoryBundleStore } from "./store";
 import { loadoutRef } from "./uri";
 import {
   LOADOUT_RESOURCE_TYPE,
+  SPAWN_KIND,
   TEAM_RESOURCE_TYPE,
+  type BundleEvent,
   type ComposedResourceHandlers,
+  type MAPEvent,
+  type MAPEventSubscribable,
+  type MAPTaskShape,
   type ResourceHandlerContext,
+  type SpawnRequest,
 } from "./types";
 
 const LOADOUT_DEMO_DIR = path.resolve(__dirname, "../../examples/loadout-demo");
 
 /**
- * Tiny stand-in for a MAP server: holds a composed handler map and
- * dispatches calls to it. Mirrors what an SDK-backed `MAPServer` does.
+ * Tiny stand-in for a MAP server: holds a composed handler map, an
+ * event bus, and a task store. Mirrors the surface of an SDK-backed
+ * `MAPServer` for the methods OpenTeams uses.
  */
-class MockMAPServer {
+class MockMAPServer implements MAPEventSubscribable {
   private composed: ComposedResourceHandlers;
+  private tasks = new Map<string, MAPTaskShape>();
+  private nextTaskId = 1;
+  private listeners = new Set<(event: MAPEvent) => void>();
   capabilities: { resources: { enabled: boolean; kinds: string[] } };
 
   constructor(composed: ComposedResourceHandlers) {
@@ -46,7 +56,23 @@ class MockMAPServer {
     this.capabilities = { resources: { enabled: true, kinds: composed.kinds } };
   }
 
+  /** Emit a MAP event to every active subscriber. */
+  emit(event: MAPEvent): void {
+    for (const listener of this.listeners) listener(event);
+  }
+
+  /** Subscribe to events (matches `MAPEventSubscribable`). */
+  on(callback: (event: MAPEvent) => void): () => void {
+    this.listeners.add(callback);
+    return () => {
+      this.listeners.delete(callback);
+    };
+  }
+
   async call<T>(method: string, params: unknown, ctx?: Partial<ResourceHandlerContext>): Promise<T> {
+    if (method === "map/tasks/create") return this.createTask(params) as T;
+    if (method === "map/tasks/update") return this.updateTask(params) as T;
+
     const handler = this.composed.handlers[method];
     if (!handler) throw new Error(`No handler for method: ${method}`);
     const fullCtx: ResourceHandlerContext = {
@@ -54,6 +80,43 @@ class MockMAPServer {
       session: ctx?.session ?? {},
     };
     return handler(params, fullCtx) as Promise<T>;
+  }
+
+  private createTask(params: unknown): { task: MAPTaskShape } {
+    const p = params as { task?: Partial<MAPTaskShape> };
+    const id = p.task?.id ?? `task-${this.nextTaskId++}`;
+    const task: MAPTaskShape = {
+      ...(p.task ?? {}),
+      id,
+      status: p.task?.status ?? "open",
+    };
+    this.tasks.set(id, task);
+    this.emit({ type: "task.created", data: { task } });
+    return { task };
+  }
+
+  private updateTask(params: unknown): { task: MAPTaskShape } {
+    const p = params as { taskId: string; status?: string; meta?: unknown };
+    const task = this.tasks.get(p.taskId);
+    if (!task) throw new Error(`task not found: ${p.taskId}`);
+    const previous = task.status;
+    const updated: MAPTaskShape = {
+      ...task,
+      status: p.status ?? task.status,
+      meta: p.meta !== undefined ? p.meta : task.meta,
+    };
+    this.tasks.set(task.id, updated);
+
+    if (p.status && p.status !== previous) {
+      this.emit({
+        type: "task.status",
+        data: { taskId: task.id, previous, current: updated.status },
+      });
+    }
+    if (updated.status === "completed") {
+      this.emit({ type: "task.completed", data: { taskId: task.id, task: updated } });
+    }
+    return { task: updated };
   }
 }
 
@@ -63,20 +126,22 @@ function makeServerAndClient(): {
   client: ReturnType<typeof createOpenTeamsClient>;
 } {
   const store = new InMemoryBundleStore();
+  // Forward emitted bundle events into the server's bus
+  let server: MockMAPServer;
+  const emit = (e: BundleEvent) => server.emit({ type: e.type, data: e });
   const composed = composeResourceHandlers([
-    createLoadoutKindHandler({ store }),
-    createTeamKindHandler({ store }),
+    createLoadoutKindHandler({ store, emit }),
+    createTeamKindHandler({ store, emit }),
   ]);
-  const server = new MockMAPServer(composed);
+  server = new MockMAPServer(composed);
 
-  // Adapter: server.call → MAPClientCallable
   const mapClient: MAPClientCallable = {
     call<T>(method: string, params: unknown) {
       return server.call<T>(method, params);
     },
   };
 
-  return { store, server, client: createOpenTeamsClient(mapClient) };
+  return { store, server, client: createOpenTeamsClient(mapClient, { events: server }) };
 }
 
 describe("integration: publish → fetch (loadout)", () => {
@@ -190,5 +255,129 @@ describe("integration: end-to-end dispatch dry-run", () => {
 
     expect(resolved).toEqual(reviewer);
     expect(resolved.capabilities).toContain("file.read");
+  });
+});
+
+describe("integration: bundle event emission", () => {
+  it("emits resource.added on first publish and resource.updated on republish", async () => {
+    const setup = makeServerAndClient();
+    const reviewer = TemplateLoader.load(LOADOUT_DEMO_DIR).loadouts.get("code-reviewer")!;
+    const bundle = bundleLoadout(reviewer, { version: "1.0.0", name: "code-reviewer" });
+
+    const events: BundleEvent[] = [];
+    const unsub = setup.client.onBundleEvent!((e) => events.push(e));
+
+    await setup.client.publishLoadout!(bundle);
+    await setup.client.publishLoadout!(bundle); // republish
+
+    unsub();
+
+    expect(events).toHaveLength(2);
+    expect(events[0]!.type).toBe("resource.added");
+    expect(events[0]!.resource_type).toBe(LOADOUT_RESOURCE_TYPE);
+    expect(events[0]!.resource_id).toBe(bundle.id);
+    expect(events[1]!.type).toBe("resource.updated");
+  });
+
+  it("filters events to OpenTeams resource types only", async () => {
+    const setup = makeServerAndClient();
+    const events: BundleEvent[] = [];
+    const unsub = setup.client.onBundleEvent!((e) => events.push(e));
+
+    // Inject a foreign resource event
+    setup.server.emit({
+      type: "resource.added",
+      data: {
+        resource_type: "x-other/thing",
+        resource_id: "id-1",
+        resource_name: "foreign",
+        origin_hub_id: null,
+        timestamp: "2026-05-09T00:00:00Z",
+      },
+    });
+
+    unsub();
+    expect(events).toHaveLength(0);
+  });
+});
+
+describe("integration: spawn lifecycle (orchestrator + worker)", () => {
+  it("orchestrator's requestSpawn resolves when worker completes the task", async () => {
+    const setup = makeServerAndClient();
+    const reviewer = TemplateLoader.load(LOADOUT_DEMO_DIR).loadouts.get("code-reviewer")!;
+    const bundle = bundleLoadout(reviewer, { version: "1.0.0", name: "code-reviewer" });
+    await setup.client.publishLoadout!(bundle);
+
+    // Worker side: when a spawn task arrives, fetch the loadout, "boot" the
+    // child, then mark the task completed with the agent id.
+    const unsub = setup.client.onSpawnRequest!(async (req, taskId) => {
+      const loadout = await setup.client.getLoadout(req.loadout);
+      const childAgentId = `child-of-${req.label ?? "unknown"}`;
+      // Update task: in_progress, then completed with agentId in meta.
+      await setup.server.call("map/tasks/update", {
+        taskId,
+        status: "in_progress",
+      });
+      await setup.server.call("map/tasks/update", {
+        taskId,
+        status: "completed",
+        meta: { ...(loadout.metadata ? {} : {}), kind: SPAWN_KIND, agentId: childAgentId },
+      });
+    });
+
+    // Orchestrator side: dispatch and wait
+    const req: SpawnRequest = {
+      loadout: loadoutRef(bundle.id),
+      label: "reviewer-1",
+      role: "code-reviewer",
+      target: { runtime: "claude-code" },
+      parent: "orchestrator-1",
+    };
+    const result = await setup.client.requestSpawn!(req);
+
+    unsub();
+
+    expect(result.status).toBe("completed");
+    expect(result.agentId).toBe("child-of-reviewer-1");
+    expect(result.taskId).toMatch(/^task-\d+$/);
+  });
+
+  it("worker filters task.created events with non-spawn meta", async () => {
+    const setup = makeServerAndClient();
+
+    let spawnSeen = 0;
+    const unsub = setup.client.onSpawnRequest!(() => spawnSeen++);
+
+    // Inject a non-spawn task event directly
+    setup.server.emit({
+      type: "task.created",
+      data: { task: { id: "non-spawn-1", status: "open", meta: { kind: "other.kind" } } },
+    });
+
+    unsub();
+    expect(spawnSeen).toBe(0);
+  });
+
+  it("requestSpawn resolves with status=open when no events subscription is configured", async () => {
+    const store = new InMemoryBundleStore();
+    let server: MockMAPServer;
+    const composed = composeResourceHandlers([
+      createLoadoutKindHandler({ store }),
+      createTeamKindHandler({ store }),
+    ]);
+    server = new MockMAPServer(composed);
+    const mapClient: MAPClientCallable = {
+      call<T>(method: string, params: unknown) {
+        return server.call<T>(method, params);
+      },
+    };
+    // Note: no `events` option
+    const client = createOpenTeamsClient(mapClient);
+
+    const result = await client.requestSpawn!({
+      loadout: "x-openteams/loadout:sha256:abc",
+    });
+    expect(result.status).toBe("open");
+    expect(result.taskId).toMatch(/^task-\d+$/);
   });
 });

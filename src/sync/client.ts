@@ -13,12 +13,15 @@
 //
 // See docs/map-integration.md for the wiring path.
 
+import { decodeSpawnTaskMeta, encodeSpawnTaskMeta } from "./spawn";
 import { parseRef } from "./uri";
 import {
   LOADOUT_RESOURCE_TYPE,
   TEAM_RESOURCE_TYPE,
   type BundleEvent,
+  type BundleEventType,
   type LoadoutResource,
+  type MAPEventSubscribable,
   type OpenTeamsResourceType,
   type SpawnRequest,
   type SpawnResult,
@@ -74,10 +77,13 @@ export interface MAPClientCallable {
 
 export interface CreateOpenTeamsClientOptions {
   /**
-   * Optional event subscription hook. If provided, `onBundleEvent`
-   * is wired to it; otherwise the returned client omits the method.
+   * Optional event subscription hook. When provided, the returned
+   * client implements `onBundleEvent`, `onSpawnRequest`, and
+   * `requestSpawn`'s completion-waiting behavior. Without it, those
+   * methods are omitted (or `requestSpawn` resolves immediately
+   * with the created task id).
    */
-  onEvent?: (callback: (event: BundleEvent) => void) => () => void;
+  events?: MAPEventSubscribable;
 }
 
 /**
@@ -114,12 +120,90 @@ export function createOpenTeamsClient(
     },
   };
 
-  if (options.onEvent) {
-    const subscribe = options.onEvent;
-    client.onBundleEvent = (callback) => subscribe(callback);
+  // ── Spawn dispatch (orchestrator side) ───────────────────────
+  client.requestSpawn = async (req: SpawnRequest): Promise<SpawnResult> => {
+    const created = await mapClient.call<{ task: { id: string } }>(
+      "map/tasks/create",
+      { task: { status: "open", meta: encodeSpawnTaskMeta(req) } }
+    );
+    const taskId = created.task.id;
+
+    if (!options.events) {
+      // No subscription: caller has to track completion themselves.
+      return { taskId, status: "open" };
+    }
+
+    const subscribable = options.events;
+    return new Promise<SpawnResult>((resolve) => {
+      const unsub = subscribable.on((event) => {
+        const data = event.data as
+          | { taskId?: string; current?: string; task?: { meta?: { agentId?: string } } }
+          | undefined;
+        if (event.type === "task.completed" && data?.taskId === taskId) {
+          unsub();
+          resolve({
+            taskId,
+            status: "completed",
+            agentId: data.task?.meta?.agentId,
+          });
+        } else if (
+          event.type === "task.status" &&
+          data?.taskId === taskId &&
+          (data.current === "failed" || data.current === "cancelled")
+        ) {
+          unsub();
+          resolve({ taskId, status: data.current });
+        }
+      });
+    });
+  };
+
+  if (options.events) {
+    const subscribable = options.events;
+
+    // ── Bundle lifecycle subscription ───────────────────────
+    client.onBundleEvent = (callback) =>
+      subscribable.on((event) => {
+        if (!isBundleEventType(event.type)) return;
+        const data = event.data as Partial<BundleEvent> | undefined;
+        if (!data?.resource_type || !data.resource_id) return;
+        if (
+          data.resource_type !== LOADOUT_RESOURCE_TYPE &&
+          data.resource_type !== TEAM_RESOURCE_TYPE
+        ) {
+          return;
+        }
+        callback({
+          type: event.type as BundleEventType,
+          resource_type: data.resource_type,
+          resource_id: data.resource_id,
+          resource_name: data.resource_name ?? "",
+          origin_hub_id: data.origin_hub_id ?? null,
+          timestamp: data.timestamp ?? new Date().toISOString(),
+        });
+      });
+
+    // ── Spawn dispatch (worker side) ───────────────────────
+    client.onSpawnRequest = (callback) =>
+      subscribable.on((event) => {
+        if (event.type !== "task.created") return;
+        const data = event.data as { task?: { id: string; meta?: unknown } } | undefined;
+        if (!data?.task?.id) return;
+        const decoded = decodeSpawnTaskMeta(data.task.meta);
+        if (!decoded) return;
+        callback(decoded, data.task.id);
+      });
   }
 
   return client;
+}
+
+function isBundleEventType(type: string): type is BundleEventType {
+  return (
+    type === "resource.added" ||
+    type === "resource.updated" ||
+    type === "resource.removed"
+  );
 }
 
 function resolveRefOrId(
