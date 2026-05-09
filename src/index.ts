@@ -154,6 +154,30 @@ export {
 } from "./sync/spawn";
 export { validateLoadoutBundle, validateTeamBundle } from "./sync/validate";
 export type { ValidateBundleOptions } from "./sync/validate";
+export { InMemoryBundleStore } from "./sync/store";
+export {
+  createLoadoutKindHandler,
+  createTeamKindHandler,
+  composeResourceHandlers,
+  ResourceNotFoundError,
+  ResourcePublishError,
+  UnknownResourceTypeError,
+} from "./sync/handlers";
+export { createOpenTeamsClient } from "./sync/client";
+export type {
+  OpenTeamsClient,
+  MAPClientCallable,
+  CreateOpenTeamsClientOptions,
+} from "./sync/client";
+export type {
+  BundleStore,
+  ResourceKindHandler,
+  ResourceHandlerContext,
+  ResourceMethodHandler,
+  ListResourcesParams,
+  ListResourcesResult,
+  ComposedResourceHandlers,
+} from "./sync/types";
 export {
   LOADOUT_RESOURCE_TYPE,
   TEAM_RESOURCE_TYPE,
@@ -180,7 +204,6 @@ export type {
   BundleEvent,
   BundleEventType,
 } from "./sync/types";
-export type { OpenTeamsClient } from "./sync/client";
 
 // Runtime state observation
 export { MemberRegistry } from "./runtime/member-registry";

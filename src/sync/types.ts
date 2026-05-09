@@ -296,3 +296,82 @@ export interface BundleEvent {
   origin_hub_id: string | null;
   timestamp: string;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Resource kind handlers (per MAP Resource Protocol §Kind handler interface)
+// ─────────────────────────────────────────────────────────────
+// Local copies of the spec's handler interface. When the MAP SDK
+// ships these types, this section can re-export them.
+
+/** Context passed to resource kind handlers. */
+export interface ResourceHandlerContext {
+  /** Authenticated caller identity, or null if unauthenticated. */
+  callerId: string | null;
+  /** Hub-specific session metadata. */
+  session: Record<string, unknown>;
+}
+
+/** Parameters accepted by `list` calls and pass-through filtering. */
+export interface ListResourcesParams {
+  filter?: Record<string, unknown>;
+  cursor?: string | null;
+  limit?: number;
+}
+
+/** Result of a `list` call — a page of resources plus pagination metadata. */
+export interface ListResourcesResult<T extends MAPResource = MAPResource> {
+  resources: T[];
+  cursor?: string | null;
+  total?: number;
+}
+
+/**
+ * Per-type handler registered with a MAP server. The OpenTeams kind
+ * factories (`createLoadoutKindHandler`, `createTeamKindHandler`) return
+ * objects conforming to this interface.
+ *
+ * `publish` is OpenTeams's kind-specific write convention — see
+ * `docs/map-integration.md`. Hubs that don't accept writes can omit it.
+ */
+export interface ResourceKindHandler {
+  type: string;
+  list(
+    params: ListResourcesParams,
+    ctx: ResourceHandlerContext
+  ): Promise<ListResourcesResult>;
+  get(id: string, ctx: ResourceHandlerContext): Promise<MAPResource | null>;
+  publish?(
+    bundle: MAPResource,
+    ctx: ResourceHandlerContext
+  ): Promise<MAPResource>;
+}
+
+/** Method-handler signature suitable for `MAPServer.additionalHandlers`. */
+export type ResourceMethodHandler = (
+  params: unknown,
+  ctx: ResourceHandlerContext
+) => Promise<unknown>;
+
+/** Output of `composeResourceHandlers` — drop-in for an SDK construction config. */
+export interface ComposedResourceHandlers {
+  /** Map suitable for `MAPServer.additionalHandlers`. */
+  handlers: Record<string, ResourceMethodHandler>;
+  /** Kind list for `capabilities.resources.kinds`. */
+  kinds: string[];
+}
+
+// ─────────────────────────────────────────────────────────────
+// Bundle storage backend
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Storage abstraction the kind handlers delegate to. Implementations
+ * may be in-memory (test/reference), backed by a database, an object
+ * store, or anything else.
+ */
+export interface BundleStore {
+  get(type: string, id: string): Promise<MAPResource | null>;
+  list(type: string, opts?: ListResourcesParams): Promise<ListResourcesResult>;
+  put(resource: MAPResource): Promise<MAPResource>;
+  delete(type: string, id: string): Promise<boolean>;
+}
