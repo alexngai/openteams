@@ -42,6 +42,7 @@
     "js-yaml": "^4.1.1"
   },
   "devDependencies": {
+    "@multi-agent-protocol/sdk": "^0.1.13",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.2.1",
     "typescript": "^5.7.0",

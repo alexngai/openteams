@@ -125,6 +125,92 @@ export type {
 export { generateFederatedSkillMd, generateBridgeContext } from "./generators/federation-generator";
 export type { FederationSkillOptions } from "./generators/federation-generator";
 
+// Sync — bundle format and helpers (MAP Resource Protocol)
+export {
+  canonicalize,
+  hash,
+  bundleLoadout,
+  hydrateLoadout,
+  verifyHash,
+  computeLoadoutId,
+  bundleTeam,
+  hydrateBundle,
+  verifyTeamHash,
+  computeTeamId,
+} from "./sync/bundle";
+export {
+  parseRef,
+  formatRef,
+  isHashId,
+  isAliasId,
+  splitAliasId,
+  loadoutRef,
+  teamRef,
+} from "./sync/uri";
+export {
+  encodeSpawnTaskMeta,
+  decodeSpawnTaskMeta,
+  isSpawnTaskMeta,
+} from "./sync/spawn";
+export { validateLoadoutBundle, validateTeamBundle } from "./sync/validate";
+export type { ValidateBundleOptions } from "./sync/validate";
+export { InMemoryBundleStore } from "./sync/store";
+export {
+  createLoadoutKindHandler,
+  createTeamKindHandler,
+  composeResourceHandlers,
+  ResourceNotFoundError,
+  ResourcePublishError,
+  UnknownResourceTypeError,
+} from "./sync/handlers";
+export { createOpenTeamsClient } from "./sync/client";
+export type {
+  OpenTeamsClient,
+  MAPClientCallable,
+  CreateOpenTeamsClientOptions,
+} from "./sync/client";
+export type {
+  BundleStore,
+  ResourceKindHandler,
+  ResourceHandlerContext,
+  ResourceMethodHandler,
+  ListResourcesParams,
+  ListResourcesResult,
+  ComposedResourceHandlers,
+  MAPEvent,
+  MAPEventSubscribable,
+  MAPTaskShape,
+  TaskCreatedEvent,
+  TaskStatusEvent,
+  TaskCompletedEvent,
+} from "./sync/types";
+export {
+  LOADOUT_RESOURCE_TYPE,
+  TEAM_RESOURCE_TYPE,
+  SPAWN_KIND,
+} from "./sync/types";
+export type {
+  MAPResource,
+  LoadoutResource,
+  LoadoutResourceMetadata,
+  TeamResource,
+  TeamResourceMetadata,
+  EmbeddedLoadout,
+  BundleLoadoutOptions,
+  BundleTeamOptions,
+  BundlePublisher,
+  BundleVersion,
+  OpenTeamsResourceType,
+  ResourceRef,
+  SpawnRequest,
+  SpawnTaskMeta,
+  SpawnResult,
+  SpawnTarget,
+  AgentMetadata,
+  BundleEvent,
+  BundleEventType,
+} from "./sync/types";
+
 // Runtime state observation
 export { MemberRegistry } from "./runtime/member-registry";
 export { TeamState } from "./runtime/team-state";
