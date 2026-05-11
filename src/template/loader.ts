@@ -330,6 +330,106 @@ export class TemplateLoader {
   }
 
   /**
+   * Hydrate a `ResolvedTemplate` from an in-memory object that mirrors the
+   * on-disk layout: manifest + role definitions + loadout definitions +
+   * prompts. Skips all filesystem IO — useful for consumers that store
+   * authored content in a database (e.g. OpenHive) and want to round-trip
+   * through `bundleTeam` without a temp-dir dance.
+   *
+   * The pipeline mirrors `load()`: validate, resolve role inheritance,
+   * resolve loadout inheritance, attach loadouts to roles, apply optional
+   * post-process hooks. Unlike `load()`, prompts come from the input
+   * verbatim (not loaded from disk) — `prompts/<role>/SOUL.md`-style
+   * multi-file directories aren't supported here, so callers needing that
+   * level of detail should keep using `load()` against a directory.
+   */
+  static fromObject(
+    content: {
+      manifest: TeamManifest;
+      roles?: Record<string, RoleDefinition>;
+      loadouts?: Record<string, LoadoutDefinition>;
+      prompts?: Record<string, ResolvedPrompts>;
+    },
+    options?: LoadOptions
+  ): ResolvedTemplate {
+    const { manifest } = content;
+    TemplateLoader.validateManifest(manifest);
+
+    // Build the per-role ResolvedRole map. Missing role defs default to the
+    // implicit shape (same fallback `load()` uses when `roles/<n>.yaml` is
+    // absent).
+    const roles = new Map<string, ResolvedRole>();
+    for (const roleName of manifest.roles) {
+      const def = content.roles?.[roleName];
+      if (def) {
+        roles.set(roleName, TemplateLoader.resolveRole(def));
+      } else {
+        roles.set(roleName, {
+          name: roleName,
+          displayName: roleName,
+          description: `Role: ${roleName}`,
+          capabilities: [],
+          raw: { name: roleName },
+        });
+      }
+    }
+
+    // Raw loadout definitions — inheritance resolved by the shared helper.
+    const loadoutDefs = new Map<string, LoadoutDefinition>();
+    if (content.loadouts) {
+      for (const [name, def] of Object.entries(content.loadouts)) {
+        loadoutDefs.set(name, def);
+      }
+    }
+
+    TemplateLoader.resolveInheritance(roles, options?.resolveExternalRole);
+    const loadouts = TemplateLoader.resolveLoadoutInheritance(
+      loadoutDefs,
+      options?.resolveExternalLoadout
+    );
+
+    if (options?.postProcessRole) {
+      for (const [name, role] of roles) {
+        roles.set(name, options.postProcessRole(role, manifest));
+      }
+    }
+    if (options?.postProcessLoadout) {
+      for (const [name, lo] of loadouts) {
+        loadouts.set(name, options.postProcessLoadout(lo, manifest));
+      }
+    }
+
+    TemplateLoader.attachLoadoutsToRoles(
+      roles,
+      loadouts,
+      options?.resolveExternalLoadout
+    );
+
+    const prompts = new Map<string, ResolvedPrompts>();
+    if (content.prompts) {
+      for (const [role, p] of Object.entries(content.prompts)) {
+        prompts.set(role, p);
+      }
+    }
+
+    let result: ResolvedTemplate = {
+      manifest,
+      roles,
+      prompts,
+      mcpServers: new Map(),
+      mcpProviders: TemplateLoader.parseMcpProviders(manifest),
+      loadouts,
+      sourcePath: "",
+    };
+
+    if (options?.postProcess) {
+      result = options.postProcess(result);
+    }
+
+    return result;
+  }
+
+  /**
    * List all available built-in templates that ship with the package.
    */
   static listBuiltins(): BuiltinTemplateInfo[] {

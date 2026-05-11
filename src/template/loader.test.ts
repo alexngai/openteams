@@ -1693,4 +1693,113 @@ topology:
       }
     });
   });
+
+  describe("fromObject", () => {
+    it("hydrates a minimal template without filesystem access", () => {
+      const template = TemplateLoader.fromObject({
+        manifest: {
+          name: "obj-minimal",
+          version: 1,
+          roles: ["root", "worker"],
+          topology: {
+            root: { role: "root" },
+            spawn_rules: { root: ["worker"], worker: [] },
+          },
+        },
+      });
+      expect(template.manifest.name).toBe("obj-minimal");
+      expect(template.roles.get("root")).toBeDefined();
+      expect(template.roles.get("worker")).toBeDefined();
+      expect(template.roles.get("root")!.capabilities).toEqual([]);
+      expect(template.sourcePath).toBe("");
+    });
+
+    it("resolves explicit role definitions through resolveRole", () => {
+      const template = TemplateLoader.fromObject({
+        manifest: {
+          name: "obj-roles",
+          version: 1,
+          roles: ["coder"],
+          topology: { root: { role: "coder" } },
+        },
+        roles: {
+          coder: { name: "coder", capabilities: ["code", "test"] },
+        },
+      });
+      expect(template.roles.get("coder")!.capabilities).toEqual(["code", "test"]);
+    });
+
+    it("resolves loadout inheritance and attaches to roles", () => {
+      const template = TemplateLoader.fromObject({
+        manifest: {
+          name: "obj-loadouts",
+          version: 1,
+          roles: ["reviewer"],
+          topology: { root: { role: "reviewer" } },
+        },
+        roles: {
+          reviewer: { name: "reviewer", loadout: "security-auditor" },
+        },
+        loadouts: {
+          "code-reviewer": {
+            name: "code-reviewer",
+            capabilities: ["file.read"],
+          },
+          "security-auditor": {
+            name: "security-auditor",
+            extends: "code-reviewer",
+            capabilities_add: ["exec.test"],
+          },
+        },
+      });
+      const lo = template.loadouts.get("security-auditor");
+      expect(lo).toBeDefined();
+      expect(lo!.capabilities.sort()).toEqual(["exec.test", "file.read"]);
+      expect(template.roles.get("reviewer")!.loadout?.name).toBe("security-auditor");
+    });
+
+    it("accepts prompts verbatim (no disk read)", () => {
+      const template = TemplateLoader.fromObject({
+        manifest: {
+          name: "obj-prompts",
+          version: 1,
+          roles: ["worker"],
+          topology: { root: { role: "worker" } },
+        },
+        prompts: {
+          worker: { primary: "# Worker\nDo the thing.", additional: [] },
+        },
+      });
+      expect(template.prompts.get("worker")?.primary).toContain("Do the thing");
+    });
+
+    it("validates the manifest the same way load() does", () => {
+      expect(() =>
+        TemplateLoader.fromObject({
+          // @ts-expect-error — manifest missing required fields
+          manifest: { name: "broken" },
+        })
+      ).toThrow();
+    });
+
+    it("respects postProcess hooks", () => {
+      const template = TemplateLoader.fromObject(
+        {
+          manifest: {
+            name: "obj-post",
+            version: 1,
+            roles: ["worker"],
+            topology: { root: { role: "worker" } },
+          },
+        },
+        {
+          postProcess: (t) => ({
+            ...t,
+            manifest: { ...t.manifest, description: "post-processed" },
+          }),
+        }
+      );
+      expect(template.manifest.description).toBe("post-processed");
+    });
+  });
 });
