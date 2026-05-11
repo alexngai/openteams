@@ -19,7 +19,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:lib": "vite build --config vite.config.lib.ts",
+    "build:lib": "tsc -p tsconfig.lib.json && vite build --config vite.config.lib.ts",
     "typecheck": "tsc -b",
     "preview": "vite preview",
     "test": "vitest run",

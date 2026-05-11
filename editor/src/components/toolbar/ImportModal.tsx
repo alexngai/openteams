@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import * as yaml from 'js-yaml';
-import type { TeamManifest, RoleDefinition, FederationManifest } from '@openteams/template/types';
+import type { TeamManifest, RoleDefinition, FederationManifest } from 'openteams';
 import { BUNDLED_TEMPLATES } from '../../lib/bundled-templates';
 import { loadTemplate } from '../../lib/load-template';
 import { useUIStore } from '../../stores/ui-store';

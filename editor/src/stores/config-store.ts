@@ -6,7 +6,7 @@ import type {
   ExportDeclaration,
   ImportDeclaration,
   PlacementConfig,
-} from '@openteams/template/types';
+} from 'openteams';
 
 export interface EditorRoleConfig {
   name: string;

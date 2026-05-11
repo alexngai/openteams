@@ -7,10 +7,15 @@
  * as peer dependencies so the host's instances win, avoiding duplicate
  * React trees / context fragmentation.
  *
- * Style import: consumers should also import `'openteams-editor/styles.css'`
- * to pick up the editor's CSS variables + Tailwind layer. The library
- * build emits a single bundled stylesheet alongside the JS.
+ * Style import: consumers should also import
+ * `'openteams-editor/styles.css'` to pick up the editor's CSS variables
+ * + Tailwind layer. The library build emits a single bundled
+ * stylesheet alongside the JS — pulled in via this side-effect import
+ * so Vite's CSS pipeline picks it up.
  */
+
+// Side-effect import — anchors the stylesheet for the library build.
+import './index.css';
 
 export { TeamEditorShell } from './TeamEditorShell';
 export type { TeamEditorShellProps } from './TeamEditorShell';

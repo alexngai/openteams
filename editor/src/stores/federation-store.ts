@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Node, Edge } from '@xyflow/react';
-import type { FederationBridge, FederationManifest, PlacementConfig } from '@openteams/template/types';
+import type { FederationBridge, FederationManifest, PlacementConfig } from 'openteams';
 import type { TeamNodeData, BridgeEdgeData } from '../types/editor';
 
 export interface FederationTeamEntry {

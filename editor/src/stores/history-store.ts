@@ -7,7 +7,7 @@ import type {
   ChannelDefinition,
   SubscriptionEntry,
   PeerRoute,
-} from '@openteams/template/types';
+} from 'openteams';
 
 interface Snapshot {
   canvas: {

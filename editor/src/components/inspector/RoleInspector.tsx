@@ -95,7 +95,7 @@ export function RoleInspector({ nodeId, data }: Props) {
 }
 
 function IdentityTab({ role, data, nodeId, updateRole }: {
-  role: { name: string; displayName: string; description: string; model?: string; extends?: string; placement?: import('@openteams/template/types').PlacementConfig };
+  role: { name: string; displayName: string; description: string; model?: string; extends?: string; placement?: import('openteams').PlacementConfig };
   data: RoleNodeData;
   nodeId: string;
   updateRole: (u: Record<string, unknown>) => void;
@@ -132,7 +132,7 @@ function IdentityTab({ role, data, nodeId, updateRole }: {
   const handlePlacementChange = (field: string, value: string) => {
     pushSnapshot();
     const current = placement || {};
-    let updated: import('@openteams/template/types').PlacementConfig | undefined;
+    let updated: import('openteams').PlacementConfig | undefined;
     if (field === 'zone') {
       updated = { ...current, zone: value || undefined };
     } else if (field === 'affinity') {

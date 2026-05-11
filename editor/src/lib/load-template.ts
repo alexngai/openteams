@@ -1,4 +1,4 @@
-import type { TeamManifest, RoleDefinition } from '@openteams/template/types';
+import type { TeamManifest, RoleDefinition } from 'openteams';
 import type { EditorRoleConfig, EditorTeamConfig } from '../stores/config-store';
 import { useCanvasStore } from '../stores/canvas-store';
 import { useConfigStore } from '../stores/config-store';
@@ -43,7 +43,7 @@ export function loadTemplate(manifest: TeamManifest, roleDefinitions: Map<string
   const roles = new Map<string, EditorRoleConfig>();
 
   // Build a placement lookup from topology nodes
-  const placementByRole: Record<string, import('@openteams/template/types').PlacementConfig> = {};
+  const placementByRole: Record<string, import('openteams').PlacementConfig> = {};
   if (manifest.topology.root.config?.placement) {
     placementByRole[manifest.topology.root.role] = manifest.topology.root.config.placement;
   }

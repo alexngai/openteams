@@ -9,9 +9,6 @@ export default defineConfig({
     tailwindcss(),
   ],
   resolve: {
-    alias: {
-      '@openteams': path.resolve(__dirname, '../src'),
-    },
     dedupe: ['react', 'react-dom'],
   },
   server: {

@@ -7,7 +7,7 @@ import type {
   ChannelDefinition,
   ExportDeclaration,
   ImportDeclaration,
-} from '@openteams/template/types';
+} from 'openteams';
 import type {
   EditorNode,
   EditorEdge,

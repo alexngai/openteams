@@ -1,6 +1,6 @@
 import { useConfigStore } from '../../stores/config-store';
 import { useHistoryStore } from '../../stores/history-store';
-import type { ExportDeclaration, ImportDeclaration } from '@openteams/template/types';
+import type { ExportDeclaration, ImportDeclaration } from 'openteams';
 import * as yaml from 'js-yaml';
 
 export function TeamInspector() {

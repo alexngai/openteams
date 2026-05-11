@@ -1,5 +1,5 @@
 import * as yaml from 'js-yaml';
-import type { TeamManifest, RoleDefinition } from '@openteams/template/types';
+import type { TeamManifest, RoleDefinition } from 'openteams';
 
 export interface BundledTemplate {
   manifest: TeamManifest;

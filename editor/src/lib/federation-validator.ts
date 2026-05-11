@@ -1,4 +1,4 @@
-import type { FederationBridge } from '@openteams/template/types';
+import type { FederationBridge } from 'openteams';
 import type { FederationTeamEntry } from '../stores/federation-store';
 
 export interface FederationValidationIssue {

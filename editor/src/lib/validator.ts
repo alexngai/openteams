@@ -1,6 +1,6 @@
 import type { ValidationIssue } from '../stores/validation-store';
 import type { EditorTeamConfig, EditorRoleConfig } from '../stores/config-store';
-import type { ChannelDefinition, SubscriptionEntry, PeerRoute, ExportDeclaration, ImportDeclaration } from '@openteams/template/types';
+import type { ChannelDefinition, SubscriptionEntry, PeerRoute, ExportDeclaration, ImportDeclaration } from 'openteams';
 
 interface ValidationInput {
   team: EditorTeamConfig;
