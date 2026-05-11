@@ -6,3 +6,4 @@ dist/
 .firebase/
 .firebaserc
 firebase.json
+.omc/

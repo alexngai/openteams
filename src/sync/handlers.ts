@@ -130,6 +130,34 @@ export function createTeamKindHandler(
 }
 
 /**
+ * Optional fallback hooks for `composeResourceHandlers`. When a `list`/`get`
+ * request arrives for a `type` that has no registered handler, the helper
+ * routes the raw `params`/`ctx` to the fallback instead of throwing
+ * `UnknownResourceTypeError`.
+ *
+ * This is how a host hub (e.g. OpenHive) cooperates with the helper when it
+ * already owns `map/resources/list` and `get` for its own resource types
+ * (`repo`, `memory_bank`, etc.). The host passes its existing dispatchers
+ * here and OpenTeams routes `x-openteams/*` to its kind handlers while
+ * letting everything else fall through.
+ *
+ * Fallbacks receive the exact same `(params, ctx)` shape that the SDK
+ * dispatches with — they're MAP method handlers, not type-narrowed.
+ */
+export interface ComposeResourceHandlersOptions {
+  /**
+   * Fallback dispatchers for `map/resources/list` and `map/resources/get`
+   * when the requested type has no registered handler. Either or both may
+   * be supplied; missing ones fall back to throwing
+   * `UnknownResourceTypeError` so the caller still gets a structured error.
+   */
+  fallback?: {
+    list?: ResourceMethodHandler;
+    get?: ResourceMethodHandler;
+  };
+}
+
+/**
  * Compose a set of kind handlers into a method-handler map suitable for
  * `MAPServer.additionalHandlers`, plus the `kinds` list to pass to
  * `capabilities.resources.kinds`. Pure function — no mutation.
@@ -142,9 +170,17 @@ export function createTeamKindHandler(
  *     resources: { enabled: true, kinds },
  *     additionalHandlers: handlers,
  *   });
+ *
+ * Pass `{ fallback }` to cooperate with a host that already owns the
+ * standard `map/resources/list`/`get` dispatchers for other kinds:
+ *
+ *   composeResourceHandlers(openteamsHandlers, {
+ *     fallback: { list: hostListHandler, get: hostGetHandler },
+ *   });
  */
 export function composeResourceHandlers(
-  handlers: ResourceKindHandler[]
+  handlers: ResourceKindHandler[],
+  options: ComposeResourceHandlersOptions = {}
 ): ComposedResourceHandlers {
   const byType = new Map<string, ResourceKindHandler>();
   for (const h of handlers) {
@@ -154,23 +190,42 @@ export function composeResourceHandlers(
     byType.set(h.type, h);
   }
 
+  const fallbackList = options.fallback?.list;
+  const fallbackGet = options.fallback?.get;
+
   const methodHandlers: Record<string, ResourceMethodHandler> = {
     "map/resources/list": async (params, ctx) => {
       const p = asListParams(params);
-      const handler = handlerFor(byType, p.type);
-      return handler.list(
-        { filter: p.filter, cursor: p.cursor, limit: p.limit },
-        ctx
+      const handler = byType.get(p.type);
+      if (handler) {
+        return handler.list(
+          { filter: p.filter, cursor: p.cursor, limit: p.limit },
+          ctx
+        );
+      }
+      if (fallbackList) {
+        return fallbackList(params, ctx);
+      }
+      throw new UnknownResourceTypeError(
+        `No handler registered for resource type: ${p.type}`
       );
     },
     "map/resources/get": async (params, ctx) => {
       const p = asGetParams(params);
-      const handler = handlerFor(byType, p.type);
-      const resource = await handler.get(p.id, ctx);
-      if (!resource) {
-        throw new ResourceNotFoundError(`Not found: ${p.type} ${p.id}`);
+      const handler = byType.get(p.type);
+      if (handler) {
+        const resource = await handler.get(p.id, ctx);
+        if (!resource) {
+          throw new ResourceNotFoundError(`Not found: ${p.type} ${p.id}`);
+        }
+        return resource;
       }
-      return resource;
+      if (fallbackGet) {
+        return fallbackGet(params, ctx);
+      }
+      throw new UnknownResourceTypeError(
+        `No handler registered for resource type: ${p.type}`
+      );
     },
   };
 
@@ -281,19 +336,6 @@ function assertResourceType(bundle: MAPResource, expected: string): void {
       `Expected resource type ${expected}, got ${String(bundle.type)}`
     );
   }
-}
-
-function handlerFor(
-  byType: Map<string, ResourceKindHandler>,
-  type: string
-): ResourceKindHandler {
-  const handler = byType.get(type);
-  if (!handler) {
-    throw new UnknownResourceTypeError(
-      `No handler registered for resource type: ${type}`
-    );
-  }
-  return handler;
 }
 
 function asListParams(

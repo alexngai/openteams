@@ -209,4 +209,96 @@ describe("composeResourceHandlers", () => {
       ])
     ).toThrow(/Duplicate handler/);
   });
+
+  // ───── Cooperative dispatch (`fallback`) ─────
+  // When a host hub already owns map/resources/list+get for its own kinds,
+  // it passes those handlers as `fallback` and OpenTeams routes unknown
+  // types through them instead of throwing UnknownResourceTypeError.
+
+  it("routes unknown list types to the fallback list handler when provided", async () => {
+    const fallbackCalls: Array<unknown> = [];
+    const composed = composeResourceHandlers(
+      [createLoadoutKindHandler({ store })],
+      {
+        fallback: {
+          list: async (params, _ctx) => {
+            fallbackCalls.push(params);
+            return { resources: [], next_cursor: null };
+          },
+        },
+      }
+    );
+
+    const result = await composed.handlers["map/resources/list"]!(
+      { type: "x-host/repo", filter: { name: "demo" } },
+      ctx
+    );
+    expect(result).toEqual({ resources: [], next_cursor: null });
+    expect(fallbackCalls).toHaveLength(1);
+    // Raw params pass through unchanged so the host can read its own filter shape.
+    expect(fallbackCalls[0]).toEqual({ type: "x-host/repo", filter: { name: "demo" } });
+  });
+
+  it("routes unknown get types to the fallback get handler when provided", async () => {
+    const composed = composeResourceHandlers(
+      [createLoadoutKindHandler({ store })],
+      {
+        fallback: {
+          get: async (params, _ctx) => {
+            const p = params as { type: string; id: string };
+            return { resource: { id: p.id, type: p.type, name: "host-side" } };
+          },
+        },
+      }
+    );
+
+    const result = (await composed.handlers["map/resources/get"]!(
+      { type: "x-host/repo", id: "repo_1" },
+      ctx
+    )) as { resource: { id: string; type: string } };
+    expect(result.resource.id).toBe("repo_1");
+    expect(result.resource.type).toBe("x-host/repo");
+  });
+
+  it("still throws UnknownResourceTypeError for unknown types when no fallback is supplied", async () => {
+    const composed = composeResourceHandlers([createLoadoutKindHandler({ store })]);
+    await expect(
+      composed.handlers["map/resources/list"]!({ type: "x-host/repo" }, ctx)
+    ).rejects.toBeInstanceOf(UnknownResourceTypeError);
+    await expect(
+      composed.handlers["map/resources/get"]!({ type: "x-host/repo", id: "x" }, ctx)
+    ).rejects.toBeInstanceOf(UnknownResourceTypeError);
+  });
+
+  it("does NOT invoke the fallback when the type IS registered", async () => {
+    const bundle = buildLoadoutBundle();
+    await store.put(bundle);
+
+    let fallbackCalled = false;
+    const composed = composeResourceHandlers(
+      [createLoadoutKindHandler({ store })],
+      {
+        fallback: {
+          list: async () => {
+            fallbackCalled = true;
+            return null;
+          },
+          get: async () => {
+            fallbackCalled = true;
+            return null;
+          },
+        },
+      }
+    );
+
+    await composed.handlers["map/resources/list"]!(
+      { type: LOADOUT_RESOURCE_TYPE },
+      ctx
+    );
+    await composed.handlers["map/resources/get"]!(
+      { type: LOADOUT_RESOURCE_TYPE, id: bundle.id },
+      ctx
+    );
+    expect(fallbackCalled).toBe(false);
+  });
 });
