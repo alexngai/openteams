@@ -2,34 +2,31 @@ import { useEffect, useRef } from 'react';
 import { useConfigStore } from '../stores/config-store';
 import { useCanvasStore } from '../stores/canvas-store';
 import { useUIStore } from '../stores/ui-store';
+import { useEditorPersistence, defaultLocalStoragePersistence } from '../lib/persistence';
+import type { EditorPersistence, EditorSavedState } from '../lib/persistence';
 
-const STORAGE_KEY = 'openteams-editor-state';
 const DEBOUNCE_MS = 1000;
 
-interface SavedState {
-  config: {
-    team: ReturnType<typeof useConfigStore.getState>['team'];
-    roles: [string, ReturnType<typeof useConfigStore.getState>['roles'] extends Map<string, infer V> ? V : never][];
-    channels: ReturnType<typeof useConfigStore.getState>['channels'];
-    subscriptions: ReturnType<typeof useConfigStore.getState>['subscriptions'];
-    emissions: ReturnType<typeof useConfigStore.getState>['emissions'];
-    peerRoutes: ReturnType<typeof useConfigStore.getState>['peerRoutes'];
-    spawnRules: ReturnType<typeof useConfigStore.getState>['spawnRules'];
-    roleModels: ReturnType<typeof useConfigStore.getState>['roleModels'];
-    topologyRoot: string;
-    topologyCompanions: string[];
-  };
-  canvas: {
-    nodes: ReturnType<typeof useCanvasStore.getState>['nodes'];
-    edges: ReturnType<typeof useCanvasStore.getState>['edges'];
-  };
-  ui: {
-    layers: ReturnType<typeof useUIStore.getState>['layers'];
-  };
-}
+// Re-export the shape for callers that want to construct their own snapshots.
+export type SavedState = EditorSavedState;
 
-export function useAutosave() {
+/**
+ * Debounced autosave that persists the editor's full state through the
+ * currently-installed `EditorPersistence` adapter. The default adapter
+ * writes to localStorage (matches pre-refactor behaviour); consumers like
+ * OpenHive plug in a REST adapter via `<EditorPersistenceProvider>` to
+ * point the same calls at `/api/v1/teams/:id`.
+ *
+ * @param override - optional explicit adapter; bypasses the context for
+ *   tests or one-off mounts.
+ */
+export function useAutosave(override?: EditorPersistence): void {
+  const ctxAdapter = useEditorPersistence();
+  const adapter = override ?? ctxAdapter ?? defaultLocalStoragePersistence;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Retain the last save's ETag so we can offer optimistic concurrency on
+  // remote persistence backends. Local persistence ignores it.
+  const etagRef = useRef<string | undefined>(undefined);
 
   const team = useConfigStore(s => s.team);
   const roles = useConfigStore(s => s.roles);
@@ -49,42 +46,50 @@ export function useAutosave() {
     if (timerRef.current !== null) clearTimeout(timerRef.current);
 
     timerRef.current = setTimeout(() => {
-      try {
-        const state: SavedState = {
-          config: {
-            team,
-            roles: Array.from(roles.entries()),
-            channels,
-            subscriptions,
-            emissions,
-            peerRoutes,
-            spawnRules,
-            roleModels,
-            topologyRoot,
-            topologyCompanions,
-          },
-          canvas: { nodes, edges },
-          ui: { layers },
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      } catch {
-        // localStorage may be full or unavailable
-      }
+      const state: EditorSavedState = {
+        config: {
+          team,
+          roles: Array.from(roles.entries()),
+          channels,
+          subscriptions,
+          emissions,
+          peerRoutes,
+          spawnRules,
+          roleModels,
+          topologyRoot,
+          topologyCompanions,
+        },
+        canvas: { nodes, edges },
+        ui: { layers },
+      };
+      void Promise.resolve(adapter.save(state, { etag: etagRef.current }))
+        .then((res) => {
+          if (res && res.etag) etagRef.current = res.etag;
+        })
+        .catch(() => {
+          // Persistence backends are responsible for surfacing their own
+          // errors (e.g. via toast); we swallow here so a transient failure
+          // doesn't unmount the editor.
+        });
     }, DEBOUNCE_MS);
 
     return () => {
       if (timerRef.current !== null) clearTimeout(timerRef.current);
     };
-  }, [team, roles, channels, subscriptions, emissions, peerRoutes, spawnRules, roleModels, topologyRoot, topologyCompanions, nodes, edges, layers]);
+  }, [adapter, team, roles, channels, subscriptions, emissions, peerRoutes, spawnRules, roleModels, topologyRoot, topologyCompanions, nodes, edges, layers]);
 }
 
-export function loadSavedState(): boolean {
+/**
+ * Restore editor state from the currently-installed persistence adapter.
+ * Synchronous for the localStorage default; async-aware for remote
+ * adapters (returns a promise that callers can await).
+ */
+export async function loadSavedState(
+  adapter: EditorPersistence = defaultLocalStoragePersistence,
+): Promise<boolean> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return false;
-
-    const state: SavedState = JSON.parse(raw);
-    if (!state.config?.team?.name) return false;
+    const state = await Promise.resolve(adapter.load());
+    if (!state || !state.config?.team?.name) return false;
 
     const config = useConfigStore.getState();
     const canvas = useCanvasStore.getState();
@@ -121,6 +126,6 @@ export function loadSavedState(): boolean {
   }
 }
 
-export function clearSavedState() {
-  localStorage.removeItem(STORAGE_KEY);
+export function clearSavedState(adapter: EditorPersistence = defaultLocalStoragePersistence): void {
+  void Promise.resolve(adapter.clear?.()).catch(() => undefined);
 }

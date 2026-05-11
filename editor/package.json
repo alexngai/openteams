@@ -3,13 +3,33 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "./dist/lib/index.js",
+  "module": "./dist/lib/index.js",
+  "types": "./dist/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib/index.d.ts",
+      "import": "./dist/lib/index.js"
+    },
+    "./styles.css": "./dist/lib/openteams-editor.css"
+  },
+  "files": [
+    "dist/lib"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:lib": "vite build --config vite.config.lib.ts",
     "typecheck": "tsc -b",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@xyflow/react": "^12.6.0",
+    "zustand": "^5.0.5"
   },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.4",
@@ -17,8 +37,8 @@
     "ajv": "^8.17.1",
     "js-yaml": "^4.1.1",
     "jszip": "^3.10.1",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "zustand": "^5.0.5"
   },
   "devDependencies": {
@@ -27,8 +47,8 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/js-yaml": "^4.0.9",
-    "@types/react": "^19.1.2",
-    "@types/react-dom": "^19.1.2",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.4.1",
     "jsdom": "^28.1.0",
     "tailwindcss": "^4.1.4",
