@@ -54,7 +54,8 @@ export type {
 
 // Template helpers — for hosts seeding from server-side fixtures.
 export { loadTemplate } from './lib/load-template';
-export { compileToYaml } from './lib/compiler';
+export { compileToYaml, compileToContent } from './lib/compiler';
+export type { CompiledFile, CompiledContent } from './lib/compiler';
 export { BUNDLED_TEMPLATES } from './lib/bundled-templates';
 
 // Autosave hook + saved-state helpers — useful for hosts driving manual

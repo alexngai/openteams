@@ -391,7 +391,7 @@ function CommunicationTab({ data }: { data: RoleNodeData }) {
 }
 
 function CapabilitiesTab({ role, data, updateRole }: {
-  role: { capabilities: string[]; extends?: string };
+  role: { capabilities: string[]; extends?: string; loadout?: string };
   data: RoleNodeData;
   updateRole: (u: Record<string, unknown>) => void;
 }) {
@@ -422,8 +422,50 @@ function CapabilitiesTab({ role, data, updateRole }: {
     rebuildDerivedEdges();
   };
 
+  // Loadout binding (slug shape). Dropdown is populated from the
+  // team's embedded loadouts so the relationship is obvious \u2014 the
+  // bound loadout shows up in the same sidebar list. (Standalone
+  // openhive loadouts aren't fetched here; binding to those would
+  // need a name-based reference that the bundling pipeline can
+  // resolve via `resolveExternalLoadout`. v1 scope.)
+  const embeddedLoadoutNames = Object.keys(configStore.loadouts);
+  const handleBindLoadout = (next: string) => {
+    updateRole({ loadout: next || undefined });
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div>
+        <div style={sectionLabel}>Bound loadout</div>
+        <select
+          value={role.loadout ?? ''}
+          onChange={e => handleBindLoadout(e.target.value)}
+          data-testid="role-loadout-select"
+          style={{
+            width: '100%',
+            padding: '6px 8px',
+            fontSize: 13,
+            border: '1px solid var(--color-border)',
+            borderRadius: 4,
+            background: 'var(--color-elevated)',
+            color: 'var(--color-text)',
+            boxSizing: 'border-box',
+          }}
+        >
+          <option value="">\u2014 none \u2014</option>
+          {embeddedLoadoutNames.map(n => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
+        <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
+          Applies the loadout's capabilities, permissions, mcp_servers,
+          and prompt_addendum to this role at hydrate time.
+          {embeddedLoadoutNames.length === 0 && (
+            <> Add a loadout from the sidebar to enable binding.</>
+          )}
+        </p>
+      </div>
+
       <div>
         <div style={sectionLabel}>Capabilities</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
@@ -454,13 +496,78 @@ function CapabilitiesTab({ role, data, updateRole }: {
   );
 }
 
+/**
+ * Standard prompt sections openteams's bundled templates use most
+ * often. Quick-add buttons surface these so users don't have to retype
+ * filenames. Anything not in the list can still be added via the
+ * free-text input.
+ */
+const PRESET_SECTIONS = ['SOUL.md', 'RULES.md', 'RESPONSIBILITIES.md', 'EXAMPLES.md', 'CONSTRAINTS.md'];
+
+/**
+ * Rough token estimate: GPT-style tokenizers average ~4 chars/token
+ * for English prose. Code/JSON skews lower (~3.5). We pick 4 as a
+ * useful upper-bound estimate to surface "how big is this prompt
+ * getting" without bundling a real tokenizer.
+ */
+function estimateTokens(text: string): number {
+  if (!text) return 0;
+  return Math.max(1, Math.ceil(text.length / 4));
+}
+
 function PromptsTab({ role, updateRole }: {
-  role: { promptContent?: string; additionalPrompts?: { name: string; content: string }[] };
+  role: {
+    promptContent?: string;
+    additionalPrompts?: { name: string; content: string }[];
+    loadout?: string;
+  };
   updateRole: (u: Record<string, unknown>) => void;
 }) {
+  const loadouts = useConfigStore(s => s.loadouts);
+  const [draftName, setDraftName] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
+
+  const additional = role.additionalPrompts ?? [];
+  const existingNames = new Set([role.promptContent ? 'ROLE.md' : null, ...additional.map(p => p.name)].filter(Boolean) as string[]);
+
+  const addSection = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (existingNames.has(trimmed)) return;
+    updateRole({ additionalPrompts: [...additional, { name: trimmed, content: '' }] });
+    setDraftName('');
+  };
+
+  const removeSection = (i: number) => {
+    const next = additional.slice();
+    next.splice(i, 1);
+    updateRole({ additionalPrompts: next.length ? next : undefined });
+  };
+
+  // Loadout prompt_addendum: concatenation order at hydrate time is
+  // role-primary → additional sections → loadout.prompt_addendum. Show
+  // it in the preview so the user can see what the agent actually
+  // gets, including the loadout-binding effect (S2.2).
+  const boundLoadout = role.loadout ? loadouts[role.loadout] : undefined;
+  const loadoutAddendum =
+    typeof (boundLoadout as { prompt_addendum?: string } | undefined)?.prompt_addendum === 'string'
+      ? ((boundLoadout as { prompt_addendum: string }).prompt_addendum)
+      : '';
+
+  const composedPrompt = (() => {
+    const parts: string[] = [];
+    if (role.promptContent) parts.push(role.promptContent);
+    for (const p of additional) {
+      if (p.content) parts.push(`## ${p.name}\n\n${p.content}`);
+    }
+    if (loadoutAddendum) parts.push(`<!-- loadout.${role.loadout} -->\n${loadoutAddendum}`);
+    return parts.join('\n\n');
+  })();
+  const composedTokens = estimateTokens(composedPrompt);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <Field label="Primary Prompt (ROLE.md)">
+      <Field label={`Primary Prompt (ROLE.md)  •  ~${estimateTokens(role.promptContent ?? '')} tokens`}>
         <textarea
           style={{
             ...inputStyle,
@@ -476,8 +583,28 @@ function PromptsTab({ role, updateRole }: {
         />
       </Field>
 
-      {role.additionalPrompts?.map((p, i) => (
-        <Field key={i} label={p.name}>
+      {additional.map((p, i) => (
+        <div key={i}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
+              {p.name}  •  ~{estimateTokens(p.content)} tokens
+            </label>
+            <button
+              onClick={() => removeSection(i)}
+              data-testid={`prompt-section-remove-${p.name}`}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-text-muted)',
+                cursor: 'pointer',
+                fontSize: '12px',
+                padding: '2px 6px',
+              }}
+              title="Remove section"
+            >
+              {'×'}
+            </button>
+          </div>
           <textarea
             style={{
               ...inputStyle,
@@ -489,25 +616,109 @@ function PromptsTab({ role, updateRole }: {
             }}
             value={p.content}
             onChange={e => {
-              const prompts = [...(role.additionalPrompts || [])];
+              const prompts = [...additional];
               prompts[i] = { ...prompts[i], content: e.target.value };
               updateRole({ additionalPrompts: prompts });
             }}
           />
-        </Field>
+        </div>
       ))}
 
-      <button
-        onClick={() => {
-          const name = prompt('Section name (e.g., SOUL.md):');
-          if (!name) return;
-          const prompts = [...(role.additionalPrompts || []), { name, content: '' }];
-          updateRole({ additionalPrompts: prompts });
-        }}
-        style={{ ...addBtnStyle, padding: '6px', fontSize: '12px' }}
-      >
-        + Add Prompt Section
-      </button>
+      {/* Section quick-add: preset chips + free-text input — replaces
+          the old window.prompt() dialog with an inline UX that's
+          discoverable and keyboard-friendly. */}
+      <div style={{ marginTop: 8 }}>
+        <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
+          Add prompt section
+        </label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+          {PRESET_SECTIONS.filter(name => !existingNames.has(name)).map(name => (
+            <button
+              key={name}
+              onClick={() => addSection(name)}
+              data-testid={`prompt-section-preset-${name}`}
+              style={{
+                padding: '3px 8px',
+                fontSize: '11px',
+                fontFamily: 'monospace',
+                background: 'var(--color-elevated)',
+                color: 'var(--color-text)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 4,
+                cursor: 'pointer',
+              }}
+            >
+              + {name}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <input
+            type="text"
+            placeholder="Custom section filename (e.g. NOTES.md)"
+            value={draftName}
+            onChange={e => setDraftName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addSection(draftName);
+              }
+            }}
+            style={{ ...inputStyle, flex: 1, fontSize: 12 }}
+          />
+          <button onClick={() => addSection(draftName)} style={{ ...addBtnStyle, fontSize: 12, padding: '6px 10px' }}>
+            +
+          </button>
+        </div>
+      </div>
+
+      {/* Composed-prompt preview — read-only view of what the agent
+          actually receives, including the bound loadout's prompt
+          addendum. Particularly useful for verifying the loadout-
+          binding effect from S2.2. */}
+      <div style={{ marginTop: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
+            Composed prompt  •  ~{composedTokens} tokens
+            {role.loadout && (
+              <span style={{ marginLeft: 6, color: '#10b981' }}>+ loadout: {role.loadout}</span>
+            )}
+          </label>
+          <button
+            onClick={() => setShowPreview(v => !v)}
+            data-testid="prompt-composed-toggle"
+            style={{
+              background: 'none',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text-muted)',
+              cursor: 'pointer',
+              fontSize: 11,
+              padding: '2px 8px',
+              borderRadius: 4,
+            }}
+          >
+            {showPreview ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        {showPreview && (
+          <pre
+            data-testid="prompt-composed-body"
+            style={{
+              ...inputStyle,
+              minHeight: '120px',
+              maxHeight: '320px',
+              overflow: 'auto',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              lineHeight: '1.5',
+              whiteSpace: 'pre-wrap',
+              margin: 0,
+            }}
+          >
+            {composedPrompt || <em style={{ color: 'var(--color-text-muted)' }}>(empty)</em>}
+          </pre>
+        )}
+      </div>
     </div>
   );
 }

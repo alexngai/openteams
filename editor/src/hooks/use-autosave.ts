@@ -38,6 +38,7 @@ export function useAutosave(override?: EditorPersistence): void {
   const roleModels = useConfigStore(s => s.roleModels);
   const topologyRoot = useConfigStore(s => s.topologyRoot);
   const topologyCompanions = useConfigStore(s => s.topologyCompanions);
+  const loadouts = useConfigStore(s => s.loadouts);
   const nodes = useCanvasStore(s => s.nodes);
   const edges = useCanvasStore(s => s.edges);
   const layers = useUIStore(s => s.layers);
@@ -58,6 +59,7 @@ export function useAutosave(override?: EditorPersistence): void {
           roleModels,
           topologyRoot,
           topologyCompanions,
+          loadouts,
         },
         canvas: { nodes, edges },
         ui: { layers },
@@ -76,7 +78,7 @@ export function useAutosave(override?: EditorPersistence): void {
     return () => {
       if (timerRef.current !== null) clearTimeout(timerRef.current);
     };
-  }, [adapter, team, roles, channels, subscriptions, emissions, peerRoutes, spawnRules, roleModels, topologyRoot, topologyCompanions, nodes, edges, layers]);
+  }, [adapter, team, roles, channels, subscriptions, emissions, peerRoutes, spawnRules, roleModels, topologyRoot, topologyCompanions, loadouts, nodes, edges, layers]);
 }
 
 /**
@@ -108,6 +110,11 @@ export async function loadSavedState(
       state.config.topologyRoot,
       state.config.topologyCompanions,
     );
+    // Loadouts slice — restore after `loadFromManifest` because the
+    // latter doesn't touch this slice and we don't want it stale on
+    // restore. Optional in the saved-state shape so legacy snapshots
+    // hydrate as an empty map.
+    config.setLoadouts(state.config.loadouts ?? {});
 
     canvas.setNodes(state.canvas.nodes);
     canvas.setEdges(state.canvas.edges);

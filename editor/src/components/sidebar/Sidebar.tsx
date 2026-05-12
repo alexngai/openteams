@@ -8,9 +8,12 @@ import type { RoleNodeData } from '../../types/editor';
 export function Sidebar() {
   const roles = useConfigStore(s => s.roles);
   const channels = useConfigStore(s => s.channels);
+  const loadouts = useConfigStore(s => s.loadouts);
   const topologyRoot = useConfigStore(s => s.topologyRoot);
   const topologyCompanions = useConfigStore(s => s.topologyCompanions);
   const setSelection = useCanvasStore(s => s.setSelection);
+  const selectedLoadout = useCanvasStore(s => s.selectedLoadout);
+  const setSelectedLoadout = useCanvasStore(s => s.setSelectedLoadout);
   const handleLoadTemplate = (key: string) => {
     const template = BUNDLED_TEMPLATES[key];
     if (template) {
@@ -64,6 +67,21 @@ export function Sidebar() {
     setSelection(`role-${name}`, null);
   };
 
+  const handleAddLoadout = () => {
+    const store = useConfigStore.getState();
+    const history = useHistoryStore.getState();
+
+    let name = 'new-loadout';
+    let i = 1;
+    while (store.loadouts[name]) {
+      name = `new-loadout-${i++}`;
+    }
+
+    history.pushSnapshot();
+    store.setLoadout(name, { name });
+    setSelectedLoadout(name);
+  };
+
   const handleAddChannel = () => {
     const store = useConfigStore.getState();
     const canvas = useCanvasStore.getState();
@@ -111,12 +129,15 @@ export function Sidebar() {
         <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Add Blocks
         </div>
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           <button onClick={handleAddRole} style={blockBtnStyle('#3b82f6')} data-testid="add-role">
             + Role
           </button>
           <button onClick={handleAddChannel} style={blockBtnStyle('#8b5cf6')} data-testid="add-channel">
             + Channel
+          </button>
+          <button onClick={handleAddLoadout} style={blockBtnStyle('#10b981')} data-testid="add-loadout">
+            + Loadout
           </button>
         </div>
       </div>
@@ -180,6 +201,36 @@ export function Sidebar() {
             {name}
           </div>
         ))}
+
+        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginTop: '16px', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          Loadouts ({Object.keys(loadouts).length})
+        </div>
+        {Object.keys(loadouts).map(name => {
+          const isSelected = selectedLoadout === name;
+          return (
+            <div
+              key={name}
+              onClick={() => setSelectedLoadout(name)}
+              data-testid={`sidebar-loadout-${name}`}
+              style={{
+                padding: '4px 8px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                color: 'var(--color-text)',
+                borderRadius: '4px',
+                background: isSelected ? 'var(--color-border)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+              onMouseOver={e => (e.currentTarget.style.background = 'var(--color-border)')}
+              onMouseOut={e => (e.currentTarget.style.background = isSelected ? 'var(--color-border)' : 'none')}
+            >
+              <span style={{ color: '#10b981', fontSize: '11px' }}>{'\u25C6'}</span>
+              {name}
+            </div>
+          );
+        })}
       </div>
 
       {/* Template Selector */}

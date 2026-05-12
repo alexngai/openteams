@@ -422,6 +422,9 @@ export function rolesToDefinitions(roles: Map<string, EditorRoleConfig>): Map<st
     if (role.capabilities.length > 0) {
       def.capabilities = role.capabilities;
     }
+    if (role.loadout) {
+      def.loadout = role.loadout;
+    }
     // Note: placement is stored on topology nodes, not role definitions
     result.set(name, def);
   }

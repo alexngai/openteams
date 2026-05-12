@@ -6,6 +6,7 @@ import type {
   ExportDeclaration,
   ImportDeclaration,
   PlacementConfig,
+  LoadoutDefinition,
 } from 'openteams';
 
 export interface EditorRoleConfig {
@@ -17,6 +18,13 @@ export interface EditorRoleConfig {
   promptContent?: string;
   additionalPrompts?: { name: string; content: string }[];
   placement?: PlacementConfig;
+  /**
+   * Loadout binding (slug shape). openteams's `role.loadout` also
+   * accepts an inline `LoadoutDefinition`; for now the visual editor
+   * only authors the slug shape — inline definitions are preserved
+   * verbatim through the round-trip but not editable here.
+   */
+  loadout?: string;
 }
 
 export interface EditorTeamConfig {
@@ -40,6 +48,14 @@ interface ConfigStore {
   roleModels: Record<string, string>;
   topologyRoot: string;
   topologyCompanions: string[];
+  /**
+   * Embedded loadouts authored alongside the team (the
+   * `loadouts/<name>.yaml` sidecars in openteams's file layout). Stored
+   * as a verbatim passthrough today — round-trips through
+   * `compileToContent()` so authoring via REST/import doesn't drop
+   * them. Edited via the Loadouts inspector once that UI lands.
+   */
+  loadouts: Record<string, LoadoutDefinition>;
 
   setTeam: (team: Partial<EditorTeamConfig>) => void;
   setRole: (name: string, role: EditorRoleConfig) => void;
@@ -59,6 +75,10 @@ interface ConfigStore {
   setExports: (exports: ExportDeclaration[]) => void;
   setImports: (imports: ImportDeclaration[]) => void;
   setRolePlacement: (role: string, placement: PlacementConfig | undefined) => void;
+  setLoadout: (name: string, def: LoadoutDefinition) => void;
+  removeLoadout: (name: string) => void;
+  renameLoadout: (oldName: string, newName: string) => void;
+  setLoadouts: (loadouts: Record<string, LoadoutDefinition>) => void;
   clear: () => void;
   loadFromManifest: (
     team: EditorTeamConfig,
@@ -95,6 +115,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   roleModels: {},
   topologyRoot: '',
   topologyCompanions: [],
+  loadouts: {},
 
   setTeam: (updates) => {
     set({ team: { ...get().team, ...updates } });
@@ -250,6 +271,29 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     }
   },
 
+  setLoadout: (name, def) => {
+    set({ loadouts: { ...get().loadouts, [name]: def } });
+  },
+
+  removeLoadout: (name) => {
+    const next = { ...get().loadouts };
+    delete next[name];
+    set({ loadouts: next });
+  },
+
+  renameLoadout: (oldName, newName) => {
+    if (oldName === newName) return;
+    const next: Record<string, LoadoutDefinition> = {};
+    for (const [k, v] of Object.entries(get().loadouts)) {
+      next[k === oldName ? newName : k] = k === oldName ? { ...v, name: newName } : v;
+    }
+    set({ loadouts: next });
+  },
+
+  setLoadouts: (loadouts) => {
+    set({ loadouts });
+  },
+
   clear: () => {
     set({
       team: { ...defaultTeam },
@@ -262,6 +306,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       roleModels: {},
       topologyRoot: '',
       topologyCompanions: [],
+      loadouts: {},
     });
   },
 

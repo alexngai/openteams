@@ -1,4 +1,9 @@
-import type { TeamManifest, RoleDefinition } from 'openteams';
+import type {
+  TeamManifest,
+  RoleDefinition,
+  ResolvedPrompts,
+  LoadoutDefinition,
+} from 'openteams';
 import type { EditorRoleConfig, EditorTeamConfig } from '../stores/config-store';
 import { useCanvasStore } from '../stores/canvas-store';
 import { useConfigStore } from '../stores/config-store';
@@ -27,7 +32,27 @@ export function loadEmpty() {
   useValidationStore.getState().clear();
 }
 
-export function loadTemplate(manifest: TeamManifest, roleDefinitions: Map<string, RoleDefinition>) {
+/**
+ * Hydrate the editor stores from a parsed openteams template.
+ *
+ * - `manifest` and `roleDefinitions` are the always-required pair (file
+ *   layout: `team.yaml` + `roles/*.yaml`).
+ * - `prompts` is the optional per-role prompt material (file layout:
+ *   `prompts/<role>/ROLE.md` + additional `.md` sections). Without it,
+ *   the editor opens a team with the prompt textareas empty even when
+ *   the row's `metadata.content.prompts` is populated — the original
+ *   data-loss bug we're fixing in stage 1.
+ * - `loadouts` is the optional embedded-loadout map (file layout:
+ *   `loadouts/<name>.yaml`). Round-tripped through a verbatim
+ *   passthrough slice on the store so they survive autosave even
+ *   before the loadout-authoring UI lands.
+ */
+export function loadTemplate(
+  manifest: TeamManifest,
+  roleDefinitions: Map<string, RoleDefinition>,
+  prompts?: Record<string, ResolvedPrompts>,
+  loadouts?: Record<string, LoadoutDefinition>,
+) {
   const comm = manifest.communication || {};
   const channels = comm.channels || {};
   const subscriptions = comm.subscriptions || {};
@@ -59,6 +84,25 @@ export function loadTemplate(manifest: TeamManifest, roleDefinitions: Map<string
       ? roleDef.capabilities as string[]
       : [];
 
+    // Hydrate prompts when present — the input shape mirrors openteams's
+    // `ResolvedPrompts` (`primary` string + `additional: PromptSection[]`).
+    // The editor's role config keeps them as `promptContent` (primary)
+    // and `additionalPrompts` (already `{name, content}[]`), so it's a
+    // direct mapping. Stage 1 of the round-trip plug.
+    const rolePrompts = prompts?.[roleName];
+    const promptContent = rolePrompts?.primary || undefined;
+    const additionalPrompts = rolePrompts?.additional
+      ? rolePrompts.additional.map((p) => ({ name: p.name, content: p.content }))
+      : undefined;
+
+    // Loadout binding — accept slug form for the editor's UI. Inline
+    // LoadoutDefinition bindings round-trip via the embedded-loadouts
+    // slice (we hoist them out of the role into a synthesized
+    // `__inline:<role>` loadout) but inline-bind authoring stays out
+    // of scope for v1.
+    const loadoutBinding =
+      typeof roleDef?.loadout === 'string' ? (roleDef.loadout as string) : undefined;
+
     roles.set(roleName, {
       name: roleName,
       displayName: roleDef?.display_name || roleName,
@@ -66,6 +110,9 @@ export function loadTemplate(manifest: TeamManifest, roleDefinitions: Map<string
       extends: roleDef?.extends,
       capabilities,
       placement: placementByRole[roleName],
+      promptContent,
+      additionalPrompts,
+      loadout: loadoutBinding,
     });
   }
 
@@ -105,6 +152,12 @@ export function loadTemplate(manifest: TeamManifest, roleDefinitions: Map<string
   useConfigStore.getState().loadFromManifest(
     team, roles, channels, subscriptions, emissions, peerRoutes, spawnRules, roleModels, topologyRoot, topologyCompanions,
   );
+
+  // Embedded loadouts: verbatim passthrough into the dedicated slice.
+  // `setLoadouts` runs *after* `loadFromManifest` because the latter
+  // doesn't touch loadouts (it predates this slice), and we want a
+  // clean initial state for history snapshots below.
+  useConfigStore.getState().setLoadouts(loadouts ?? {});
 
   // Build canvas from config
   const canvasState = configToCanvas(manifest, roleDefinitions);

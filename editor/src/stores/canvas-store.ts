@@ -7,10 +7,19 @@ interface CanvasStore {
   edges: EditorEdge[];
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
+  /**
+   * Currently-selected embedded loadout (by name). Loadouts aren't
+   * canvas nodes — they're a parallel authoring surface — but they
+   * still drive the right-hand Inspector, so we track their selection
+   * here next to nodes/edges. The three selection slots are mutually
+   * exclusive; setting one clears the others.
+   */
+  selectedLoadout: string | null;
 
   onNodesChange: (changes: any) => void;
   onEdgesChange: (changes: any) => void;
   setSelection: (nodeId: string | null, edgeId: string | null) => void;
+  setSelectedLoadout: (name: string | null) => void;
   setNodes: (nodes: EditorNode[]) => void;
   setEdges: (edges: EditorEdge[]) => void;
   addNode: (node: EditorNode) => void;
@@ -26,6 +35,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   edges: [],
   selectedNodeId: null,
   selectedEdgeId: null,
+  selectedLoadout: null,
 
   onNodesChange: (changes: any) => {
     set({ nodes: applyNodeChanges(changes, get().nodes as any) as any });
@@ -36,7 +46,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   setSelection: (nodeId, edgeId) => {
-    set({ selectedNodeId: nodeId, selectedEdgeId: edgeId });
+    set({ selectedNodeId: nodeId, selectedEdgeId: edgeId, selectedLoadout: null });
+  },
+
+  setSelectedLoadout: (name) => {
+    set({ selectedLoadout: name, selectedNodeId: null, selectedEdgeId: null });
   },
 
   setNodes: (nodes) => set({ nodes }),
@@ -75,6 +89,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   clear: () => {
-    set({ nodes: [], edges: [], selectedNodeId: null, selectedEdgeId: null });
+    set({ nodes: [], edges: [], selectedNodeId: null, selectedEdgeId: null, selectedLoadout: null });
   },
 }));

@@ -7,8 +7,12 @@ import { getChannelColors } from './node-styles';
 function ChannelNodeComponent({ data, selected }: NodeProps & { data: ChannelNodeData }) {
   const colors = getChannelColors();
   const maxSignals = 5;
-  const displaySignals = data.signals.slice(0, maxSignals);
-  const extraCount = data.signals.length - displaySignals.length;
+  // Channels authored without an explicit `signals:` array (e.g. via
+  // OpenHive's REST + minimal-content path) arrive here with `signals`
+  // undefined — fall back to an empty list rather than crashing.
+  const signals = Array.isArray(data.signals) ? data.signals : [];
+  const displaySignals = signals.slice(0, maxSignals);
+  const extraCount = signals.length - displaySignals.length;
 
   return (
     <div

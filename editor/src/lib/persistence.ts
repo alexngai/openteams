@@ -30,6 +30,11 @@ export interface EditorSavedState {
     roleModels: ReturnType<typeof useConfigStore.getState>['roleModels'];
     topologyRoot: string;
     topologyCompanions: string[];
+    /**
+     * Embedded loadouts slice. Optional so legacy snapshots predating
+     * the loadouts slice still parse — they hydrate as `{}`.
+     */
+    loadouts?: ReturnType<typeof useConfigStore.getState>['loadouts'];
   };
   canvas: {
     nodes: ReturnType<typeof useCanvasStore.getState>['nodes'];
