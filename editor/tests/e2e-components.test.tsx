@@ -346,7 +346,9 @@ describe('E2E: Component rendering', () => {
 
       fireEvent.click(screen.getByTestId('role-tab-prompts'));
 
-      expect(screen.getByText('Primary Prompt (ROLE.md)')).toBeInTheDocument();
+      // Label now carries a "  •  ~N tokens" suffix (S3 — richer prompt
+      // authoring). Match the stable prefix rather than the whole string.
+      expect(screen.getByText(/^Primary Prompt \(ROLE\.md\)/)).toBeInTheDocument();
     });
   });
 
