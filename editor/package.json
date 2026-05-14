@@ -25,8 +25,7 @@
     "test:watch": "vitest",
     "release:patch": "npm run build:lib && npm version patch && git push && git push --tags && npm publish",
     "release:minor": "npm run build:lib && npm version patch && git push && git push --tags && npm publish",
-    "release:major": "npm run build:lib && npm version major && git push && git push --tags && npm publish",
-    
+    "release:major": "npm run build:lib && npm version major && git push && git push --tags && npm publish"
   },
   "peerDependencies": {
     "@xyflow/react": "^12.6.0",
