@@ -16,7 +16,7 @@
     "build:esm": "tsc -p tsconfig.esm.json && echo '{\"type\":\"module\"}' > dist/esm/package.json",
     "build": "npm run clean && npm run build:cjs && npm run build:esm && npm run build:editor",
     "build:editor": "npm run build -w editor",
-    "prepublishOnly": "npm run build",
+    "prepublishOnly": "npm run build && publint",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -45,6 +45,7 @@
     "@multi-agent-protocol/sdk": "^0.1.13",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.2.1",
+    "publint": "^0.3.21",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   },
